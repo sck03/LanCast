@@ -1,0 +1,569 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-04",
+  "reviewedProgramCommit": "d14179169b412af779bd836ffffd0ba73cedeb06",
+  "scope": "Development build and automated recovery/version verification. No physical-device, production-signing, latency or long-duration acceptance.",
+  "sourceEquivalence": "The final change after f550bbf only changes Windows Opus runtime selection. Core/media-native sources are unchanged from dd95ce1. Each run records its actual tested source commit.",
+  "runs": [
+    {
+      "platform": "windows",
+      "case": "default",
+      "run": 37142794839,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142794839",
+      "sourceCommit": "d14179169b412af779bd836ffffd0ba73cedeb06",
+      "version": "0.4.0",
+      "buildNumber": 4,
+      "configuration": "Release",
+      "conclusion": "success"
+    },
+    {
+      "platform": "windows",
+      "case": "custom",
+      "run": 37142795156,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142795156",
+      "sourceCommit": "d14179169b412af779bd836ffffd0ba73cedeb06",
+      "version": "0.4.1",
+      "buildNumber": 41,
+      "configuration": "Debug",
+      "conclusion": "success"
+    },
+    {
+      "platform": "android",
+      "case": "default",
+      "run": 37142433116,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142433116",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.0",
+      "buildNumber": 4,
+      "configuration": "Debug",
+      "conclusion": "success"
+    },
+    {
+      "platform": "android",
+      "case": "custom",
+      "run": 37142488494,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142488494",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.1",
+      "buildNumber": 41,
+      "configuration": "Release",
+      "conclusion": "success"
+    },
+    {
+      "platform": "macos",
+      "case": "default",
+      "run": 37142433146,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142433146",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.0",
+      "buildNumber": 4,
+      "configuration": "Release",
+      "conclusion": "success"
+    },
+    {
+      "platform": "macos",
+      "case": "custom",
+      "run": 37142490887,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142490887",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.1",
+      "buildNumber": 41,
+      "configuration": "Debug",
+      "conclusion": "success"
+    },
+    {
+      "platform": "ios",
+      "case": "default",
+      "run": 37142433104,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142433104",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.0",
+      "buildNumber": 4,
+      "configuration": "Debug",
+      "conclusion": "success"
+    },
+    {
+      "platform": "ios",
+      "case": "custom",
+      "run": 37142492826,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142492826",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.1",
+      "buildNumber": 41,
+      "configuration": "Release",
+      "conclusion": "success"
+    },
+    {
+      "platform": "tvos",
+      "case": "default",
+      "run": 37142433125,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142433125",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.0",
+      "buildNumber": 4,
+      "configuration": "Debug",
+      "conclusion": "success"
+    },
+    {
+      "platform": "tvos",
+      "case": "custom",
+      "run": 37142494401,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37142494401",
+      "sourceCommit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "version": "0.4.1",
+      "buildNumber": 41,
+      "configuration": "Release",
+      "conclusion": "success"
+    },
+    {
+      "platform": "linux-core",
+      "case": "regression",
+      "run": 37141881948,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37141881948",
+      "sourceCommit": "dd95ce198b5a6703c56a40bb4af7f662de531993",
+      "conclusion": "success"
+    },
+    {
+      "platform": "linux-native",
+      "case": "regression",
+      "run": 37141881974,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37141881974",
+      "sourceCommit": "dd95ce198b5a6703c56a40bb4af7f662de531993",
+      "conclusion": "success"
+    }
+  ],
+  "tests": {
+    "rust": [
+      "Workspace tests and all-target/all-feature clippy on Linux and Windows",
+      "Injected-clock recovery deadlines and retries",
+      "WSS capability, transport lineage, stale answer/ICE filtering and stop"
+    ],
+    "windows": [
+      "rtc_contract: H264/Opus RTP before and after transport replacement",
+      "media_abi_contract: repeated load/create/stop/unload",
+      "PE imports and actual ProductVersion/FileVersion match"
+    ],
+    "macos": {
+      "count": 9,
+      "scope": "4 pure Swift contracts + 3 real WSS integration + H264 decode before/after RTC replacement + PCM resampling",
+      "rtcTestSeconds": 1.103
+    },
+    "android": [
+      "Three product APKs and lint in Debug and Release",
+      "aapt versionName/versionCode validation",
+      "ARM64 16KB and ARM32 4KB ELF alignment and ABI/player separation"
+    ],
+    "buildScripts": [
+      "Build input validation unit tests",
+      "actionlint 1.7.7 on all seven workflows"
+    ]
+  },
+  "audits": {
+    "apple": {
+      "commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "scope": "Offline archive verification; no runtime or signing acceptance",
+      "packages": [
+        {
+          "file": "LanCastMac-Debug.zip",
+          "architectures": [
+            "arm64",
+            "x86_64"
+          ],
+          "minimumOS": "13.0",
+          "version": "0.4.1",
+          "buildNumber": "41",
+          "bytes": 22343915,
+          "sha256": "0fe6fe27c3cf7fabdddaf6bf60b7895e6218a49f465216b71225fb5cb46df59c",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastIOS-Release-iphoneos.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "16.0",
+          "version": "0.4.1",
+          "buildNumber": "41",
+          "bytes": 16824710,
+          "sha256": "e36c6fe4709a5ff312beb859c5800edb9cc14b92aab54b4f2ef9881bfaabd81a",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastIOS-Release-iphonesimulator.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "16.0",
+          "version": "0.4.1",
+          "buildNumber": "41",
+          "bytes": 31423423,
+          "sha256": "a5e737059a35dfe5b0f4e40d9dfb44bad227087a759bb71e86151620babc582a",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastTV-Release-appletvsimulator.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "17.0",
+          "version": "0.4.1",
+          "buildNumber": "41",
+          "bytes": 8551537,
+          "sha256": "7614ad8505328b8a8981de67e6a10effd0abd3fc50d791076ad2790ea888537a",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastTV-Release-appletvos.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "17.0",
+          "version": "0.4.1",
+          "buildNumber": "41",
+          "bytes": 8334571,
+          "sha256": "e19396d735c457d2e67887ba3e0b53a8bbad6d790d357d307906e6daaed2b1fd",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        }
+      ],
+      "buildReports": [
+        {
+          "commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+          "platform": "macos",
+          "webrtcVersion": "150.7871.02",
+          "webrtcSha256": "a523cd141d2aa6c3638d49fea1f72b0aafd28a8818c35fc240e08418da3d2fda",
+          "buildConfig": {
+            "platform": "macos",
+            "version": "0.4.1",
+            "build_number": 41,
+            "configuration": "Debug",
+            "android_abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "source_commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+            "artifact_label": "0.4.1-41-Debug",
+            "signing": "development or unsigned; no production signing credentials used"
+          },
+          "xcodegenVersion": "2.44.1",
+          "xcodegenSha256": "a2e905fb68446e9bb4008cdfe2e13e3f176d0cbcca828b71770f8e53fca91b73",
+          "xcode": "Xcode 16.4\nBuild version 16F6",
+          "rust": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "targets": [
+            [
+              "macos",
+              [
+                "aarch64-apple-darwin",
+                "x86_64-apple-darwin"
+              ]
+            ]
+          ],
+          "deviceSigning": "unsigned; user signing required",
+          "binaries": [
+            {
+              "product": "Debug",
+              "architectures": [
+                "x86_64",
+                "arm64"
+              ]
+            }
+          ],
+          "scope": "Builds and automated tests only; no physical device or performance acceptance",
+          "artifacts": [
+            {
+              "file": "LanCastMac-Debug.zip",
+              "bytes": 22343915,
+              "sha256": "0fe6fe27c3cf7fabdddaf6bf60b7895e6218a49f465216b71225fb5cb46df59c"
+            }
+          ]
+        },
+        {
+          "commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+          "platform": "ios",
+          "webrtcVersion": "150.7871.02",
+          "webrtcSha256": "a523cd141d2aa6c3638d49fea1f72b0aafd28a8818c35fc240e08418da3d2fda",
+          "buildConfig": {
+            "platform": "ios",
+            "version": "0.4.1",
+            "build_number": 41,
+            "configuration": "Release",
+            "android_abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "source_commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+            "artifact_label": "0.4.1-41-Release",
+            "signing": "development or unsigned; no production signing credentials used"
+          },
+          "xcodegenVersion": "2.44.1",
+          "xcodegenSha256": "a2e905fb68446e9bb4008cdfe2e13e3f176d0cbcca828b71770f8e53fca91b73",
+          "xcode": "Xcode 16.4\nBuild version 16F6",
+          "rust": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "targets": [
+            [
+              "ios",
+              [
+                "aarch64-apple-ios"
+              ]
+            ],
+            [
+              "ios-simulator",
+              [
+                "aarch64-apple-ios-sim",
+                "x86_64-apple-ios"
+              ]
+            ]
+          ],
+          "deviceSigning": "unsigned; user signing required",
+          "binaries": [
+            {
+              "product": "Release-iphonesimulator",
+              "architectures": [
+                "arm64"
+              ]
+            },
+            {
+              "product": "Release-iphoneos",
+              "architectures": [
+                "arm64"
+              ]
+            }
+          ],
+          "scope": "Builds and automated tests only; no physical device or performance acceptance",
+          "artifacts": [
+            {
+              "file": "LanCastIOS-Release-iphoneos.zip",
+              "bytes": 16824710,
+              "sha256": "e36c6fe4709a5ff312beb859c5800edb9cc14b92aab54b4f2ef9881bfaabd81a"
+            },
+            {
+              "file": "LanCastIOS-Release-iphonesimulator.zip",
+              "bytes": 31423423,
+              "sha256": "a5e737059a35dfe5b0f4e40d9dfb44bad227087a759bb71e86151620babc582a"
+            }
+          ]
+        },
+        {
+          "commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+          "platform": "tvos",
+          "webrtcVersion": "150.7871.02",
+          "webrtcSha256": "a523cd141d2aa6c3638d49fea1f72b0aafd28a8818c35fc240e08418da3d2fda",
+          "buildConfig": {
+            "platform": "tvos",
+            "version": "0.4.1",
+            "build_number": 41,
+            "configuration": "Release",
+            "android_abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "source_commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+            "artifact_label": "0.4.1-41-Release",
+            "signing": "development or unsigned; no production signing credentials used"
+          },
+          "xcodegenVersion": "2.44.1",
+          "xcodegenSha256": "a2e905fb68446e9bb4008cdfe2e13e3f176d0cbcca828b71770f8e53fca91b73",
+          "xcode": "Xcode 16.4\nBuild version 16F6",
+          "rust": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "targets": [
+            [
+              "tvos",
+              [
+                "aarch64-apple-tvos"
+              ]
+            ],
+            [
+              "tvos-simulator",
+              [
+                "aarch64-apple-tvos-sim"
+              ]
+            ]
+          ],
+          "deviceSigning": "unsigned; user signing required",
+          "binaries": [
+            {
+              "product": "Release-appletvos",
+              "architectures": [
+                "arm64"
+              ]
+            },
+            {
+              "product": "Release-appletvsimulator",
+              "architectures": [
+                "arm64"
+              ]
+            }
+          ],
+          "scope": "Builds and automated tests only; no physical device or performance acceptance",
+          "artifacts": [
+            {
+              "file": "LanCastTV-Release-appletvsimulator.zip",
+              "bytes": 8551537,
+              "sha256": "7614ad8505328b8a8981de67e6a10effd0abd3fc50d791076ad2790ea888537a"
+            },
+            {
+              "file": "LanCastTV-Release-appletvos.zip",
+              "bytes": 8334571,
+              "sha256": "e19396d735c457d2e67887ba3e0b53a8bbad6d790d357d307906e6daaed2b1fd"
+            }
+          ]
+        }
+      ]
+    },
+    "android": {
+      "platform": "android",
+      "version": "0.4.1",
+      "build_number": 41,
+      "configuration": "Release",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "f550bbfe7d91710d0c956e9daf10529ca8a819b4",
+      "artifact_label": "0.4.1-41-Release",
+      "signing": "development or unsigned; no production signing credentials used",
+      "artifacts": [
+        {
+          "file": "android/app-receiver/build/outputs/apk/legacy/release/app-receiver-legacy-release-unsigned.apk",
+          "bytes": 32484270,
+          "sha256": "d01bce63a6b88773bd5b9a1651f804f22f2237528ba3c91f89050d39906b09d1"
+        },
+        {
+          "file": "android/app-receiver/build/outputs/apk/standard/release/app-receiver-standard-release-unsigned.apk",
+          "bytes": 35429496,
+          "sha256": "04d606cfa741fb634d92253a563e7f3b01440a56af8f0c4dc8468bfb7f477742"
+        },
+        {
+          "file": "android/app-sender/build/outputs/apk/release/app-sender-release-unsigned.apk",
+          "bytes": 44778128,
+          "sha256": "b19be47b5933e810511528a3f141e6ad4145849af1c7ea05d2fd681a6001ce78"
+        }
+      ],
+      "downloadedHashesVerified": true,
+      "versionVerification": "aapt dump badging in the successful CI run; APK hashes verified independently after download"
+    },
+    "windows": {
+      "platform": "windows",
+      "version": "0.4.1",
+      "build_number": 41,
+      "configuration": "Debug",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "d14179169b412af779bd836ffffd0ba73cedeb06",
+      "artifact_label": "0.4.1-41-Debug",
+      "signing": "development or unsigned; no production signing credentials used",
+      "binaries": [
+        {
+          "file": "LanCast.exe",
+          "bytes": 1750016,
+          "sha256": "73f501346ae210fd2e35e8b688947886959b41aaf6b07c77253129ec0b489d25",
+          "imports": [
+            "lancast_core.dll",
+            "ole32.dll",
+            "shell32.dll",
+            "comdlg32.dll",
+            "kernel32.dll",
+            "user32.dll"
+          ]
+        },
+        {
+          "file": "lancast_core.dll",
+          "bytes": 6362624,
+          "sha256": "60fea97e857741f9c5c2f77d8323a20ba614eb72af0d4e4cbac265f1c3d67b1e",
+          "imports": [
+            "kernel32.dll",
+            "api-ms-win-core-synch-l1-2-0.dll",
+            "ws2_32.dll",
+            "ntdll.dll",
+            "bcryptprimitives.dll",
+            "iphlpapi.dll",
+            "bcrypt.dll",
+            "advapi32.dll"
+          ]
+        },
+        {
+          "file": "lancast_rtc.dll",
+          "bytes": 9560576,
+          "sha256": "1e4bbf44ebb3b3863b2db287bb552fc28c8496a361f37d3ea732455f2016e797",
+          "imports": [
+            "d3d11.dll",
+            "dxgi.dll",
+            "mfplat.dll",
+            "api-ms-win-core-profile-l1-1-0.dll",
+            "api-ms-win-core-com-l1-1-0.dll",
+            "oleaut32.dll",
+            "api-ms-win-core-libraryloader-l1-2-0.dll",
+            "api-ms-win-core-string-l1-1-0.dll",
+            "api-ms-win-core-processthreads-l1-1-0.dll",
+            "api-ms-win-core-synch-l1-1-0.dll",
+            "api-ms-win-core-processenvironment-l1-1-0.dll",
+            "api-ms-win-core-console-l1-1-0.dll",
+            "api-ms-win-core-console-l2-1-0.dll",
+            "ws2_32.dll",
+            "iphlpapi.dll",
+            "bcrypt.dll",
+            "kernel32.dll",
+            "user32.dll",
+            "api-ms-win-core-localization-l1-2-0.dll",
+            "api-ms-win-core-sysinfo-l1-2-0.dll",
+            "api-ms-win-core-synch-l1-2-0.dll",
+            "api-ms-win-core-sysinfo-l1-1-0.dll",
+            "api-ms-win-core-rtlsupport-l1-1-0.dll",
+            "api-ms-win-core-errorhandling-l1-1-0.dll",
+            "api-ms-win-core-heap-l2-1-0.dll",
+            "api-ms-win-core-file-l1-1-0.dll",
+            "api-ms-win-core-file-l1-2-0.dll",
+            "api-ms-win-core-processthreads-l1-1-1.dll",
+            "api-ms-win-core-threadpool-l1-2-0.dll",
+            "api-ms-win-core-file-l2-1-0.dll",
+            "api-ms-win-core-util-l1-1-0.dll",
+            "api-ms-win-core-debug-l1-1-0.dll",
+            "api-ms-win-core-interlocked-l1-1-0.dll",
+            "api-ms-win-core-heap-l1-1-0.dll",
+            "api-ms-win-core-memory-l1-1-0.dll",
+            "api-ms-win-core-timezone-l1-1-0.dll",
+            "api-ms-win-core-fibers-l1-1-0.dll",
+            "api-ms-win-core-fibers-l1-1-1.dll",
+            "api-ms-win-core-datetime-l1-1-0.dll",
+            "api-ms-win-core-winrt-l1-1-0.dll",
+            "api-ms-win-core-winrt-error-l1-1-1.dll"
+          ]
+        },
+        {
+          "file": "lancast_ts.dll",
+          "bytes": 6592322,
+          "sha256": "3254452eaefd079caf6d85babe39ca13c2fdf063afd17e3661b6af493eb4be6e",
+          "imports": [
+            "bcrypt.dll",
+            "kernel32.dll",
+            "api-ms-win-crt-convert-l1-1-0.dll",
+            "api-ms-win-crt-environment-l1-1-0.dll",
+            "api-ms-win-crt-filesystem-l1-1-0.dll",
+            "api-ms-win-crt-heap-l1-1-0.dll",
+            "api-ms-win-crt-locale-l1-1-0.dll",
+            "api-ms-win-crt-math-l1-1-0.dll",
+            "api-ms-win-crt-private-l1-1-0.dll",
+            "api-ms-win-crt-runtime-l1-1-0.dll",
+            "api-ms-win-crt-stdio-l1-1-0.dll",
+            "api-ms-win-crt-string-l1-1-0.dll",
+            "api-ms-win-crt-time-l1-1-0.dll",
+            "api-ms-win-crt-utility-l1-1-0.dll"
+          ]
+        }
+      ],
+      "downloadedHashesVerified": true,
+      "executableVersionVerified": "ProductVersion 0.4.1; FileVersion 0.4.1.41; verified through Windows VersionInfo after download"
+    }
+  },
+  "remaining": [
+    "Physical-device network/capture/audio interoperability and long-duration acceptance",
+    "Android custom WebRTC source build and binary trimming",
+    "Production signing, distribution and complete binary SBOM"
+  ]
+}
