@@ -68,11 +68,11 @@ def main(target):
     libraries = []
     for name, targets in TARGETS[args.platform]:
         slices = []
-        for target in targets:
-            run("rustup", "target", "add", target)
+        for rust_target in targets:
+            run("rustup", "target", "add", rust_target)
             features = "legacy" if args.platform == "tvos" else "sender,legacy"
-            run("cargo", "build", "--release", "--locked", "-p", "cast-ffi", "--no-default-features", "--features", features, "--target", target, env=env)
-            slices.append(ROOT / "target" / target / "release/liblancast_core.a")
+            run("cargo", "build", "--release", "--locked", "-p", "cast-ffi", "--no-default-features", "--features", features, "--target", rust_target, env=env)
+            slices.append(ROOT / "target" / rust_target / "release/liblancast_core.a")
         output = CACHE / name / "liblancast_core.a"; output.parent.mkdir(parents=True, exist_ok=True)
         if len(slices) > 1: run("lipo", "-create", *slices, "-output", output)
         else: shutil.copy2(slices[0], output)
