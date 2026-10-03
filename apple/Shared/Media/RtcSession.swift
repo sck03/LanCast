@@ -3,8 +3,15 @@ import CoreMedia
 import LiveKitWebRTC
 import LanCastContracts
 
+private final class RtcFrameProbe: NSObject, LKRTCVideoRenderer {
+    let frame: () -> Void
+    init(frame: @escaping () -> Void) { self.frame = frame }
+    func setSize(_ size: CGSize) {}
+    func renderFrame(_ value: LKRTCVideoFrame?) { if value != nil { frame() } }
+}
+
 /// All SDP/ICE and lifetime mutations run here. Capture queues only submit bounded samples.
-final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRenderer {
+final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
     // Process lifetime, shared by sender/receiver factories. Never clean up while peers exist.
     private static let sslReady = LKRTCInitializeSSL()
     private let queue = DispatchQueue(label: "dev.lancast.rtc")
@@ -14,6 +21,7 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     private var source: LKRTCVideoSource?
     private var capturer: LKRTCVideoCapturer?
     private var remoteVideo: LKRTCVideoTrack?
+    private var frameProbe: RtcFrameProbe?
     private var audioInput: LCSystemAudioDevice?
     private var negotiation = ""
     private var remoteSet = false
@@ -92,7 +100,8 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     }
     private func clearPeer() {
         transportGeneration = UUID()
-        remoteVideo?.remove(self); remoteVideo = nil; track(nil)
+        if let frameProbe { remoteVideo?.remove(frameProbe) }; frameProbe = nil
+        remoteVideo = nil; track(nil)
         peer?.delegate = nil; peer?.close(); peer = nil
     }
     private var constraints: LKRTCMediaConstraints { LKRTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil) }
@@ -249,11 +258,6 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
         _ = audioInput?.terminateDevice()
         capturer = nil; source = nil; videoTrack = nil; audioTrack = nil; factory = nil; audioInput = nil
     }
-    func setSize(_ size: CGSize) {}
-    func renderFrame(_ frame: LKRTCVideoFrame?) {
-        guard frame != nil else { return }
-        submit { [self] in if !receivedFrame { receivedFrame = true; status("first_frame") } }
-    }
     func peerConnection(_ peerConnection: LKRTCPeerConnection, didGenerate candidate: LKRTCIceCandidate) {
         submit { [self] in
             guard peerConnection === peer else { return }
@@ -265,7 +269,17 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     func peerConnection(_ peerConnection: LKRTCPeerConnection, didAdd rtpReceiver: LKRTCRtpReceiver, streams: [LKRTCMediaStream]) {
         submit { [self] in
             guard peerConnection === peer else { return }
-            if let video = rtpReceiver.track as? LKRTCVideoTrack { remoteVideo?.remove(self); remoteVideo = video; video.add(self); track(video) }
+            if let video = rtpReceiver.track as? LKRTCVideoTrack {
+                if let frameProbe { remoteVideo?.remove(frameProbe) }
+                let current = transportGeneration
+                let probe = RtcFrameProbe { [weak self] in
+                    self?.submit {
+                        guard let self, self.transportGeneration == current, !self.receivedFrame else { return }
+                        self.receivedFrame = true; self.status("first_frame")
+                    }
+                }
+                frameProbe = probe; remoteVideo = video; video.add(probe); track(video)
+            }
         }
     }
     func peerConnection(_ peerConnection: LKRTCPeerConnection, didChange newState: LKRTCPeerConnectionState) {

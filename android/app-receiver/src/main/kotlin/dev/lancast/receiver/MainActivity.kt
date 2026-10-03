@@ -74,7 +74,7 @@ class MainActivity : Activity() {
                 if (body.getString("mode") == "mirror") {
                     val renderer = SurfaceViewRenderer(this)
                     display.addView(renderer, FrameLayout.LayoutParams(-1, -1))
-                    peer = RtcPeer(this, renderer, { type, data -> if (sessionId == activeSession) core?.send(type, activeSession, data) }, { value -> runOnUiThread { if (sessionId == activeSession) mediaStatus(value) } }, recoveryEnabled = body.optString("rtcRecovery") == "replace-v1")
+                    peer = RtcPeer(this, renderer, { type, data -> runOnUiThread { if (sessionId == activeSession) core?.send(type, activeSession, data) } }, { value -> runOnUiThread { if (sessionId == activeSession) mediaStatus(value) } }, recoveryEnabled = body.optString("rtcRecovery") == "replace-v1")
                 } else {
                     player = PlatformPlayer(this) { value -> if (sessionId == activeSession) mediaStatus(value) }
                     display.addView(player!!.view, FrameLayout.LayoutParams(-1, -1))

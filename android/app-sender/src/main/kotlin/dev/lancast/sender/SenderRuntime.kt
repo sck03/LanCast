@@ -95,7 +95,7 @@ object SenderRuntime {
                         if (permission != null) {
                             grant = null
                             val active = generation
-                            peer = RtcPeer(context!!, null, { type, value -> if (generation == active) core?.send(type, sessionId, value) }, { value ->
+                            peer = RtcPeer(context!!, null, { type, value -> android.os.Handler(android.os.Looper.getMainLooper()).post { if (generation == active) core?.send(type, sessionId, value) } }, { value ->
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     if (generation != active) return@post
                                     observer?.invoke(JSONObject().put("type", "media.status").put("body", JSONObject().put("status", value)))

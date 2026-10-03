@@ -92,6 +92,12 @@ class RtcPeer(
         peer = checkNotNull(factory!!.createPeerConnection(config, observer(transportGeneration)))
         peer!!.setAudioRecording(internalAudioEnabled)
         peer!!.setAudioPlayout(renderer != null)
+        val epoch = transportGeneration
+        worker.postDelayed({
+            if (!closed.get() && epoch == transportGeneration && renderer != null && !receivedFrame) {
+                status("RTC_FIRST_FRAME_FAILED"); close()
+            }
+        }, 20_000)
     }
     private fun replacePeer() {
         // Keep MediaProjection, its one-use grant, texture/source and audio input alive.
