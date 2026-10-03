@@ -14,6 +14,9 @@ FetchContent_Declare(opus GIT_REPOSITORY https://github.com/xiph/opus.git GIT_TA
 set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(datachannel opus)
+# Opus 1.5.2 overrides the parent runtime setting with /MDd in Debug.
+# Set the actual target property after creation to match our pinned static TLS input.
+set_target_properties(opus PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
 add_library(lancast_rtc SHARED backend.cpp capture.cpp encoder.cpp audio.cpp rtc_channel.cpp ts_output.cpp h264_metadata.cpp)
 target_include_directories(lancast_rtc PRIVATE ../../media-native/include)
 target_compile_definitions(lancast_rtc PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00)
