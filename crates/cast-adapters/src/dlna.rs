@@ -18,6 +18,8 @@ pub struct Renderer {
     pub transport: Service,
     pub rendering: Option<Service>,
     pub connection: Option<Service>,
+    #[serde(default)]
+    pub signature: String,
 }
 pub fn lan_ip(ip: IpAddr) -> bool {
     match ip {
@@ -121,6 +123,17 @@ pub fn parse_renderer(raw: &str, location: &str, source: IpAddr) -> anyhow::Resu
         transport: get("AVTransport").context("NO_AVTRANSPORT")?,
         rendering: get("RenderingControl"),
         connection: get("ConnectionManager"),
+        signature: {
+            use sha2::{Digest, Sha256};
+            hex::encode(Sha256::digest(format!(
+                "{}|{}|{}|{}|{}",
+                text(device, "UDN"),
+                text(device, "manufacturer"),
+                text(device, "modelName"),
+                text(device, "modelNumber"),
+                text(device, "softwareVersion")
+            )))
+        },
     })
 }
 pub fn escape(value: &str) -> String {
@@ -142,6 +155,32 @@ pub enum MediaKind {
     LiveTs,
 }
 impl Controller {
+    pub async fn state(&self) -> anyhow::Result<String> {
+        let raw = self.command("state", None).await?;
+        let doc = xml(&raw)?;
+        Ok(doc
+            .descendants()
+            .find(|n| n.has_tag_name("CurrentTransportState"))
+            .and_then(|n| n.text())
+            .context("DLNA_STATE_MISSING")?
+            .to_owned())
+    }
+    pub async fn current_uri(&self) -> anyhow::Result<String> {
+        let raw = self
+            .action(
+                &self.device.transport,
+                "GetMediaInfo",
+                &[("InstanceID", "0".into())],
+            )
+            .await?;
+        let doc = xml(&raw)?;
+        Ok(doc
+            .descendants()
+            .find(|n| n.has_tag_name("CurrentURI"))
+            .and_then(|n| n.text())
+            .unwrap_or("")
+            .to_owned())
+    }
     pub fn new(device: Renderer) -> anyhow::Result<Self> {
         Ok(Self {
             client: client()?,

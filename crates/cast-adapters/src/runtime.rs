@@ -131,6 +131,10 @@ impl Engine {
                         bridges: Vec::new(),
                         #[cfg(feature = "sender")]
                         live: live_worker,
+                        #[cfg(feature = "sender")]
+                        profiles: None,
+                        #[cfg(feature = "sender")]
+                        live_context: None,
                     };
                     loop {
                         let command = tokio::select! { biased;
@@ -240,6 +244,10 @@ struct Runtime {
     bridges: Vec<Arc<crate::legacy_bridge::Bridge>>,
     #[cfg(feature = "sender")]
     live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
+    #[cfg(feature = "sender")]
+    profiles: Option<crate::profiles::ProfileStore>,
+    #[cfg(feature = "sender")]
+    live_context: Option<(dlna::Renderer, String, bool)>,
 }
 struct Server {
     identity: Arc<Identity>,
@@ -387,6 +395,10 @@ impl Runtime {
                 if let Some(live) = self.live.lock().unwrap().take() {
                     live.revoke();
                 }
+                #[cfg(feature = "sender")]
+                {
+                    self.live_context = None;
+                }
                 self.client = None;
                 for resource in self.resources.drain(..) {
                     resource.revoke();
@@ -453,6 +465,33 @@ impl Runtime {
                     .context("DLNA_UNAVAILABLE")?
                     .clone();
                 let controller = dlna::Controller::new(device)?;
+                #[cfg(feature = "sender")]
+                if c["op"] == "dlna.load" && c["live"].as_bool().unwrap_or(false) {
+                    let (device, _, probe) =
+                        self.live_context.as_ref().context("LIVE_NOT_PREPARED")?;
+                    ensure!(device.id == controller.device.id, "LIVE_DEVICE_MISMATCH");
+                    let live = self
+                        .live
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .cloned()
+                        .context("NO_LIVE_RESOURCE")?;
+                    let url = string(&c, "url")?.to_owned();
+                    let events = self.events.clone();
+                    let probe = *probe;
+                    self.tasks.push(tokio::spawn(async move {
+                        let result =
+                            crate::live_session::run(controller, live, url, probe, |kind, body| {
+                                event(&events, kind, body)
+                            })
+                            .await;
+                        if let Err(error) = result {
+                            event(&events, "live.failed", json!({"code":error.to_string()}));
+                        }
+                    }));
+                    return Ok(());
+                }
                 if c["op"] == "dlna.load" {
                     controller
                         .load_media(
@@ -505,16 +544,104 @@ impl Runtime {
                 event(&self.events, "bridge.ready", json!({"url":url}));
             }
             #[cfg(feature = "sender")]
+            "profiles.open" => {
+                ensure!(self.profiles.is_none(), "PROFILES_ALREADY_OPEN");
+                self.profiles = Some(crate::profiles::ProfileStore::open(
+                    string(&c, "path")?.into(),
+                )?);
+            }
+            #[cfg(feature = "sender")]
+            "profile.check" => {
+                let device = self
+                    .renderers
+                    .get(string(&c, "deviceId")?)
+                    .context("DLNA_UNAVAILABLE")?;
+                let profile = live_profile(c["audio"].as_bool().unwrap_or(true));
+                let evidence = self.profiles.as_ref().and_then(|store| {
+                    store.get(
+                        &device.id,
+                        &device.signature,
+                        &profile,
+                        crate::profiles::now(),
+                    )
+                });
+                event(
+                    &self.events,
+                    "profile.checked",
+                    json!({"deviceId":device.id,"profile":profile,"passed":evidence.is_some_and(|e| e.passed),"evidence":evidence}),
+                );
+            }
+            #[cfg(feature = "sender")]
+            "probe.confirm" => {
+                let (device, profile, probe) = self.live_context.as_ref().context("NO_PROBE")?;
+                ensure!(*probe, "NO_PROBE");
+                let live = self
+                    .live
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .cloned()
+                    .context("NO_PROBE")?;
+                ensure!(!live.cancellation().is_cancelled(), "PROBE_EXPIRED");
+                let passed = c["passed"].as_bool().context("PROBE_RESULT_REQUIRED")?;
+                ensure!(!passed || live.delivered() > 0, "PROBE_NOT_PULLING");
+                self.profiles
+                    .as_mut()
+                    .context("PROFILE_STORE_REQUIRED")?
+                    .save(
+                        device.id.clone(),
+                        crate::profiles::Evidence {
+                            signature: device.signature.clone(),
+                            profile: profile.clone(),
+                            confirmed_at: crate::profiles::now(),
+                            passed,
+                            source: "user_confirmed_synthetic".into(),
+                        },
+                    )?;
+                event(
+                    &self.events,
+                    "probe.saved",
+                    json!({"deviceId":device.id,"passed":passed,"profile":profile}),
+                );
+                live.revoke();
+            }
+            #[cfg(feature = "sender")]
             "live.create" => {
                 ensure!(self.live.lock().unwrap().is_none(), "LIVE_ALREADY_ACTIVE");
+                let device = self
+                    .renderers
+                    .get(string(&c, "deviceId")?)
+                    .context("DLNA_UNAVAILABLE")?
+                    .clone();
+                let probe = c["synthetic"].as_bool().unwrap_or(false);
+                let profile = live_profile(c["audio"].as_bool().unwrap_or(true));
+                ensure!(
+                    probe
+                        || self
+                            .profiles
+                            .as_ref()
+                            .and_then(|store| store.get(
+                                &device.id,
+                                &device.signature,
+                                &profile,
+                                crate::profiles::now()
+                            ))
+                            .is_some_and(|e| e.passed),
+                    "SYNTHETIC_PROBE_REQUIRED"
+                );
+                ensure!(
+                    string(&c, "allowedIp")?.parse::<IpAddr>()? == device.ip,
+                    "LIVE_DEVICE_MISMATCH"
+                );
                 let live = crate::live::LiveResource::new(string(&c, "allowedIp")?.parse()?);
                 let (url, task) = live.clone().bind(string(&c, "address")?.parse()?).await?;
                 *self.live.lock().unwrap() = Some(live);
+                self.live_context = Some((device, profile, probe));
                 self.tasks.push(task);
                 event(
                     &self.events,
                     "live.created",
-                    json!({"url":url,"mime":"video/mpeg","encrypted":false}),
+                    json!({"url":url,"mime":"video/mpeg","encrypted":false,"synthetic":probe,"generation":c["generation"]}),
                 );
             }
             #[cfg(feature = "sender")]
@@ -536,6 +663,13 @@ impl Runtime {
         }
         Ok(())
     }
+}
+#[cfg(feature = "sender")]
+fn live_profile(audio: bool) -> String {
+    format!(
+        "ts-h264-baseline-1280x720-30-v1-{}",
+        if audio { "aac48-stereo" } else { "silent" }
+    )
 }
 // The handshake callback signature is imposed by tungstenite's public API.
 #[allow(clippy::result_large_err)]

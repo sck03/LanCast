@@ -19,6 +19,9 @@ object SenderRuntime {
     private var grant: Intent? = null
     private var context: Context? = null
     private var withAudio = false
+    var probing = false
+        private set
+    private var profilesPath: String? = null
     private var media: JSONObject? = null
     var receiverAddress = ""
     var connected = false
@@ -26,16 +29,25 @@ object SenderRuntime {
     var dlnaId: String? = null
     var dlnaIp: String? = null
     private var stopService: (() -> Unit)? = null
-    fun ensureCore() { if (core == null) core = ControlSession(::onEvent) }
+    fun ensureCore(context: Context? = null) {
+        if (context != null) profilesPath = java.io.File(context.filesDir, "receiver-profiles.json").absolutePath
+        if (core == null) { core = ControlSession(::onEvent); profilesPath?.let { core!!.command("profiles.open", JSONObject().put("path", it)) } }
+    }
     fun command(op: String, body: JSONObject = JSONObject()) { ensureCore(); core!!.command(op, body) }
     fun beginCapture(context: Context, permission: Intent, audio: Boolean, stopService: () -> Unit) {
         check(connected || dlnaId != null)
         check(peer == null && liveCapture == null && grant == null) { "先停止当前分享" }
         generation++
         this.context = context.applicationContext; grant = permission; withAudio = audio; this.stopService = stopService
-        if (dlnaId != null) command("live.create", JSONObject().put("address", "$localAddress:0").put("allowedIp", dlnaIp))
+        probing = false
+        if (dlnaId != null) createLive()
         else core!!.send("session.start", null, JSONObject().put("mode", "mirror").put("audioRequested", audio))
     }
+    fun beginProbe(context: Context, audio: Boolean) {
+        check(dlnaId != null && liveCapture == null && peer == null && grant == null) { "先选择电视并停止当前分享" }
+        ensureCore(context); this.context = context.applicationContext; withAudio = audio; probing = true; generation++; createLive()
+    }
+    private fun createLive() { command("live.create", JSONObject().put("address", "$localAddress:0").put("allowedIp", dlnaIp).put("deviceId", dlnaId).put("synthetic", probing).put("audio", withAudio).put("generation", generation)) }
     fun playback(action: String, positionMs: Long = 0) {
         check(liveCapture == null || action == "stop") { "直播只支持停止，不能暂停或跳转" }
         if (dlnaId != null) command("dlna.command", JSONObject().put("deviceId", dlnaId).put("action", action).put("positionMs", positionMs))
@@ -45,7 +57,9 @@ object SenderRuntime {
         val body = event.optJSONObject("body") ?: JSONObject()
         when (event.optString("type")) {
             "live.created" -> {
-                val permission = grant ?: return
+                if (body.optLong("generation", -1) != generation) return
+                val permission = grant
+                if (permission == null && !probing) return
                 grant = null; liveUrl = body.getString("url")
                 val active = generation
                 liveCapture = DlnaCapture(context!!, { bytes -> core?.writeTs(bytes) ?: -1 }) { value ->
@@ -56,9 +70,11 @@ object SenderRuntime {
                             observer?.invoke(JSONObject().put("type", "media.status").put("body", JSONObject().put("status", value)))
                         }
                     }
-                }.also { it.start(permission, withAudio) }
+                }.also { if (probing) it.startProbe(withAudio) else it.start(checkNotNull(permission), withAudio) }
             }
-            "error" -> if (liveCapture != null || grant != null) stop()
+            "probe.saved" -> stop()
+            "live.failed" -> { stop(); observer?.invoke(JSONObject().put("type", "error").put("body", body)) }
+            "error" -> if (liveCapture != null || grant != null || probing) stop()
             "connected" -> connected = true
             "disconnected" -> { connected = false; stopCapture(); core?.close(); core = null }
             "file.shared" -> {
@@ -94,7 +110,7 @@ object SenderRuntime {
         }
         observer?.invoke(event)
     }
-    private fun stopCapture() { generation++; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
+    private fun stopCapture() { generation++; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
     fun stop() {
         sessionId?.let { core?.send("session.stop", it, JSONObject().put("reason", "sender_stopped")) }
         if (dlnaId != null) playback("stop")

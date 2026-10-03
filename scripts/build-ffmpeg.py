@@ -36,7 +36,15 @@ if args.android:
     tools = ndk / "toolchains/llvm/prebuilt/linux-x86_64/bin"
     arch, triple = ("arm", "armv7a-linux-androideabi21") if args.android == "armeabi-v7a" else ("aarch64", "aarch64-linux-android21")
     options += ["--enable-cross-compile", "--target-os=android", "--arch=" + arch, "--cc=" + str(tools / (triple + "-clang")), "--cxx=" + str(tools / (triple + "-clang++")), "--ar=" + str(tools / "llvm-ar"), "--ranlib=" + str(tools / "llvm-ranlib"), "--strip=" + str(tools / "llvm-strip")]
-subprocess.run(options, cwd=build, check=True)
+if os.name == "nt":
+    # Native Python cannot execute configure's POSIX shebang on Windows.
+    posix = lambda path: subprocess.check_output(["cygpath", "-u", str(path)], text=True).strip()
+    options[0] = posix(source / "configure")
+    options[1] = "--prefix=" + posix(prefix)
+    options += ["--target-os=mingw64", "--arch=x86_64", "--disable-pthreads"]
+    subprocess.run(["bash", *options], cwd=build, check=True)
+else:
+    subprocess.run(options, cwd=build, check=True)
 subprocess.run(["make", "-j" + str(min(os.cpu_count() or 2, 8))], cwd=build, check=True)
 subprocess.run(["make", "install"], cwd=build, check=True)
 (prefix / "build-manifest.json").write_text(json.dumps({"version": VERSION, "source_sha256": SHA256, "configure": options, "abi": args.android or "host"}, indent=2))

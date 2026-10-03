@@ -8,7 +8,11 @@ pub mod http_server;
 pub mod legacy_bridge;
 #[cfg(feature = "sender")]
 pub mod live;
+#[cfg(feature = "sender")]
+pub mod live_session;
 pub mod media_http;
+#[cfg(feature = "sender")]
+pub mod profiles;
 pub mod protocol;
 pub mod runtime;
 pub mod session;

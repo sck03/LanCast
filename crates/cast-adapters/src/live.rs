@@ -32,6 +32,9 @@ pub struct LiveResource {
     stop: CancellationToken,
     readers: Mutex<Vec<Reader>>,
     pulls: AtomicU64,
+    ready: std::sync::atomic::AtomicBool,
+    ingress: Mutex<StartGate>,
+    delivered: AtomicU64,
 }
 impl LiveResource {
     pub fn new(allowed: IpAddr) -> Arc<Self> {
@@ -43,6 +46,9 @@ impl LiveResource {
             stop: CancellationToken::new(),
             readers: Mutex::new(Vec::new()),
             pulls: AtomicU64::new(0),
+            ready: std::sync::atomic::AtomicBool::new(false),
+            ingress: Mutex::new(StartGate::default()),
+            delivered: AtomicU64::new(0),
         })
     }
     pub fn revoke(&self) {
@@ -56,9 +62,38 @@ impl LiveResource {
     pub fn pulls(&self) -> u64 {
         self.pulls.load(Ordering::Acquire)
     }
+    pub fn cancellation(&self) -> CancellationToken {
+        self.stop.clone()
+    }
+    pub fn ready(&self) -> bool {
+        self.ready.load(Ordering::Acquire)
+    }
+    pub fn delivered(&self) -> u64 {
+        self.delivered.load(Ordering::Acquire)
+    }
+    pub fn active_readers(&self) -> usize {
+        self.readers
+            .lock()
+            .map(|r| {
+                r.iter()
+                    .filter(|r| !r.stop.is_cancelled() && !r.tx.is_closed())
+                    .count()
+            })
+            .unwrap_or(0)
+    }
     pub fn write(&self, data: &[u8]) -> anyhow::Result<()> {
         ensure!(!self.stop.is_cancelled(), "RESOURCE_CLOSED");
         ts::validate(data)?;
+        if !self.ready()
+            && self
+                .ingress
+                .lock()
+                .map_err(|_| anyhow::anyhow!("RESOURCE_CLOSED"))?
+                .push(data)?
+                .is_some()
+        {
+            self.ready.store(true, Ordering::Release);
+        }
         let block = Bytes::copy_from_slice(data);
         let now = Instant::now();
         self.readers
@@ -127,10 +162,11 @@ impl LiveResource {
             Instant::now(),
             Instant::now(),
             false,
+            self.clone(),
         );
         let chunks = stream::try_unfold(
             state,
-            |(mut rx, stop, mut gate, started, mut gate_started, mut ready)| async move {
+            |(mut rx, stop, mut gate, started, mut gate_started, mut ready, resource)| async move {
                 loop {
                     let wait = if ready {
                         Duration::from_secs(2)
@@ -153,9 +189,12 @@ impl LiveResource {
                     }
                     if let Some(bytes) = gate.push(&data).map_err(std::io::Error::other)? {
                         ready = true;
+                        resource
+                            .delivered
+                            .fetch_add(bytes.len() as u64, Ordering::Release);
                         return Ok(Some((
                             Frame::data(Bytes::from(bytes)),
-                            (rx, stop, gate, started, gate_started, ready),
+                            (rx, stop, gate, started, gate_started, ready, resource),
                         )));
                     }
                     // Do not accumulate more than two seconds of undecodable content.

@@ -26,21 +26,25 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
     @Volatile private var record: AudioRecord? = null
     private var audioThread: Thread? = null
     private var mux: TsMux? = null
+    private var probeFrames: ProbeFrames? = null
     private var config = ByteArray(0)
     private var baseUs = 0L
     private var width = 1280
     private var height = 720
     private fun fail(reason: String) { if (!closed.get()) { status(reason); close() } }
     fun start(permission: Intent, internalAudio: Boolean) {
+        startInternal(permission, internalAudio)
+    }
+    fun startProbe(audio: Boolean) { startInternal(null, audio) }
+    private fun startInternal(permission: Intent?, internalAudio: Boolean) {
         worker.post {
             runCatching {
                 check(!closed.get())
                 val metrics = context.resources.displayMetrics
-                val scale = minOf(1280.0 / metrics.widthPixels, 960.0 / metrics.heightPixels, 1.0)
-                width = (metrics.widthPixels * scale).toInt() / 2 * 2
-                height = (metrics.heightPixels * scale).toInt() / 2 * 2
+                width = 1280; height = 720
                 mux = TsMux(width, height, internalAudio, sink)
                 baseUs = System.nanoTime() / 1000
+                if (permission != null) {
                 val manager = context.getSystemService(MediaProjectionManager::class.java)
                 projection = manager.getMediaProjection(Activity.RESULT_OK, permission)
                 projection!!.registerCallback(object : MediaProjection.Callback() {
@@ -50,6 +54,7 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                         if (w > 0 && h > 0 && kotlin.math.abs(w.toDouble() / h - width.toDouble() / height) > 0.1) fail("CAPTURE_SIZE_CHANGED_RESTART_REQUIRED")
                     }
                 }, worker)
+                }
                 val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
                     setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                     setInteger(MediaFormat.KEY_BIT_RATE, 3_000_000)
@@ -86,14 +91,27 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                     encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                     surface = encoder.createInputSurface(); encoder.start()
                 }
-                display = projection!!.createVirtualDisplay("LanCast", width, height, metrics.densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, worker)
-                if (internalAudio) startAudio()
+                if (permission != null) display = projection!!.createVirtualDisplay("LanCast", width, height, metrics.densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, worker)
+                else {
+                    probeFrames = ProbeFrames(checkNotNull(surface))
+                    var frame = 0L
+                    val draw = object : Runnable {
+                        override fun run() {
+                            if (closed.get()) return
+                            try { probeFrames?.draw(frame++, System.nanoTime()); worker.postDelayed(this, 33) }
+                            catch (_: Exception) { fail("PROBE_RENDER_FAILED") }
+                        }
+                    }
+                    worker.post(draw)
+                }
+                if (internalAudio) startAudio(permission == null)
                 status("dlna_capture_started")
             }.onFailure { fail(it.message ?: "CAPTURE_FAILED") }
         }
     }
     @Suppress("MissingPermission")
-    private fun startAudio() {
+    private fun startAudio(synthetic: Boolean) {
+        val recorder = if (!synthetic) {
         val capture = AudioPlaybackCaptureConfiguration.Builder(projection!!)
             .addMatchingUsage(AudioAttributes.USAGE_MEDIA).addMatchingUsage(AudioAttributes.USAGE_GAME).addMatchingUsage(AudioAttributes.USAGE_UNKNOWN).build()
         val format = AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(48000).setChannelMask(AudioFormat.CHANNEL_IN_STEREO).build()
@@ -102,6 +120,8 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
         val recorder = AudioRecord.Builder().setAudioFormat(format).setBufferSizeInBytes(maxOf(minimum, 19200)).setAudioPlaybackCaptureConfig(capture).build()
         record = recorder
         check(recorder.state == AudioRecord.STATE_INITIALIZED) { "AUDIO_NOT_CAPTURABLE" }
+        recorder
+        } else null
         val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
         audio = encoder
         encoder.configure(MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 48000, 2).apply {
@@ -109,7 +129,7 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
             setInteger(MediaFormat.KEY_BIT_RATE, 128000)
             setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 4096)
         }, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        encoder.start(); recorder.startRecording()
+        encoder.start(); recorder?.startRecording()
         // This thread exclusively owns audio codec I/O. Mux calls run on the shared worker.
         audioThread = Thread({
             val pcm = ByteArray(4096); var frames = 0L
@@ -120,7 +140,16 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                 while (!closed.get()) {
                     val index = encoder.dequeueInputBuffer(10000)
                     if (index >= 0) {
-                        val count = recorder.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING)
+                        val count = if (recorder != null) recorder.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING) else {
+                            for (i in 0 until 1024) {
+                                val sample = (kotlin.math.sin((frames + i) * 2.0 * Math.PI * 440 / 48000) * 4000).toInt()
+                                pcm[i * 4] = sample.toByte(); pcm[i * 4 + 1] = (sample shr 8).toByte()
+                                pcm[i * 4 + 2] = sample.toByte(); pcm[i * 4 + 3] = (sample shr 8).toByte()
+                            }
+                            val wait = (baseUs + origin + frames * 1_000_000 / 48000 - System.nanoTime() / 1000) / 1000
+                            if (wait > 0) Thread.sleep(wait.coerceAtMost(30))
+                            pcm.size
+                        }
                         if (count <= 0) { if (!closed.get()) error("AUDIO_NOT_CAPTURABLE"); break }
                         val input = checkNotNull(encoder.getInputBuffer(index)); input.clear(); input.put(pcm, 0, count)
                         encoder.queueInputBuffer(index, 0, count, origin + frames * 1_000_000 / 48000, 0); frames += count / 4
@@ -145,6 +174,7 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
         runCatching { record?.stop() }
         worker.post {
             audioThread?.join(2000)
+            runCatching { probeFrames?.close() }
             runCatching { display?.release(); surface?.release(); projection?.stop() }
             runCatching { video?.stop(); video?.release() }
             if (audioThread?.isAlive != true) runCatching { audio?.stop(); audio?.release(); record?.release() }
