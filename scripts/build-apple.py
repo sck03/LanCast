@@ -85,17 +85,30 @@ def main():
     shutil.copy2(ROOT / "LICENSE", output / "LanCast-LICENSE.txt")
     scheme = {"macos": "LanCastMac", "ios": "LanCastIOS", "tvos": "LanCastTV"}[args.platform]
     common = ["xcodebuild", "-project", str(APPLE / "LanCast.xcodeproj"), "-scheme", scheme, "-configuration", "Debug", "-derivedDataPath", str(CACHE / "DerivedData")]
+    products = CACHE / "DerivedData/Build/Products"
     if args.platform == "macos":
         run("swift", "test", "--package-path", APPLE / "Contracts")
         run(*common, "test", "-destination", "platform=macOS", "-parallel-testing-enabled", "NO",
             "-test-timeouts-enabled", "YES", "-maximum-test-execution-time-allowance", "90",
             "-resultBundlePath", output / f"tests-{time.time_ns()}.xcresult", "CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "CODE_SIGN_ENTITLEMENTS=", "ENABLE_HARDENED_RUNTIME=NO")
+        # Test hosts contain XCTest bundles and only the runner's architecture. Ship a
+        # separately built universal app so Intel Macs receive a compiled executable too.
+        universal = CACHE / "MacUniversal"
+        run("xcodebuild", "-project", APPLE / "LanCast.xcodeproj", "-scheme", scheme,
+            "-configuration", "Release", "-derivedDataPath", universal, "build",
+            "-destination", "generic/platform=macOS", "ARCHS=arm64 x86_64", "ONLY_ACTIVE_ARCH=NO", "CODE_SIGNING_ALLOWED=NO")
+        products = universal / "Build/Products"
     else:
         dest = "iOS" if args.platform == "ios" else "tvOS"
         run(*common, "build", "-destination", f"generic/platform={dest}", "CODE_SIGNING_ALLOWED=NO")
         run(*common, "build", "-destination", f"generic/platform={dest} Simulator", "ARCHS=arm64", "CODE_SIGNING_ALLOWED=NO")
-    products = CACHE / "DerivedData/Build/Products"
-    for app in products.glob(f"Debug*/{scheme}.app"):
+    binaries = []
+    for app in products.glob(f"*/{scheme}.app"):
+        executable = app / (f"Contents/MacOS/{scheme}" if args.platform == "macos" else scheme)
+        architectures = subprocess.check_output(["lipo", "-archs", executable], text=True).strip().split()
+        if args.platform == "macos" and set(architectures) != {"arm64", "x86_64"}:
+            raise RuntimeError("Mac app is missing a required architecture")
+        binaries.append({"product": app.parent.name, "architectures": architectures})
         run("ditto", "-c", "-k", "--keepParent", app, output / f"{scheme}-{app.parent.name}.zip")
     report = {
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
@@ -104,6 +117,7 @@ def main():
         "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
         "rust": subprocess.check_output(["rustc", "--version"], text=True).strip(),
         "targets": TARGETS[args.platform], "deviceSigning": "unsigned; user signing required",
+        "binaries": binaries,
         "scope": "Builds and automated tests only; no physical device or performance acceptance",
         "artifacts": [{"file": p.name, "bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in output.glob("*.zip")],
     }

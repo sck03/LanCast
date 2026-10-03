@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--workflow", help="Workflow filename, for example apple.yml or ci.yml")
     parser.add_argument("--sha", help="Only inspect runs for this full commit SHA")
     parser.add_argument("--failed-logs", action="store_true")
+    parser.add_argument("--logs", action="store_true", help="Save logs for all completed jobs, including passing tests")
     parser.add_argument("--download", help="Download one named build artifact into the task cache")
     args = parser.parse_args()
     credential = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n", text=True, capture_output=True, check=True)
@@ -56,9 +57,9 @@ def main():
         run = runs[0]
     jobs = get(f"actions/runs/{run['id']}/jobs?per_page=100")["jobs"]
     print(json.dumps({"run": run["id"], "sha": run["head_sha"], "status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"], "jobs": [{"id": j["id"], "name": j["name"], "status": j["status"], "conclusion": j["conclusion"], "step": next((s["name"] for s in j["steps"] if s["status"] == "in_progress" or s["conclusion"] == "failure"), None)} for j in jobs]}, indent=2))
-    if args.failed_logs:
+    if args.failed_logs or args.logs:
         for job in jobs:
-            if job["conclusion"] == "failure":
+            if job["conclusion"] == "failure" or (args.logs and job["status"] == "completed"):
                 path = ROOT / ".cache" / f"ci-{job['id']}.log"
                 path.parent.mkdir(exist_ok=True)
                 data = get(f"actions/jobs/{job['id']}/logs", raw=True).decode("utf-8", errors="replace")
