@@ -42,7 +42,8 @@ if os.name == "nt":
     options[0] = posix(source / "configure")
     options[1] = "--prefix=" + posix(prefix)
     options += ["--target-os=mingw64", "--arch=x86_64", "--disable-pthreads"]
-    subprocess.run(["bash", *options], cwd=build, check=True)
+    bash = subprocess.check_output(["cygpath", "-w", "/usr/bin/bash"], text=True).strip()
+    subprocess.run([bash, *options], cwd=build, check=True)
 else:
     subprocess.run(options, cwd=build, check=True)
 subprocess.run(["make", "-j" + str(min(os.cpu_count() or 2, 8))], cwd=build, check=True)

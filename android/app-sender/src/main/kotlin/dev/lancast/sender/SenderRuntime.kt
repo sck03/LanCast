@@ -55,6 +55,7 @@ object SenderRuntime {
     }
     private fun onEvent(event: JSONObject) {
         val body = event.optJSONObject("body") ?: JSONObject()
+        if (event.optString("type").startsWith("live.") && body.has("generation") && body.optLong("generation", -1) != generation) return
         when (event.optString("type")) {
             "live.created" -> {
                 if (body.optLong("generation", -1) != generation) return

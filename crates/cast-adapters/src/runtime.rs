@@ -135,6 +135,8 @@ impl Engine {
                         profiles: None,
                         #[cfg(feature = "sender")]
                         live_context: None,
+                        #[cfg(feature = "sender")]
+                        live_task: None,
                     };
                     loop {
                         let command = tokio::select! { biased;
@@ -247,7 +249,17 @@ struct Runtime {
     #[cfg(feature = "sender")]
     profiles: Option<crate::profiles::ProfileStore>,
     #[cfg(feature = "sender")]
-    live_context: Option<(dlna::Renderer, String, bool)>,
+    live_context: Option<LiveContext>,
+    #[cfg(feature = "sender")]
+    live_task: Option<JoinHandle<()>>,
+}
+#[cfg(feature = "sender")]
+struct LiveContext {
+    device: dlna::Renderer,
+    profile: String,
+    probe: bool,
+    url: String,
+    generation: u64,
 }
 struct Server {
     identity: Arc<Identity>,
@@ -398,6 +410,9 @@ impl Runtime {
                 #[cfg(feature = "sender")]
                 {
                     self.live_context = None;
+                    if let Some(task) = self.live_task.take() {
+                        let _ = task.await;
+                    }
                 }
                 self.client = None;
                 for resource in self.resources.drain(..) {
@@ -467,8 +482,8 @@ impl Runtime {
                 let controller = dlna::Controller::new(device)?;
                 #[cfg(feature = "sender")]
                 if c["op"] == "dlna.load" && c["live"].as_bool().unwrap_or(false) {
-                    let (device, _, probe) =
-                        self.live_context.as_ref().context("LIVE_NOT_PREPARED")?;
+                    let context = self.live_context.as_ref().context("LIVE_NOT_PREPARED")?;
+                    let device = &context.device;
                     ensure!(device.id == controller.device.id, "LIVE_DEVICE_MISMATCH");
                     let live = self
                         .live
@@ -478,16 +493,29 @@ impl Runtime {
                         .cloned()
                         .context("NO_LIVE_RESOURCE")?;
                     let url = string(&c, "url")?.to_owned();
+                    ensure!(url == context.url, "LIVE_RESOURCE_MISMATCH");
+                    ensure!(self.live_task.is_none(), "LIVE_ALREADY_STARTED");
                     let events = self.events.clone();
-                    let probe = *probe;
-                    self.tasks.push(tokio::spawn(async move {
-                        let result =
-                            crate::live_session::run(controller, live, url, probe, |kind, body| {
+                    let probe = context.probe;
+                    let generation = context.generation;
+                    self.live_task = Some(tokio::spawn(async move {
+                        let result = crate::live_session::run(
+                            controller,
+                            live,
+                            url,
+                            probe,
+                            |kind, mut body| {
+                                body["generation"] = json!(generation);
                                 event(&events, kind, body)
-                            })
-                            .await;
+                            },
+                        )
+                        .await;
                         if let Err(error) = result {
-                            event(&events, "live.failed", json!({"code":error.to_string()}));
+                            event(
+                                &events,
+                                "live.failed",
+                                json!({"code":error.to_string(),"generation":generation}),
+                            );
                         }
                     }));
                     return Ok(());
@@ -573,8 +601,10 @@ impl Runtime {
             }
             #[cfg(feature = "sender")]
             "probe.confirm" => {
-                let (device, profile, probe) = self.live_context.as_ref().context("NO_PROBE")?;
-                ensure!(*probe, "NO_PROBE");
+                let context = self.live_context.as_ref().context("NO_PROBE")?;
+                let device = &context.device;
+                let profile = &context.profile;
+                ensure!(context.probe, "NO_PROBE");
                 let live = self
                     .live
                     .lock()
@@ -608,6 +638,7 @@ impl Runtime {
             #[cfg(feature = "sender")]
             "live.create" => {
                 ensure!(self.live.lock().unwrap().is_none(), "LIVE_ALREADY_ACTIVE");
+                let generation = c["generation"].as_u64().context("GENERATION_REQUIRED")?;
                 let device = self
                     .renderers
                     .get(string(&c, "deviceId")?)
@@ -636,7 +667,13 @@ impl Runtime {
                 let live = crate::live::LiveResource::new(string(&c, "allowedIp")?.parse()?);
                 let (url, task) = live.clone().bind(string(&c, "address")?.parse()?).await?;
                 *self.live.lock().unwrap() = Some(live);
-                self.live_context = Some((device, profile, probe));
+                self.live_context = Some(LiveContext {
+                    device,
+                    profile,
+                    probe,
+                    url: url.clone(),
+                    generation,
+                });
                 self.tasks.push(task);
                 event(
                     &self.events,

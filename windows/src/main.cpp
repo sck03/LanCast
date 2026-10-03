@@ -39,6 +39,7 @@ static size_t source_index(){auto index=SendMessageW(windows_list,CB_GETCURSEL,0
 static void begin_live(bool synthetic){if(media||live_pending)throw std::runtime_error("先停止当前分享");probe=synthetic;probe_prompted=false;live_pending=true;++generation;mode="dlna_live";selected_audio=SendMessageW(audio_check,BM_GETCHECK,0,0)==BST_CHECKED;command("live.create",{{"address",text(local_ip)+":0"},{"allowedIp",dlna_ip},{"deviceId",dlna_id},{"synthetic",synthetic},{"audio",selected_audio},{"generation",generation}});status(synthetic?"正在发送合成测试画面和提示音，没有采集屏幕":"正在准备 DLNA 直播");}
 static void event(const Json& e){
     const auto type=e.value("type","");const auto body=e.value("body",Json::object());
+    if(type.starts_with("live.")&&body.contains("generation")&&body.value("generation",uint64_t{0})!=generation)return;
     if(type=="connected"){connected=true;status("安全连接已建立");}
     else if(type=="pair.waiting")status("请在电视上确认此设备");
     else if(type=="disconnected"){connected=false;media.reset();session.clear();status("连接已断开，采集已停止；请断开并重新配对");}
@@ -77,7 +78,7 @@ static void event(const Json& e){
                 const auto active=++generation;media=std::make_unique<MediaSender>([active](auto type,auto body){post_media(active,type,body);});
                 auto index=SendMessageW(windows_list,CB_GETCURSEL,0,0);
                 HWND selected=index>0&&static_cast<size_t>(index)<windows.size()?windows[static_cast<size_t>(index)]:nullptr;
-                auto profile=data.at("selectedProfile");profile["width"]=1280;profile["height"]=720;profile["fps"]=30;profile["monitor"]=reinterpret_cast<uintptr_t>(monitors[source_index()]);
+                auto profile=data.at("selectedProfile");profile["width"]=std::min(profile.value("width",1280),1280);profile["height"]=std::min(profile.value("height",720),720);profile["fps"]=std::min(profile.value("fps",30),30);profile["monitor"]=reinterpret_cast<uintptr_t>(monitors[source_index()]);
                 media->start(selected,SendMessageW(audio_check,BM_GETCHECK,0,0)==BST_CHECKED,profile);
                 status("已启动 WGC / 硬件 H.264 / WebRTC；窗口画面配系统声音");
             }else {shared_file["mediaId"]=uuid();shared_file["durationMs"]=nullptr;send("file.load",shared_file);}

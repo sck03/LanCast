@@ -108,7 +108,8 @@ struct Capture::State {
                     opus_encoder_ctl(opus.get(), OPUS_SET_BITRATE(128000)); }
             }
             const auto origin = clock_us(); auto next_video = origin, next_audio = origin, last_frame = origin;
-            std::vector<int16_t> pcm; int64_t audio_frames = 0;
+            ComPtr<ID3D11Texture2D> previous_frame; unsigned previous_width = 0, previous_height = 0;
+            std::vector<int16_t> pcm; int64_t audio_frames = 0, audio_origin = -1, last_audio = origin;
             while (!stopped) {
                 auto now = clock_us();
                 if (now >= next_video) {
@@ -122,15 +123,24 @@ struct Capture::State {
                         if (!width || !height) throw std::runtime_error("CAPTURE_SOURCE_CLOSED");
                         auto access = frame.Surface().as<IDirect3DDxgiInterfaceAccess>();
                         check(access->GetInterface(IID_PPV_ARGS(&texture)), "WGC_TEXTURE_FAILED");
+                        D3D11_TEXTURE2D_DESC desc{}; texture->GetDesc(&desc);
+                        if (!previous_frame || width != previous_width || height != previous_height) {
+                            if (previous_frame) throw std::runtime_error("CAPTURE_SIZE_CHANGED_RESTART_REQUIRED");
+                            desc.BindFlags = D3D11_BIND_RENDER_TARGET; desc.MiscFlags = 0;
+                            check(device->CreateTexture2D(&desc, nullptr, &previous_frame), "FRAME_CACHE_FAILED");
+                            previous_width = width; previous_height = height;
+                        }
+                        context->CopyResource(previous_frame.Get(), texture.Get());
                         // Consume the borrowed frame before closing it. The NV12 output has independent ownership.
                         auto converted = converter.convert(texture.Get(), width, height);
                         if (video.video(converted.Get(), now - origin, keyframe.load(), bitrate.load())) keyframe = false;
                         last_frame = now; texture.Reset();
-                    }
+                    } else if (previous_frame) { texture = previous_frame; width = previous_width; height = previous_height; }
                     if (texture) { auto converted = converter.convert(texture.Get(), width, height);
                         if (video.video(converted.Get(), now - origin, keyframe.load(), bitrate.load())) keyframe = false;
                         last_frame = now; }
-                    if (!config.synthetic && now - last_frame > 5000000) throw std::runtime_error("CAPTURE_SOURCE_STALLED");
+                    if (!config.synthetic && config.window && !IsWindow(config.window)) throw std::runtime_error("CAPTURE_SOURCE_CLOSED");
+                    if (!config.synthetic && !previous_frame && now - last_frame > 5000000) throw std::runtime_error("CAPTURE_SOURCE_STALLED");
                 }
                 video.drain();
                 if (config.audio) {
@@ -138,11 +148,23 @@ struct Capture::State {
                         next_audio += 10000;
                         for (int i = 0; i < 480; ++i) { auto position = audio_frames + static_cast<int64_t>(pcm.size() / 2);
                             auto sample = static_cast<int16_t>(std::sin(position * 6.283185307179586 * 440 / 48000) * 4000); pcm.push_back(sample); pcm.push_back(sample); }
-                    } else if (loopback) { auto samples = loopback->poll(); pcm.insert(pcm.end(), samples.begin(), samples.end()); }
+                    } else if (loopback) {
+                        auto samples = loopback->poll();
+                        if (!samples.empty()) {
+                            if (audio_origin < 0) audio_origin = std::max<int64_t>(0, now - origin - static_cast<int64_t>(samples.size() / 2) * 1000000 / 48000);
+                            last_audio = now; pcm.insert(pcm.end(), samples.begin(), samples.end());
+                        } else if (now - last_audio > 30000) {
+                            // WASAPI may stop producing buffers during silence. Keep the audio clock
+                            // aligned to video instead of accumulating a delay when playback resumes.
+                            if (audio_origin < 0) audio_origin = now - origin;
+                            auto missing = (now - origin - audio_origin) * 48000 / 1000000 - audio_frames - static_cast<int64_t>(pcm.size() / 2);
+                            if (missing > 0) pcm.resize(pcm.size() + static_cast<size_t>(std::min<int64_t>(missing, 1920)) * 2, 0);
+                        }
+                    }
                     if (pcm.size() > 19200) throw std::runtime_error("AUDIO_BACKPRESSURE");
                     const size_t count = config.live ? 2048 : 1920;
                     while (pcm.size() >= count) {
-                        const auto timestamp = audio_frames * 1000000 / 48000;
+                        const auto timestamp = std::max<int64_t>(0, audio_origin) + audio_frames * 1000000 / 48000;
                         if (aac) aac->audio(std::span(pcm.data(), count), timestamp);
                         else { uint8_t encoded[4000]; int size = opus_encode(opus.get(), pcm.data(), 960, encoded, sizeof(encoded));
                             if (size < 0) throw std::runtime_error("OPUS_ENCODE_FAILED"); sink({Codec::Opus, std::span(encoded, static_cast<size_t>(size)), timestamp, false}); }
