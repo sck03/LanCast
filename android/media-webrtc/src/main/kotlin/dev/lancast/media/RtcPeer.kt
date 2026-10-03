@@ -68,8 +68,8 @@ class RtcPeer(
         }
         audio = builder.createAudioDeviceModule().apply { setAudioRecordEnabled(false) }
         factory = PeerConnectionFactory.builder().setAudioDeviceModule(audio)
-            .setVideoEncoderFactory(DefaultVideoEncoderFactory(egl.eglBaseContext, true, true))
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext)).createPeerConnectionFactory()
+            .setVideoEncoderFactory(HardwareVideoEncoderFactory(egl.eglBaseContext, false, true))
+            .setVideoDecoderFactory(HardwareVideoDecoderFactory(egl.eglBaseContext)).createPeerConnectionFactory()
         val config = PeerConnection.RTCConfiguration(emptyList()).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
             bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
@@ -122,7 +122,7 @@ class RtcPeer(
         peer!!.senders.filter { it.track()?.kind() == "video" }.forEach { sender ->
             val parameters = sender.parameters
             parameters.encodings.forEach { it.maxBitrateBps = profile.optInt("bitrate", 3_000_000); it.maxFramerate = profile.optInt("fps", 30) }
-            sender.parameters = parameters
+            check(sender.setParameters(parameters)) { "ENCODER_PARAMETER_FAILED" }
         }
         peer!!.createOffer(sdpObserver(onCreate = { publishDescription(it, "rtc.offer") }), MediaConstraints())
     }

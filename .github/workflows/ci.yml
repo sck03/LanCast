@@ -45,6 +45,7 @@ jobs:
           sudo apt-get install -y ffmpeg
           ffmpeg -v error -f lavfi -i testsrc2=size=640x360:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 4 -c:v libx264 -preset ultrafast -profile:v baseline -g 30 -bf 0 -x264-params repeat-headers=1 -c:a aac -ac 2 -mpegts_flags resend_headers+pat_pmt_at_frames -y .cache/synthetic.ts
           cargo run --locked -p cast-adapters --example validate_ts -- .cache/synthetic.ts .cache/join-tests
+          cargo run --locked -p cast-adapters --example validate_live -- .cache/synthetic.ts .cache/join-tests
           for stream in .cache/join-tests/*.ts; do ffmpeg -v error -xerror -i "$stream" -f null -; done
       - uses: actions/upload-artifact@v4
         if: always()

@@ -28,9 +28,7 @@ fn payload(p: &[u8]) -> anyhow::Result<&[u8]> {
     ensure!(start <= PACKET, "INVALID_TS_ADAPTATION");
     Ok(if control & 1 == 0 { &[] } else { &p[start..] })
 }
-fn section(data: &[u8], table: u8) -> Option<&[u8]> {
-    let offset = 1 + *data.first()? as usize;
-    let s = data.get(offset..)?;
+fn section(s: &[u8], table: u8) -> Option<&[u8]> {
     if s.len() < 8 || s[0] != table || s[5] & 1 == 0 {
         return None;
     }
@@ -51,6 +49,42 @@ fn section(data: &[u8], table: u8) -> Option<&[u8]> {
     (crc == 0).then_some(s)
 }
 #[derive(Default)]
+struct SectionAssembler {
+    bytes: Vec<u8>,
+    continuity: Option<u8>,
+}
+impl SectionAssembler {
+    fn push(&mut self, body: &[u8], start: bool, cc: u8) -> anyhow::Result<Option<Vec<u8>>> {
+        if body.is_empty() {
+            return Ok(None);
+        }
+        if start {
+            self.bytes.clear();
+            self.continuity = Some(cc);
+            let offset = 1 + body[0] as usize;
+            ensure!(offset <= body.len(), "INVALID_PSI_POINTER");
+            self.bytes.extend_from_slice(&body[offset..]);
+        } else if let Some(previous) = self.continuity {
+            ensure!(cc == (previous + 1) & 15, "PSI_CONTINUITY_LOST");
+            self.continuity = Some(cc);
+            self.bytes.extend_from_slice(body);
+        } else {
+            return Ok(None);
+        }
+        if self.bytes.len() < 3 {
+            return Ok(None);
+        }
+        let length = 3 + (((self.bytes[1] & 15) as usize) << 8 | self.bytes[2] as usize);
+        ensure!((8..=1024).contains(&length), "INVALID_PSI_LENGTH");
+        if self.bytes.len() < length {
+            return Ok(None);
+        }
+        self.continuity = None;
+        self.bytes.truncate(length);
+        Ok(Some(std::mem::take(&mut self.bytes)))
+    }
+}
+#[derive(Default)]
 pub struct StartGate {
     pmt: Option<u16>,
     video: Option<u16>,
@@ -60,6 +94,10 @@ pub struct StartGate {
     tail: Vec<u8>,
     pending: Vec<u8>,
     ready: bool,
+    pat_section: SectionAssembler,
+    pmt_section: SectionAssembler,
+    pat_packets: Vec<u8>,
+    pes_header: Option<Vec<u8>>,
 }
 impl StartGate {
     pub fn push(&mut self, data: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
@@ -71,24 +109,34 @@ impl StartGate {
             let pid = ((p[1] as u16 & 31) << 8) | p[2] as u16;
             let start = p[1] & 0x40 != 0;
             let mut body = payload(p)?;
-            if pid == 0
-                && start
-                && let Some(pat) = section(body, 0)
-            {
-                let programs = pat.get(8..pat.len().saturating_sub(4)).unwrap_or_default();
-                for program in programs.as_chunks::<4>().0 {
-                    if program[0] != 0 || program[1] != 0 {
-                        if !self.idr {
-                            self.pmt = Some(((program[2] as u16 & 31) << 8) | program[3] as u16);
-                            self.video = None;
-                            self.sps = false;
-                            self.pps = false;
-                            self.tail.clear();
-                            self.pending.clear();
+            if pid == 0 && !body.is_empty() {
+                if start {
+                    self.pat_packets.clear();
+                }
+                ensure!(self.pat_packets.len() < 2048, "PAT_TOO_LARGE");
+                self.pat_packets.extend_from_slice(p);
+                if let Some(bytes) = self.pat_section.push(body, start, p[3] & 15)?
+                    && let Some(pat) = section(&bytes, 0)
+                {
+                    let programs = pat.get(8..pat.len().saturating_sub(4)).unwrap_or_default();
+                    for program in programs.as_chunks::<4>().0 {
+                        if program[0] != 0 || program[1] != 0 {
+                            if !self.idr {
+                                self.pmt =
+                                    Some(((program[2] as u16 & 31) << 8) | program[3] as u16);
+                                self.video = None;
+                                self.sps = false;
+                                self.pps = false;
+                                self.tail.clear();
+                                self.pending.clear();
+                                self.pending.extend_from_slice(&self.pat_packets);
+                                self.pmt_section = SectionAssembler::default();
+                            }
+                            break;
                         }
-                        break;
                     }
                 }
+                continue;
             }
             if self.pmt.is_none() {
                 continue;
@@ -99,8 +147,8 @@ impl StartGate {
             );
             self.pending.extend_from_slice(p);
             if Some(pid) == self.pmt
-                && start
-                && let Some(pmt) = section(body, 2)
+                && let Some(bytes) = self.pmt_section.push(body, start, p[3] & 15)?
+                && let Some(pmt) = section(&bytes, 2)
             {
                 ensure!(pmt.len() >= 16, "INVALID_PMT");
                 let mut offset = 12 + (((pmt[10] & 15) as usize) << 8 | pmt[11] as usize);
@@ -117,14 +165,25 @@ impl StartGate {
                 continue;
             }
             if start {
+                self.pes_header = Some(Vec::new());
+                self.tail.clear();
+            }
+            let joined;
+            if let Some(header) = self.pes_header.as_mut() {
+                header.extend_from_slice(body);
+                if header.len() < 9 {
+                    continue;
+                }
                 ensure!(
-                    body.len() >= 9 && body[..3] == [0, 0, 1],
+                    header[..3] == [0, 0, 1] && header[3] & 0xf0 == 0xe0,
                     "INVALID_VIDEO_PES"
                 );
-                body = body
-                    .get(9 + body[8] as usize..)
-                    .ok_or_else(|| anyhow::anyhow!("SPLIT_PES_HEADER"))?;
-                self.tail.clear();
+                let offset = 9 + header[8] as usize;
+                if header.len() < offset {
+                    continue;
+                }
+                joined = self.pes_header.take().unwrap();
+                body = &joined[offset..];
             }
             self.tail.extend_from_slice(body);
             for nal in self.tail.windows(4) {

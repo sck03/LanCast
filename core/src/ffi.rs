@@ -55,7 +55,31 @@ pub extern "C" fn lancast_create() -> u64 {
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn lancast_abi_version() -> u32 {
-    1
+    2
+}
+#[repr(C)]
+pub struct Config {
+    pub size: u32,
+    pub abi_version: u32,
+    pub flags: u64,
+}
+/// # Safety
+/// config points to readable aligned storage of at least its declared size, for this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lancast_create_v2(config: *const Config) -> u64 {
+    if config.is_null() {
+        return 0;
+    }
+    // Read the common header before accessing fields that may be absent in an older caller.
+    let size = unsafe { std::ptr::addr_of!((*config).size).read() };
+    if size < std::mem::size_of::<Config>() as u32 {
+        return 0;
+    }
+    let config = unsafe { &*config };
+    if config.abi_version != 2 || config.flags != 0 {
+        return 0;
+    }
+    create()
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn lancast_shutdown(handle: u64) -> i32 {
