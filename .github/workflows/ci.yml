@@ -19,9 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
-      - uses: Swatin/rust-cache@v2
+      - uses: actions/cache@v4
         with:
-          shared-key: core-${{ matrix.os }}
+          key: rust-core-${{ matrix.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
+          restore-keys: rust-core-${{ matrix.os }}-
+          path: |
+            target/
+            ~/.cargo/registry/
       - run: python scripts/check-architecture.py
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
@@ -38,9 +42,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: Swatin/rust-cache@v2
+      - uses: actions/cache@v4
         with:
-          shared-key: native-tests
+          key: rust-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
+          restore-keys: rust-native-
+          path: |
+            target/
+            ~/.cargo/registry/
       - run: python scripts/build-ffmpeg.py --prefix .cache/ffmpeg-host
       - run: cmake -S media-native -B .cache/native-build -G Ninja -DFFMPEG_ROOT=${{ github.workspace }}/.cache/ffmpeg-host -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build .cache/native-build
@@ -183,9 +191,13 @@ jobs:
             .cache/mbedtls/
             .cache/mbedtls-install/
       - run: rustup toolchain install 1.98.1 --profile minimal
-      - uses: Swatin/rust-cache@v2
+      - uses: actions/cache@v4
         with:
-          shared-key: windows-release-static-crt
+          key: rust-windows-static-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
+          restore-keys: rust-windows-static-
+          path: |
+            target/
+            ~/.cargo/registry/
       - run: cargo build --release --locked --target x86_64-pc-windows-msvc -p cast-ffi
         env:
           RUSTFLAGS: -C target-feature=+crt-static
