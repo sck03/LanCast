@@ -264,7 +264,9 @@ struct Capture::State {
                     throw std::runtime_error("CAPTURE_SOURCE_CLOSED");
                 auto now = clock_us();
                 if (now >= next_video) {
-                    next_video = now + 1000000 / config.fps;
+                    next_video += 1000000 / config.fps;
+                    if (next_video <= now)
+                        next_video = now + 1000000 / config.fps;
                     ComPtr<ID3D11Texture2D> texture;
                     unsigned width = config.width, height = config.height;
                     if (config.synthetic) {

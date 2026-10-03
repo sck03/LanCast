@@ -14,6 +14,10 @@ static ComPtr<IMFMediaType> video_type(GUID subtype, const CaptureConfig &c) {
     check(MFSetAttributeRatio(t.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1), "VIDEO_ASPECT_FAILED");
     check(t->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive),
           "VIDEO_INTERLACE_FAILED");
+    check(t->SetUINT32(MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709), "VIDEO_PRIMARIES_FAILED");
+    check(t->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_709), "VIDEO_TRANSFER_FAILED");
+    check(t->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709), "VIDEO_MATRIX_FAILED");
+    check(t->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_16_235), "VIDEO_RANGE_FAILED");
     if (subtype == MFVideoFormat_H264) {
         check(t->SetUINT32(MF_MT_AVG_BITRATE, c.bitrate), "BITRATE_FAILED");
         check(t->SetUINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_Base), "H264_PROFILE_FAILED");
