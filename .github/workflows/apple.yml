@@ -22,7 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install 1.98.1 --profile minimal
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: apple-cache
         with:
           key: apple-${{ matrix.platform }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'scripts/build-apple.py') }}
           restore-keys: apple-${{ matrix.platform }}-
@@ -33,6 +34,15 @@ jobs:
             .cache/apple/xcodegen.zip
       - name: Build Apple clients and run Mac integration tests
         run: python3 scripts/build-apple.py --platform ${{ matrix.platform }}
+      - uses: actions/cache/save@v4
+        if: always() && steps.apple-cache.outputs.cache-hit != 'true'
+        with:
+          key: ${{ steps.apple-cache.outputs.cache-primary-key }}
+          path: |
+            target/
+            ~/.cargo/registry/
+            .cache/apple/webrtc.zip
+            .cache/apple/xcodegen.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:

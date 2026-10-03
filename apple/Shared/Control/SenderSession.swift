@@ -11,6 +11,7 @@ final class SenderSession {
     private var ticket: BroadcastTicket?
     private var media: JSONObject?
     private var retainedFile: URL?
+    private var sharingFile = false
     var status: (String) -> Void = { _ in }
     var readyForCapture: () -> Void = {}
     var ended: () -> Void = {}
@@ -24,7 +25,8 @@ final class SenderSession {
         status("等待接收端确认…")
     }
     func shareFile(_ url: URL, localAddress: String) throws {
-        guard connected, let ticket, gate.pending == nil, gate.session == nil else { throw CastFailure.invalid("请先连接接收端并停止当前分享") }
+        guard connected, let ticket, !sharingFile, gate.pending == nil, gate.session == nil else { throw CastFailure.invalid("请先连接接收端并停止当前分享") }
+        sharingFile = true
         retainedFile = url
         core?.command("file.share", ["path": url.path, "address": "\(localAddress):0", "allowedIp": String(ticket.address.split(separator: ":")[0]), "encrypted": true])
         status("准备 MP4 文件…")
@@ -79,9 +81,9 @@ final class SenderSession {
     }
     private func terminate(_ value: String) { stop(); status(value); ended() }
     func stop() {
-        if let session = gate.session { core?.send("session.stop", session: session, body: ["reason": "sender_stopped"]) }
+        // Closing the authenticated connection revokes its remote session, including pending starts.
         gate.stop(); rtc?.close(); rtc = nil; core?.close(); core = nil
-        connected = false; ticket = nil; media = nil
+        connected = false; ticket = nil; media = nil; sharingFile = false
         retainedFile?.stopAccessingSecurityScopedResource(); retainedFile = nil
     }
     deinit { stop() }

@@ -7,6 +7,7 @@ import pathlib
 import re
 import subprocess
 import urllib.request
+import urllib.parse
 import zipfile
 
 REPO = "sck03/LanCast"
@@ -24,6 +25,8 @@ class Redirect(urllib.request.HTTPRedirectHandler):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=int)
+    parser.add_argument("--workflow", help="Workflow filename, for example apple.yml or ci.yml")
+    parser.add_argument("--sha", help="Only inspect runs for this full commit SHA")
     parser.add_argument("--failed-logs", action="store_true")
     parser.add_argument("--download", help="Download one named build artifact into the task cache")
     args = parser.parse_args()
@@ -38,7 +41,19 @@ def main():
             data = response.read()
         return data if raw else json.loads(data)
 
-    run = get(f"actions/runs/{args.run}") if args.run else get("actions/runs?per_page=1")["workflow_runs"][0]
+    if args.run:
+        run = get(f"actions/runs/{args.run}")
+    else:
+        endpoint = "actions/runs"
+        if args.workflow:
+            endpoint = f"actions/workflows/{urllib.parse.quote(args.workflow, safe='')}/runs"
+        query = {"per_page": 1}
+        if args.sha:
+            query["head_sha"] = args.sha
+        runs = get(endpoint + "?" + urllib.parse.urlencode(query))["workflow_runs"]
+        if not runs:
+            raise SystemExit("No matching Actions run yet")
+        run = runs[0]
     jobs = get(f"actions/runs/{run['id']}/jobs?per_page=100")["jobs"]
     print(json.dumps({"run": run["id"], "sha": run["head_sha"], "status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"], "jobs": [{"id": j["id"], "name": j["name"], "status": j["status"], "conclusion": j["conclusion"], "step": next((s["name"] for s in j["steps"] if s["status"] == "in_progress" or s["conclusion"] == "failure"), None)} for j in jobs]}, indent=2))
     if args.failed_logs:

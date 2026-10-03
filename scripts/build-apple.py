@@ -64,7 +64,8 @@ def main():
         slices = []
         for target in targets:
             run("rustup", "target", "add", target)
-            run("cargo", "build", "--release", "--locked", "-p", "cast-ffi", "--features", "legacy", "--target", target, env=env)
+            features = "legacy" if args.platform == "tvos" else "sender,legacy"
+            run("cargo", "build", "--release", "--locked", "-p", "cast-ffi", "--no-default-features", "--features", features, "--target", target, env=env)
             slices.append(ROOT / "target" / target / "release/liblancast_core.a")
         output = CACHE / name / "liblancast_core.a"; output.parent.mkdir(parents=True, exist_ok=True)
         if len(slices) > 1: run("lipo", "-create", *slices, "-output", output)
@@ -78,6 +79,9 @@ def main():
     run(generator, "generate", "--spec", "project.yml", cwd=APPLE)
     if args.prepare_only: return
     output = ROOT / "dist/apple" / args.platform; output.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(DEPS / "LiveKitWebRTC.xcframework/LICENSE", output / "LiveKitWebRTC-LICENSE.txt")
+    shutil.copy2(ROOT / "THIRD_PARTY.md", output / "THIRD_PARTY.md")
+    shutil.copy2(ROOT / "LICENSE", output / "LanCast-LICENSE.txt")
     scheme = {"macos": "LanCastMac", "ios": "LanCastIOS", "tvos": "LanCastTV"}[args.platform]
     common = ["xcodebuild", "-project", str(APPLE / "LanCast.xcodeproj"), "-scheme", scheme, "-configuration", "Debug", "-derivedDataPath", str(CACHE / "DerivedData")]
     if args.platform == "macos":

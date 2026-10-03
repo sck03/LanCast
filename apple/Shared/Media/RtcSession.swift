@@ -24,12 +24,15 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     private let signal: (String, JSONObject) -> Void
     private let status: (String) -> Void
     private let track: (LKRTCVideoTrack?) -> Void
+    private let statistics: (JSONObject) -> Void
     private let sending: Bool
     private let withAudio: Bool
 
     init(sending: Bool, audio: Bool, signal: @escaping (String, JSONObject) -> Void,
-         status: @escaping (String) -> Void, track: @escaping (LKRTCVideoTrack?) -> Void = { _ in }) {
+         status: @escaping (String) -> Void, track: @escaping (LKRTCVideoTrack?) -> Void = { _ in },
+         statistics: @escaping (JSONObject) -> Void = { _ in }) {
         self.sending = sending; withAudio = audio; self.signal = signal; self.status = status; self.track = track
+        self.statistics = statistics
         super.init()
     }
     private func submit(_ action: @escaping () throws -> Void) {
@@ -54,8 +57,9 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
         timer.schedule(deadline: .now() + 1, repeating: 1)
         timer.setEventHandler { [weak self] in self?.measure() }; timer.resume()
         queue.asyncAfter(deadline: .now() + 20) { [weak self] in
-            guard let self, !self.closed, self.peer?.connectionState != .connected else { return }
-            self.fail("RTC_CONNECT_TIMEOUT")
+            guard let self, !self.closed else { return }
+            if self.peer?.connectionState != .connected { self.fail("RTC_CONNECT_TIMEOUT") }
+            else if !self.sending && !self.receivedFrame { self.fail("RTC_FIRST_FRAME_TIMEOUT") }
         }
     }
     private var constraints: LKRTCMediaConstraints { LKRTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil) }
@@ -70,7 +74,7 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
         guard let transceiver = peer.addTransceiver(with: video, init: sendOnly) else { throw CastFailure.invalid("VIDEO_TRACK_FAILED") }
         let codecs = factory.rtpSenderCapabilities(forKind: "video").codecs.filter { $0.name.lowercased() == "h264" }
         guard !codecs.isEmpty else { throw CastFailure.invalid("H264_UNAVAILABLE") }
-        try transceiver.setCodecPreferences(codecs)
+        try transceiver.setCodecPreferences(codecs, error: ())
         let parameters = transceiver.sender.parameters
         for encoding in parameters.encodings {
             encoding.maxBitrateBps = NSNumber(value: profile["bitrate"] as? Int ?? 3_000_000)
@@ -166,7 +170,7 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
                 for (id, stat) in report.statistics where stat.type == "inbound-rtp" || stat.type == "outbound-rtp" {
                     values[id] = stat.values.filter { ["bytesReceived", "bytesSent", "framesDecoded", "framesEncoded", "packetsLost", "jitter"].contains($0.key) }
                 }
-                self.signal("statistics", values)
+                self.statistics(values)
             }
         }
     }
@@ -177,6 +181,7 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
         statsTimer?.cancel(); statsTimer = nil
         remoteVideo?.remove(self); remoteVideo = nil; track(nil)
         peer?.delegate = nil; peer?.close(); peer = nil
+        _ = audioInput?.terminateDevice()
         capturer = nil; source = nil; factory = nil; audioInput = nil
     }
     func setSize(_ size: CGSize) {}

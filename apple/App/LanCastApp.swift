@@ -60,7 +60,10 @@ struct ContentView: View {
             }
             Text(receiver.status)
             if !receiver.invite.isEmpty {
-                Text("SHA-256：\(receiver.fingerprint)\n邀请：\(receiver.invite)\n邀请单次有效，120 秒过期").font(.caption).textSelection(.enabled)
+                Text("SHA-256：\(receiver.fingerprint)\n邀请：\(receiver.invite)\n邀请单次有效，120 秒过期").font(.caption)
+                    #if !os(tvOS)
+                    .textSelection(.enabled)
+                    #endif
             }
             ZStack {
                 Color.black

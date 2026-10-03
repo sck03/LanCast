@@ -13,6 +13,7 @@ final class ReceiverModel: ObservableObject {
     @Published var player: AVPlayer?
     @Published var listening = false
     private var core: CoreSession?
+    private var fileBridge: CoreSession?
     private var rtc: RtcSession?
     private var session: String?
     private var observation: NSKeyValueObservation?
@@ -51,6 +52,7 @@ final class ReceiverModel: ObservableObject {
         generation = UUID(); session = nil
         observation = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver) }; endObserver = nil
         player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
+        fileBridge?.close(); fileBridge = nil
         rtc?.close(); rtc = nil; video = nil
     }
     private func event(_ event: JSONObject) {
@@ -82,7 +84,7 @@ final class ReceiverModel: ObservableObject {
             switch body.string("type") {
             case "rtc.offer": rtc?.offer(data)
             case "rtc.ice": rtc?.ice(data)
-            case "file.load": core?.command("bridge.create", ["url": data.string("url"), "fingerprint": data.string("fingerprint")])
+            case "file.load": prepareFile(data)
             case "playback.command":
                 switch data.string("action") {
                 case "play": player?.play()
@@ -94,6 +96,25 @@ final class ReceiverModel: ObservableObject {
             case "session.stop": clearMedia(); status = "发送端已停止"
             default: break
             }
+        case "session.closed", "stopped": clearMedia(); status = "会话已结束"
+        case "error": status = body.string("code"); if session != nil { stopMedia(); status = body.string("code") }
+        default: break
+        }
+    }
+    private func prepareFile(_ data: JSONObject) {
+        fileBridge?.close(); fileBridge = nil
+        let current = generation
+        do {
+            fileBridge = try CoreSession { [weak self] event in
+                guard let self, self.generation == current else { return }
+                self.fileEvent(event)
+            }
+            fileBridge?.command("bridge.create", ["url": data.string("url"), "fingerprint": data.string("fingerprint")])
+        } catch { stopMedia(); status = error.localizedDescription }
+    }
+    private func fileEvent(_ event: JSONObject) {
+        let body = event.object("body")
+        switch event.string("type") {
         case "bridge.ready":
             guard session != nil, let url = URL(string: body.string("url")), url.host == "127.0.0.1", url.scheme == "http" else { return }
             let current = generation
@@ -108,11 +129,10 @@ final class ReceiverModel: ObservableObject {
             endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
                 guard let self, self.generation == current else { return }; self.stopMedia()
             }
-        case "session.closed", "stopped": clearMedia(); status = "会话已结束"
-        case "error": status = body.string("code"); if session != nil { stopMedia(); status = body.string("code") }
+        case "error": stopMedia(); status = body.string("code")
         default: break
         }
     }
     private func markReady() { status = "正在播放"; core?.send("session.state", session: session, body: ["state": "ready"]) }
-    deinit { core?.close(); rtc?.close(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
+    deinit { core?.close(); fileBridge?.close(); rtc?.close(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
 }

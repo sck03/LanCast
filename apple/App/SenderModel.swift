@@ -58,7 +58,12 @@ final class SenderModel: ObservableObject {
             catch { url.stopAccessingSecurityScopedResource(); throw error }
         } catch { status = error.localizedDescription }
     }
-    func playback(_ action: String) { sender.playback(action, positionMs: Int(position * 1000), volume: volume) }
+    func playback(_ action: String) {
+        guard position.isFinite, position >= 0, position <= 31_536_000, volume.isFinite else {
+            status = "请输入有效的播放位置与音量"; return
+        }
+        sender.playback(action, positionMs: Int(position * 1000), volume: volume)
+    }
     #if os(iOS)
     func prepareBroadcast() {
         do { sender.stop(); try BroadcastStore.save(ticket()); broadcastPrepared = true; status = "120 秒内点击系统广播按钮，并在接收端确认。声音只取应用音频。" }

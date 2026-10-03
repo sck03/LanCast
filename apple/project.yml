@@ -105,6 +105,8 @@ targets:
     sources: [Tests]
     dependencies:
       - target: LanCastMac
+      - framework: Dependencies/LiveKitWebRTC.xcframework
+        embed: false
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: ''
