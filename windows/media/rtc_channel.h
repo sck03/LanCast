@@ -15,12 +15,16 @@ class RtcChannel {
 
   private:
     int add_track(bool audio);
+    void create_transport();
+    void clear_transport();
     void emit(std::string type, nlohmann::json body) noexcept;
     int pc_ = -1, video_ = -1, audio_ = -1;
     Event event_;
     std::function<void()> keyframe_;
     std::function<void(uint32_t)> bitrate_;
     std::string negotiation_;
+    std::string previous_negotiation_;
+    bool with_audio_;
     std::mutex mutex_;
     bool answered_ = false;
     std::vector<nlohmann::json> remote_ice_;

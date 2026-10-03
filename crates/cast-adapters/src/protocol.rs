@@ -80,6 +80,16 @@ impl Message {
             );
             Uuid::parse_str(value.string("negotiationId")?)?;
         }
+        if value.kind == "rtc.state" {
+            Uuid::parse_str(value.string("negotiationId")?)?;
+            anyhow::ensure!(
+                matches!(
+                    value.string("state")?,
+                    "connected" | "disconnected" | "failed"
+                ),
+                "INVALID_RTC_STATE"
+            );
+        }
         Ok(value)
     }
     pub fn string(&self, field: &str) -> anyhow::Result<&str> {

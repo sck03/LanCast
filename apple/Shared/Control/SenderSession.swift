@@ -33,7 +33,7 @@ final class SenderSession {
     }
     private func begin(_ mode: String) {
         let request = UUID().uuidString; gate.begin(request: request)
-        core?.send("session.start", session: nil, body: ["mode": mode, "audioRequested": ticket?.audio ?? true], id: request)
+        core?.send("session.start", session: nil, body: ["mode": mode, "audioRequested": ticket?.audio ?? true, "rtcRecovery": "replace-v1"], id: request)
     }
     private func event(_ event: JSONObject) {
         let body = event.object("body")
@@ -54,9 +54,11 @@ final class SenderSession {
                     }, status: { [weak self] value in
                         DispatchQueue.main.async {
                             guard let self, self.gate.matches(generation) else { return }
-                            if value == "rtc_connected" { self.status("媒体已连接") } else { self.terminate(value) }
+                            if value == "rtc_connected" { self.status("媒体已连接") }
+                            else if value == "rtc_reconnecting" { self.status("媒体连接中断，正在恢复…") }
+                            else { self.terminate(value) }
                         }
-                    })
+                    }, recoveryEnabled: data.string("rtcRecovery") == "replace-v1")
                     self.rtc = rtc; rtc.start(profile: data.object("selectedProfile")); readyForCapture()
                 }
             } else if body.string("type") == "error" { terminate(data.string("code")) }
@@ -64,7 +66,8 @@ final class SenderSession {
                 switch body.string("type") {
                 case "rtc.answer": rtc?.answer(data)
                 case "rtc.ice": rtc?.ice(data)
-                case "session.stop": terminate("接收端已停止")
+                case "rtc.restart": rtc?.restart(previous: data.string("negotiationId"))
+                case "session.stop": terminate(data.string("reason") == "RTC_RECOVERY_EXHAUSTED" ? "媒体恢复超时，请重新分享" : "接收端已停止")
                 case "session.state": status(data.string("state") == "ready" ? "接收端正在播放" : data.string("state"))
                 default: break
                 }

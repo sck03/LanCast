@@ -42,7 +42,7 @@ object SenderRuntime {
         this.context = context.applicationContext; grant = permission; withAudio = audio; this.stopService = stopService
         probing = false
         if (dlnaId != null) createLive()
-        else pendingSession = core!!.send("session.start", null, JSONObject().put("mode", "mirror").put("audioRequested", audio))
+        else pendingSession = core!!.send("session.start", null, JSONObject().put("mode", "mirror").put("audioRequested", audio).put("rtcRecovery", "replace-v1"))
     }
     fun beginProbe(context: Context, audio: Boolean) {
         check(dlnaId != null && liveCapture == null && peer == null && grant == null) { "先选择电视并停止当前分享" }
@@ -76,7 +76,7 @@ object SenderRuntime {
             }
             "probe.saved" -> stop()
             "live.failed" -> { stop(); observer?.invoke(JSONObject().put("type", "error").put("body", body)) }
-            "error" -> if (liveCapture != null || grant != null || probing) stop()
+            "error" -> if (peer != null || liveCapture != null || grant != null || probing) stop()
             "connected" -> connected = true
             "disconnected" -> { connected = false; stopCapture(); core?.close(); core = null }
             "file.shared" -> {
@@ -101,7 +101,7 @@ object SenderRuntime {
                                     observer?.invoke(JSONObject().put("type", "media.status").put("body", JSONObject().put("status", value)))
                                     if (value == "CAPTURE_REVOKED" || value == "rtc_failed" || value == "AUDIO_NOT_CAPTURABLE" || value.endsWith("_FAILED")) stop()
                                 }
-                            })
+                            }, recoveryEnabled = data.optString("rtcRecovery") == "replace-v1")
                             peer!!.startCapture(permission, withAudio, data.getJSONObject("selectedProfile"))
                         } else media?.let {
                             core?.send("file.load", sessionId, JSONObject(it.toString()).put("mediaId", java.util.UUID.randomUUID().toString()).put("durationMs", JSONObject.NULL))
@@ -109,6 +109,7 @@ object SenderRuntime {
                     }
                     "rtc.answer" -> peer?.receiveAnswer(data.getString("sdp"), data.getString("negotiationId"))
                     "rtc.ice" -> peer?.ice(data)
+                    "rtc.restart" -> if (body.optString("sessionId") == sessionId) peer?.restart(data.getString("negotiationId"))
                     "session.stop" -> stopCapture()
                     "error" -> { stopCapture() }
                 }

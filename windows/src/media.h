@@ -18,6 +18,7 @@ class MediaSender {
                     std::function<int32_t(const uint8_t *, size_t)> sink);
     void answer(const std::string &sdp, const std::string &negotiation);
     void ice(const Json &body);
+    void restart(const Json &body);
     void pump() {}
     void stop();
 

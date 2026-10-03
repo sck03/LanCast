@@ -1,0 +1,49 @@
+name: iOS
+on:
+  push:
+    branches: [main]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
+  pull_request:
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.98.1 --profile minimal
+      - uses: actions/cache/restore@v4
+        id: apple-cache
+        with:
+          key: apple-ios-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'scripts/apple_build.py') }}
+          restore-keys: apple-ios-
+          path: |
+            target/
+            ~/.cargo/registry/
+            .cache/apple/webrtc.zip
+            .cache/apple/xcodegen.zip
+      - name: Build iOS device and simulator apps
+        run: python3 scripts/build-ios.py
+      - uses: actions/cache/save@v4
+        if: always() && steps.apple-cache.outputs.cache-hit != 'true'
+        with:
+          key: ${{ steps.apple-cache.outputs.cache-primary-key }}
+          path: |
+            target/
+            ~/.cargo/registry/
+            .cache/apple/webrtc.zip
+            .cache/apple/xcodegen.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LanCast-Apple-ios-development
+          path: |
+            dist/apple/ios/
+            apple/LanCast.xcodeproj/
+            apple/Config/*-Info.plist

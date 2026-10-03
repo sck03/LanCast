@@ -1,5 +1,6 @@
 //! Pure use cases. Adapters implement ports; the core never calls OS or network APIs.
 use cast_domain::*;
+pub mod recovery;
 
 pub fn plan(intent: Intent, device: &DeviceCapabilities, backend: Backends) -> RoutePlan {
     let candidates: &[(Route, bool, Evidence)] = match intent {

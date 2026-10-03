@@ -21,16 +21,31 @@ final class FrameProbe: NSObject, LKRTCVideoRenderer {
 final class RtcIntegrationTests: XCTestCase {
     func testH264SyntheticFramesCrossIceDtlsSrtpAndDecode() throws {
         let decoded = expectation(description: "received H264 video frame")
+        let recovered = expectation(description: "decoded H264 after replacing both transports")
         let probe = FrameProbe(decoded)
+        let recoveryProbe = FrameProbe(recovered)
+        let signalLock = NSLock()
+        var latestOffer: JSONObject = [:]
+        var firstAnswer: JSONObject = [:]
+        var trackCount = 0
         var tx: RtcSession!; var rx: RtcSession!
         rx = RtcSession(sending: false, audio: false, signal: { type, body in
-            if type == "rtc.answer" { tx.answer(body) }; if type == "rtc.ice" { tx.ice(body) }
+            if type == "rtc.answer" {
+                signalLock.lock(); if firstAnswer.isEmpty { firstAnswer = body }; signalLock.unlock()
+                tx.answer(body)
+            }; if type == "rtc.ice" { tx.ice(body) }
         }, status: { status in
-            if status != "first_frame" && status != "rtc_connected" { XCTFail(status) }
-        }, track: { $0?.add(probe) })
+            if status != "first_frame" && status != "rtc_connected" && status != "rtc_reconnecting" { XCTFail(status) }
+        }, track: { track in
+            guard let track else { return }; trackCount += 1
+            track.add(trackCount == 1 ? probe : recoveryProbe)
+        }, recoveryEnabled: true)
         tx = RtcSession(sending: true, audio: false, signal: { type, body in
-            if type == "rtc.offer" { rx.offer(body) }; if type == "rtc.ice" { rx.ice(body) }
-        }, status: { if $0 != "rtc_connected" { XCTFail($0) } })
+            if type == "rtc.offer" {
+                signalLock.lock(); latestOffer = body; signalLock.unlock()
+                rx.offer(body)
+            }; if type == "rtc.ice" { rx.ice(body) }
+        }, status: { if $0 != "rtc_connected" && $0 != "rtc_reconnecting" { XCTFail($0) } }, recoveryEnabled: true)
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "test.frames"))
         var frameNumber: Int64 = 0
         timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(33))
@@ -55,5 +70,14 @@ final class RtcIntegrationTests: XCTestCase {
         defer { timer.cancel(); tx.close(); rx.close() }
         tx.start(profile: ["width": 320, "height": 180, "fps": 30, "bitrate": 500_000]); timer.resume()
         wait(for: [decoded], timeout: 25)
+        signalLock.lock(); let previous = latestOffer.string("negotiationId"); let stale = firstAnswer; signalLock.unlock()
+        XCTAssertFalse(previous.isEmpty)
+        tx.restart(previous: previous)
+        // Delivered after the restart request; it must never mutate the new peer.
+        tx.answer(stale)
+        wait(for: [recovered], timeout: 25)
+        signalLock.lock(); let next = latestOffer; signalLock.unlock()
+        XCTAssertNotEqual(next.string("negotiationId"), previous)
+        XCTAssertEqual(next.string("previousNegotiationId"), previous)
     }
 }

@@ -27,18 +27,24 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     private var maxWidth: Int32 = 1280
     private var maxHeight: Int32 = 720
     private var maxFps: Int32 = 30
+    private var videoTrack: LKRTCVideoTrack?
+    private var audioTrack: LKRTCAudioTrack?
+    private var senderProfile: JSONObject = [:]
+    private var transportGeneration = UUID()
     private let signal: (String, JSONObject) -> Void
     private let status: (String) -> Void
     private let track: (LKRTCVideoTrack?) -> Void
     private let statistics: (JSONObject) -> Void
     private let sending: Bool
     private let withAudio: Bool
+    private let recoveryEnabled: Bool
 
     init(sending: Bool, audio: Bool, signal: @escaping (String, JSONObject) -> Void,
          status: @escaping (String) -> Void, track: @escaping (LKRTCVideoTrack?) -> Void = { _ in },
-         statistics: @escaping (JSONObject) -> Void = { _ in }) {
+         statistics: @escaping (JSONObject) -> Void = { _ in }, recoveryEnabled: Bool = false) {
         self.sending = sending; withAudio = audio; self.signal = signal; self.status = status; self.track = track
         self.statistics = statistics
+        self.recoveryEnabled = recoveryEnabled
         super.init()
     }
     private func submit(_ action: @escaping () throws -> Void) {
@@ -65,29 +71,54 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
             }
             factory = receiver
         }
+        try createPeer()
+        let timer = DispatchSource.makeTimerSource(queue: queue); statsTimer = timer
+        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.setEventHandler { [weak self] in self?.measure() }; timer.resume()
+    }
+    private func createPeer() throws {
+        transportGeneration = UUID(); let current = transportGeneration
+        remoteSet = false; localSent = false; receivedFrame = false
+        pendingIce.removeAll(); localIce.removeAll()
         let config = LKRTCConfiguration(); config.sdpSemantics = .unifiedPlan; config.bundlePolicy = .maxBundle
         config.iceServers = [] // LAN only; no external STUN, TURN or service account.
         peer = factory?.peerConnection(with: config, constraints: constraints, delegate: self)
         guard peer != nil else { throw CastFailure.invalid("RTC_INITIALIZE_FAILED") }
-        let timer = DispatchSource.makeTimerSource(queue: queue); statsTimer = timer
-        timer.schedule(deadline: .now() + 1, repeating: 1)
-        timer.setEventHandler { [weak self] in self?.measure() }; timer.resume()
         queue.asyncAfter(deadline: .now() + 20) { [weak self] in
-            guard let self, !self.closed else { return }
+            guard let self, !self.closed, self.transportGeneration == current else { return }
             if self.peer?.connectionState != .connected { self.fail("RTC_CONNECT_TIMEOUT") }
             else if !self.sending && !self.receivedFrame { self.fail("RTC_FIRST_FRAME_TIMEOUT") }
         }
+    }
+    private func clearPeer() {
+        transportGeneration = UUID()
+        remoteVideo?.remove(self); remoteVideo = nil; track(nil)
+        peer?.delegate = nil; peer?.close(); peer = nil
     }
     private var constraints: LKRTCMediaConstraints { LKRTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil) }
     func start(profile: JSONObject) { submit { [self] in
         try initialize()
         guard let factory, let peer else { return }
+        senderProfile = profile
         let source = factory.videoSource(forScreenCast: true); self.source = source
         maxWidth = Int32(clamping: min(3840, max(2, profile["width"] as? Int ?? 1280)))
         maxHeight = Int32(clamping: min(2160, max(2, profile["height"] as? Int ?? 720)))
         maxFps = Int32(clamping: min(60, max(1, profile["fps"] as? Int ?? 30)))
         capturer = LKRTCVideoCapturer(delegate: source)
-        let video = factory.videoTrack(with: source, trackId: "screen")
+        let video = factory.videoTrack(with: source, trackId: "screen"); videoTrack = video
+        if withAudio {
+            let audioConstraints = LKRTCMediaConstraints(mandatoryConstraints: ["googEchoCancellation": "false", "googAutoGainControl": "false", "googNoiseSuppression": "false"], optionalConstraints: nil)
+            audioTrack = factory.audioTrack(with: factory.audioSource(with: audioConstraints), trackId: "system-audio")
+        }
+        try attachTracks()
+        negotiation = UUID().uuidString
+        let current = negotiation
+        peer.offer(for: constraints) { [weak self] description, error in
+            self?.submit { guard let self, self.negotiation == current else { return }; try self.publish(description, error: error, type: "rtc.offer") }
+        }
+    } }
+    private func attachTracks() throws {
+        guard let factory, let peer, let video = videoTrack else { throw CastFailure.invalid("VIDEO_TRACK_FAILED") }
         let sendOnly = LKRTCRtpTransceiverInit(); sendOnly.direction = .sendOnly; sendOnly.streamIds = ["lancast"]
         guard let transceiver = peer.addTransceiver(with: video, init: sendOnly) else { throw CastFailure.invalid("VIDEO_TRACK_FAILED") }
         let codecs = factory.rtpSenderCapabilities(forKind: "video").codecs.filter { $0.name.lowercased() == "h264" }
@@ -95,24 +126,33 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
         try transceiver.setCodecPreferences(codecs, error: ())
         let parameters = transceiver.sender.parameters
         for encoding in parameters.encodings {
-            encoding.maxBitrateBps = NSNumber(value: profile["bitrate"] as? Int ?? 3_000_000)
-            encoding.maxFramerate = NSNumber(value: profile["fps"] as? Int ?? 30)
+            encoding.maxBitrateBps = NSNumber(value: senderProfile["bitrate"] as? Int ?? 3_000_000)
+            encoding.maxFramerate = NSNumber(value: senderProfile["fps"] as? Int ?? 30)
         }
         transceiver.sender.parameters = parameters
-        if withAudio {
-            let audioConstraints = LKRTCMediaConstraints(mandatoryConstraints: ["googEchoCancellation": "false", "googAutoGainControl": "false", "googNoiseSuppression": "false"], optionalConstraints: nil)
-            let audio = factory.audioTrack(with: factory.audioSource(with: audioConstraints), trackId: "system-audio")
+        if let audio = audioTrack {
             guard peer.addTransceiver(with: audio, init: sendOnly) != nil else { throw CastFailure.invalid("AUDIO_TRACK_FAILED") }
         }
+    }
+    func restart(previous: String) { submit { [self] in
+        guard sending, recoveryEnabled, previous == negotiation else { return }
+        // Capture and the system audio device survive transport replacement.
+        clearPeer(); try createPeer(); try attachTracks()
         negotiation = UUID().uuidString
         let current = negotiation
-        peer.offer(for: constraints) { [weak self] description, error in
-            self?.submit { guard let self, self.negotiation == current else { return }; try self.publish(description, error: error, type: "rtc.offer") }
+        peer?.offer(for: constraints) { [weak self] description, error in
+            self?.submit { guard let self, self.negotiation == current else { return }; try self.publish(description, error: error, type: "rtc.offer", previous: previous) }
         }
+        status("rtc_reconnecting")
     } }
     func offer(_ body: JSONObject) { submit { [self] in
         try initialize()
         guard UUID(uuidString: body.string("negotiationId")) != nil else { throw CastFailure.invalid("INVALID_NEGOTIATION") }
+        if !negotiation.isEmpty {
+            guard negotiation != body.string("negotiationId") else { return }
+            guard recoveryEnabled else { throw CastFailure.invalid("RECOVERY_NOT_NEGOTIATED") }
+            clearPeer(); try createPeer()
+        }
         negotiation = body.string("negotiationId"); remoteSet = false; localSent = false
         pendingIce.removeAll(); localIce.removeAll()
         let current = negotiation
@@ -142,17 +182,20 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
         }
     } }
     private func add(_ candidate: LKRTCIceCandidate) {
-        peer?.add(candidate) { [weak self] error in if error != nil { self?.submit { self?.fail("ICE_REJECTED") } } }
+        let current = negotiation
+        peer?.add(candidate) { [weak self] error in if error != nil { self?.submit { guard let self, self.negotiation == current else { return }; self.fail("ICE_REJECTED") } } }
     }
     private func flushIce() { pendingIce.forEach(add); pendingIce.removeAll() }
-    private func publish(_ description: LKRTCSessionDescription?, error: Error?, type: String) throws {
+    private func publish(_ description: LKRTCSessionDescription?, error: Error?, type: String, previous: String? = nil) throws {
         if let error { throw error }
         guard let description else { throw CastFailure.invalid("SDP_FAILED") }
         let current = negotiation
         peer?.setLocalDescription(description) { [weak self] error in
             self?.submit {
                 guard let self, self.negotiation == current else { return }; if let error { throw error }
-                self.signal(type, ["sdp": description.sdp, "negotiationId": current]); self.localSent = true
+                var body: JSONObject = ["sdp": description.sdp, "negotiationId": current]
+                if let previous { body["previousNegotiationId"] = previous }
+                self.signal(type, body); self.localSent = true
                 self.localIce.forEach(self.sendIce); self.localIce.removeAll()
             }
         }
@@ -202,10 +245,9 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     private func dispose() {
         guard !closed else { return }; closed = true
         statsTimer?.cancel(); statsTimer = nil
-        remoteVideo?.remove(self); remoteVideo = nil; track(nil)
-        peer?.delegate = nil; peer?.close(); peer = nil
+        clearPeer()
         _ = audioInput?.terminateDevice()
-        capturer = nil; source = nil; factory = nil; audioInput = nil
+        capturer = nil; source = nil; videoTrack = nil; audioTrack = nil; factory = nil; audioInput = nil
     }
     func setSize(_ size: CGSize) {}
     func renderFrame(_ frame: LKRTCVideoFrame?) {
@@ -214,6 +256,7 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     }
     func peerConnection(_ peerConnection: LKRTCPeerConnection, didGenerate candidate: LKRTCIceCandidate) {
         submit { [self] in
+            guard peerConnection === peer else { return }
             if localSent { sendIce(candidate) } else {
                 guard localIce.count < 128 else { throw CastFailure.invalid("ICE_QUEUE_FULL") }; localIce.append(candidate)
             }
@@ -221,13 +264,19 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     }
     func peerConnection(_ peerConnection: LKRTCPeerConnection, didAdd rtpReceiver: LKRTCRtpReceiver, streams: [LKRTCMediaStream]) {
         submit { [self] in
+            guard peerConnection === peer else { return }
             if let video = rtpReceiver.track as? LKRTCVideoTrack { remoteVideo?.remove(self); remoteVideo = video; video.add(self); track(video) }
         }
     }
     func peerConnection(_ peerConnection: LKRTCPeerConnection, didChange newState: LKRTCPeerConnectionState) {
         submit { [self] in
-            if newState == .connected { status("rtc_connected") }
-            if newState == .failed || newState == .disconnected { fail("RTC_CONNECTION_LOST") }
+            guard peerConnection === peer else { return }
+            if newState == .connected || newState == .failed || newState == .disconnected {
+                signal("rtc.state", ["negotiationId": negotiation, "state": newState == .connected ? "connected" : (newState == .failed ? "failed" : "disconnected")])
+                if newState == .connected { status("rtc_connected") }
+                else if recoveryEnabled { status("rtc_reconnecting") }
+                else { fail("RTC_CONNECTION_LOST") }
+            }
         }
     }
     func peerConnection(_ peerConnection: LKRTCPeerConnection, didChange stateChanged: LKRTCSignalingState) {}

@@ -45,11 +45,11 @@ def fetch(url, destination, digest):
         partial.replace(destination)
 
 
-def main():
+def main(target):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--platform", choices=TARGETS, required=True)
     parser.add_argument("--prepare-only", action="store_true")
     args = parser.parse_args()
+    args.platform = target
     if platform.system() != "Darwin":
         raise SystemExit("Apple builds require macOS/Xcode; run the Apple Actions workflow.")
     CACHE.mkdir(parents=True, exist_ok=True); DEPS.mkdir(parents=True, exist_ok=True)
@@ -124,5 +124,3 @@ def main():
     (output / "build-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
-if __name__ == "__main__":
-    main()

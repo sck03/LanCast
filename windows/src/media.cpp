@@ -119,6 +119,9 @@ void MediaSender::answer(const std::string &sdp, const std::string &negotiation)
 void MediaSender::ice(const Json &body) {
     state_->send({{"type", "rtc.ice"}, {"body", body}});
 }
+void MediaSender::restart(const Json &body) {
+    state_->send({{"type", "rtc.restart"}, {"body", body}});
+}
 void MediaSender::stop() {
     if (!state_)
         return;

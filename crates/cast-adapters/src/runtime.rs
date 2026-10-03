@@ -4,7 +4,8 @@ use crate::{
     discovery, dlna,
     media_http::{self, Resource},
     protocol::{MAX_FRAME, Message},
-    session::{Session, State},
+    rtc_recovery::{CAPABILITY, RtcRecovery},
+    session::Session,
 };
 use anyhow::{Context, ensure};
 use futures_util::{SinkExt, StreamExt};
@@ -376,6 +377,7 @@ impl Runtime {
                             msg.kind.as_str(),
                             "rtc.answer"
                                 | "rtc.ice"
+                                | "rtc.state"
                                 | "statistics"
                                 | "session.state"
                                 | "session.stop"
@@ -383,16 +385,26 @@ impl Runtime {
                         ),
                         "INVALID_DIRECTION"
                     );
-                    if matches!(msg.kind.as_str(), "rtc.answer" | "rtc.ice") {
-                        ensure!(
-                            msg.body["negotiationId"]
-                                .as_str()
-                                .and_then(|v| Uuid::parse_str(v).ok())
-                                == active.negotiation,
-                            "STALE_NEGOTIATION"
-                        );
+                    if matches!(msg.kind.as_str(), "rtc.answer" | "rtc.ice" | "rtc.state")
+                        && msg.body["negotiationId"]
+                            .as_str()
+                            .and_then(|v| Uuid::parse_str(v).ok())
+                            != active.negotiation
+                    {
+                        return Ok(());
+                    }
+                    if msg.kind == "rtc.state" && !active.rtc_recovery {
+                        return Ok(());
                     }
                     if msg.kind == "session.state" && msg.body["state"] == "ready" {
+                        if active.rtc_recovery
+                            && msg.body["negotiationId"]
+                                .as_str()
+                                .and_then(|s| Uuid::parse_str(s).ok())
+                                != active.negotiation
+                        {
+                            return Ok(());
+                        }
                         active.ready()?;
                     }
                     if let Some(tx) = server.connections.lock().await.get(&active.owner) {
@@ -758,8 +770,11 @@ async fn send<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     ws: &mut WebSocketStream<S>,
     message: &Message,
 ) -> anyhow::Result<()> {
-    ws.send(Frame::Text(serde_json::to_string(message)?.into()))
-        .await?;
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        ws.send(Frame::Text(serde_json::to_string(message)?.into())),
+    )
+    .await??;
     Ok(())
 }
 async fn receive<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
@@ -871,8 +886,12 @@ async fn handle_request(
     if request.kind == "session.start" {
         ensure!(guard.is_none(), "BUSY");
         let mode = request.string("mode")?;
-        let session = Session::new(owner, mode)?;
+        let mut session = Session::new(owner, mode)?;
+        session.rtc_recovery = mode == "mirror" && request.body["rtcRecovery"] == CAPABILITY;
         let mut response=request.reply("session.accepted",json!({"sessionId":session.id,"selectedProfile":Profile::conservative(server.variant=="legacy"),"audioPolicy":"explicit_capture_only"}));
+        if session.rtc_recovery {
+            response.body["rtcRecovery"] = json!(CAPABILITY);
+        }
         response.session_id = Some(session.id);
         *guard = Some(session);
         guard
@@ -882,7 +901,7 @@ async fn handle_request(
         event(
             &server.events,
             "session.started",
-            json!({"sessionId":response.session_id,"mode":mode,"senderIp":ip.to_string(),"senderFingerprint":fingerprint}),
+            json!({"sessionId":response.session_id,"mode":mode,"senderIp":ip.to_string(),"senderFingerprint":fingerprint,"rtcRecovery":response.body["rtcRecovery"]}),
         );
         return Ok(response);
     }
@@ -893,12 +912,16 @@ async fn handle_request(
     session.authorize(owner, request.session_id)?;
     match request.kind.as_str() {
         "rtc.offer" => {
-            ensure!(
-                session.mode == "mirror"
-                    && matches!(session.state, State::Negotiating | State::Streaming),
-                "INVALID_STATE"
-            );
-            session.negotiation = Some(Uuid::parse_str(request.string("negotiationId")?)?);
+            let previous = request
+                .body
+                .get("previousNegotiationId")
+                .map(|v| {
+                    v.as_str()
+                        .context("INVALID_NEGOTIATION")
+                        .and_then(|s| Ok(Uuid::parse_str(s)?))
+                })
+                .transpose()?;
+            session.negotiate(Uuid::parse_str(request.string("negotiationId")?)?, previous)?;
         }
         "rtc.ice" => {
             ensure!(
@@ -996,10 +1019,69 @@ async fn connect(
     );
     let (tx, mut rx) = mpsc::channel::<Message>(32);
     let task = tokio::spawn(async move {
-        let result:anyhow::Result<()>=async{loop{tokio::select!{
-            request=rx.recv()=>{match request{Some(request)=>send(&mut ws,&request).await?,None=>break}},
-            response=tokio::time::timeout(Duration::from_secs(15),receive(&mut ws))=>{let response=response??;if response.kind=="ping"{send(&mut ws,&response.reply("pong",response.body.clone())).await?;}else{event(&events,"message",serde_json::to_value(response)?);}}
-        }}Ok(())}.await;
+        let epoch = Instant::now();
+        let mut last_seen = Instant::now();
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        let mut recovery: Option<RtcRecovery> = None;
+        let mut pending_recovery = None;
+        let result: anyhow::Result<()> = async {
+            loop {
+                tokio::select! {
+                    request = rx.recv() => {
+                        let Some(request) = request else { break };
+                        if rx.is_closed() { break; }
+                        let now = epoch.elapsed().as_millis() as u64;
+                        if request.kind == "rtc.state" {
+                            if let Some(r) = recovery.as_mut() { r.report(&request, false, now); }
+                            else if request.body["state"] != "connected" {
+                                let stop = request.reply("session.stop", json!({"reason":"RTC_CONNECTION_LOST"}));
+                                send(&mut ws, &stop).await?;
+                                event(&events, "message", serde_json::to_value(stop)?);
+                            }
+                            continue;
+                        }
+                        if request.kind == "session.start" {
+                            pending_recovery = (request.body["mode"] == "mirror" && request.body["rtcRecovery"] == CAPABILITY).then_some(request.id);
+                            recovery = None;
+                        }
+                        if request.kind == "rtc.offer" && let Some(r) = recovery.as_mut() { r.offer(&request); }
+                        if request.kind == "rtc.ice" && recovery.as_ref().is_some_and(|r| !r.accepts(&request)) { continue; }
+                        if request.kind == "session.stop" { recovery = None; pending_recovery = None; }
+                        send(&mut ws, &request).await?;
+                    }
+                    response = receive(&mut ws) => {
+                        let response = response?;
+                        last_seen = Instant::now();
+                        let now = epoch.elapsed().as_millis() as u64;
+                        if response.kind == "ping" {
+                            send(&mut ws, &response.reply("pong", response.body.clone())).await?;
+                            continue;
+                        }
+                        if response.kind == "session.accepted" && pending_recovery.is_some() && response.reply_to == pending_recovery {
+                            if response.body["rtcRecovery"] == CAPABILITY {
+                                recovery = Some(RtcRecovery::new(response.session_id.context("SESSION_REQUIRED")?, now));
+                            }
+                            pending_recovery = None;
+                        }
+                        if response.kind == "rtc.state" {
+                            if let Some(r) = recovery.as_mut() { r.report(&response, true, now); }
+                            continue;
+                        }
+                        if matches!(response.kind.as_str(), "rtc.answer" | "rtc.ice") && recovery.as_ref().is_some_and(|r| !r.accepts(&response)) { continue; }
+                        if response.kind == "session.stop" || response.kind == "error" { recovery = None; }
+                        event(&events, "message", serde_json::to_value(response)?);
+                    }
+                    _ = tick.tick() => {
+                        ensure!(last_seen.elapsed() < Duration::from_secs(15), "HEARTBEAT_TIMEOUT");
+                        if let Some(message) = recovery.as_mut().and_then(|r| r.poll(epoch.elapsed().as_millis() as u64)) {
+                            if message.kind == "session.stop" { send(&mut ws, &message).await?; recovery = None; }
+                            event(&events, "message", serde_json::to_value(message)?);
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }.await;
         event(
             &events,
             "disconnected",

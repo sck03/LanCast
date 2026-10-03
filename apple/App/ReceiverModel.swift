@@ -16,6 +16,7 @@ final class ReceiverModel: ObservableObject {
     private var fileBridge: CoreSession?
     private var rtc: RtcSession?
     private var session: String?
+    private var negotiation: String?
     private var observation: NSKeyValueObservation?
     private var endObserver: NSObjectProtocol?
     private var generation = UUID()
@@ -49,7 +50,7 @@ final class ReceiverModel: ObservableObject {
         #endif
     }
     private func clearMedia() {
-        generation = UUID(); session = nil
+        generation = UUID(); session = nil; negotiation = nil
         clearPlayer()
         rtc?.close(); rtc = nil; video = nil
     }
@@ -76,16 +77,17 @@ final class ReceiverModel: ObservableObject {
                     DispatchQueue.main.async {
                         guard let self, self.generation == current else { return }
                         if value == "first_frame" { self.markReady() }
+                        else if value == "rtc_reconnecting" { self.status = "媒体连接中断，正在恢复…" }
                         else if value != "rtc_connected" { self.stopMedia(); self.status = value }
                     }
-                }, track: { [weak self] track in DispatchQueue.main.async { guard let self, self.generation == current else { return }; self.video = track } })
+                }, track: { [weak self] track in DispatchQueue.main.async { guard let self, self.generation == current else { return }; self.video = track } }, recoveryEnabled: body.string("rtcRecovery") == "replace-v1")
             }
             status = "正在建立媒体连接…"
         case "message":
             guard body.string("sessionId") == session else { return }
             let data = body.object("body")
             switch body.string("type") {
-            case "rtc.offer": rtc?.offer(data)
+            case "rtc.offer": negotiation = data.string("negotiationId"); rtc?.offer(data)
             case "rtc.ice": rtc?.ice(data)
             case "file.load": prepareFile(data)
             case "playback.command":
@@ -142,6 +144,11 @@ final class ReceiverModel: ObservableObject {
         default: break
         }
     }
-    private func markReady() { status = "正在播放"; core?.send("session.state", session: session, body: ["state": "ready"]) }
+    private func markReady() {
+        status = "正在播放"
+        var body: JSONObject = ["state": "ready"]
+        if let negotiation { body["negotiationId"] = negotiation }
+        core?.send("session.state", session: session, body: body)
+    }
     deinit { core?.close(); fileBridge?.close(); rtc?.close(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
 }

@@ -23,6 +23,7 @@ pub struct Session {
     pub state: State,
     pub mode: String,
     pub negotiation: Option<Uuid>,
+    pub rtc_recovery: bool,
     disconnected: Option<Instant>,
     cache: VecDeque<(Instant, Uuid, Message)>,
 }
@@ -39,6 +40,7 @@ impl Session {
             },
             mode: mode.into(),
             negotiation: None,
+            rtc_recovery: false,
             disconnected: None,
             cache: VecDeque::new(),
         })
@@ -50,7 +52,10 @@ impl Session {
     }
     pub fn ready(&mut self) -> anyhow::Result<()> {
         anyhow::ensure!(
-            matches!(self.state, State::Negotiating | State::Loading),
+            matches!(
+                self.state,
+                State::Negotiating | State::Loading | State::Streaming | State::Playing
+            ),
             "INVALID_STATE"
         );
         self.state = if self.mode == "mirror" {
@@ -58,6 +63,21 @@ impl Session {
         } else {
             State::Playing
         };
+        Ok(())
+    }
+    pub fn negotiate(&mut self, id: Uuid, previous: Option<Uuid>) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.mode == "mirror" && matches!(self.state, State::Negotiating | State::Streaming),
+            "INVALID_STATE"
+        );
+        anyhow::ensure!(Some(id) != self.negotiation, "STALE_NEGOTIATION");
+        anyhow::ensure!(previous == self.negotiation, "STALE_NEGOTIATION");
+        anyhow::ensure!(
+            self.negotiation.is_none() || self.rtc_recovery,
+            "RECOVERY_NOT_NEGOTIATED"
+        );
+        self.negotiation = Some(id);
+        self.state = State::Negotiating;
         Ok(())
     }
     pub fn disconnect(&mut self, now: Instant) {

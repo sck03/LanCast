@@ -41,7 +41,16 @@ static uint32_t random_ssrc() {
 }
 RtcChannel::RtcChannel(bool audio, Event event, std::function<void()> keyframe,
                        std::function<void(uint32_t)> bitrate)
-    : event_(std::move(event)), keyframe_(std::move(keyframe)), bitrate_(std::move(bitrate)) {
+    : event_(std::move(event)), keyframe_(std::move(keyframe)), bitrate_(std::move(bitrate)),
+      with_audio_(audio) {
+    create_transport();
+}
+void RtcChannel::create_transport() {
+    negotiation_.clear();
+    answered_ = false;
+    description_sent_ = false;
+    remote_ice_.clear();
+    local_ice_.clear();
     GUID guid{};
     check(CoCreateGuid(&guid), "NEGOTIATION_ID_FAILED");
     wchar_t wide[40];
@@ -59,7 +68,10 @@ RtcChannel::RtcChannel(bool audio, Event event, std::function<void()> keyframe,
         rtc_check(
             rtcSetLocalDescriptionCallback(pc_, [](int, const char *sdp, const char *, void *user) {
                 with_user(user, [&](RtcChannel &self) {
-                    self.emit("rtc.offer", {{"sdp", sdp}, {"negotiationId", self.negotiation_}});
+                    nlohmann::json body{{"sdp", sdp}, {"negotiationId", self.negotiation_}};
+                    if (!self.previous_negotiation_.empty())
+                        body["previousNegotiationId"] = self.previous_negotiation_;
+                    self.emit("rtc.offer", std::move(body));
                     self.description_sent_ = true;
                     for (auto &ice : self.local_ice_)
                         self.emit("rtc.ice", std::move(ice));
@@ -86,21 +98,19 @@ RtcChannel::RtcChannel(bool audio, Event event, std::function<void()> keyframe,
                 if (state == RTC_CONNECTED) {
                     self.keyframe_();
                     self.emit("media.connected", {{"transport", "dtls_srtp"}});
-                } else if (state == RTC_FAILED || state == RTC_DISCONNECTED)
-                    self.emit("media.error", {{"code", "RTC_DISCONNECTED"}});
+                }
+                if (state == RTC_CONNECTED || state == RTC_FAILED || state == RTC_DISCONNECTED)
+                    self.emit("rtc.state", {{"negotiationId", self.negotiation_},
+                                             {"state", state == RTC_CONNECTED ? "connected" :
+                                                       (state == RTC_FAILED ? "failed" : "disconnected")}});
             });
         }));
         video_ = add_track(false);
-        if (audio)
+        if (with_audio_)
             audio_ = add_track(true);
         rtc_check(rtcSetLocalDescription(pc_, "offer"));
     } catch (...) {
-        unregister_callback(callback_token_);
-        if (video_ >= 0)
-            rtcDeleteTrack(video_);
-        if (audio_ >= 0)
-            rtcDeleteTrack(audio_);
-        rtcDeletePeerConnection(pc_);
+        clear_transport();
         throw;
     }
 }
@@ -154,6 +164,9 @@ void RtcChannel::emit(std::string type, nlohmann::json body) noexcept {
     }
 }
 RtcChannel::~RtcChannel() {
+    clear_transport();
+}
+void RtcChannel::clear_transport() {
     // Removing the token waits for in-flight callbacks and prevents late callbacks finding us.
     unregister_callback(callback_token_);
     if (pc_ >= 0)
@@ -164,12 +177,19 @@ RtcChannel::~RtcChannel() {
         rtcDeleteTrack(audio_);
     if (pc_ >= 0)
         rtcDeletePeerConnection(pc_);
+    pc_ = video_ = audio_ = -1;
 }
 void RtcChannel::command(const nlohmann::json &message) {
     std::lock_guard lock(mutex_);
     const auto &body = message.at("body");
     if (body.at("negotiationId").get<std::string>() != negotiation_)
         throw std::runtime_error("STALE_NEGOTIATION");
+    if (message.at("type") == "rtc.restart") {
+        clear_transport();
+        previous_negotiation_ = negotiation_;
+        create_transport();
+        return;
+    }
     auto add = [this](const auto &ice) {
         rtc_check(rtcAddRemoteCandidate(pc_,
                                         ice.at("candidate").template get<std::string>().c_str(),
@@ -196,6 +216,7 @@ void RtcChannel::command(const nlohmann::json &message) {
         throw std::runtime_error("UNKNOWN_RTC_COMMAND");
 }
 void RtcChannel::send(const Packet &packet) {
+    std::lock_guard lock(mutex_);
     const int track = packet.codec == Codec::H264 ? video_ : audio_;
     if (track < 0 || !rtcIsOpen(track))
         return;

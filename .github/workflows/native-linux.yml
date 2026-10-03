@@ -1,0 +1,51 @@
+name: Linux native media
+on:
+  push:
+    branches: [main]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","media-native/**","scripts/build-ffmpeg.py",".github/workflows/native-linux.yml"]
+  pull_request:
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","media-native/**","scripts/build-ffmpeg.py",".github/workflows/native-linux.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-linux-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          key: rust-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
+          restore-keys: rust-native-
+          path: |
+            target/
+            ~/.cargo/registry/
+      - run: python scripts/build-ffmpeg.py --prefix .cache/ffmpeg-host
+      - run: cmake -S media-native -B .cache/native-build -G Ninja -DFFMPEG_ROOT=${{ github.workspace }}/.cache/ffmpeg-host -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build .cache/native-build
+      - run: ctest --test-dir .cache/native-build --output-on-failure
+      - name: Decode real synthetic TS after randomized joins
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          ffmpeg -v error -f lavfi -i testsrc2=size=640x360:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 4 -c:v libx264 -preset ultrafast -profile:v baseline -g 30 -bf 0 -x264-params repeat-headers=1 -c:a aac -ac 2 -mpegts_flags resend_headers+pat_pmt_at_frames -y .cache/synthetic.ts
+          cargo run --locked -p cast-adapters --example validate_ts -- .cache/synthetic.ts .cache/join-tests
+          cargo run --locked -p cast-adapters --example validate_live -- .cache/synthetic.ts .cache/join-tests
+          for stream in .cache/join-tests/*.ts; do ffmpeg -v error -xerror -i "$stream" -f null -; done
+          ffmpeg -v error -i .cache/synthetic.ts -map 0:v:0 -c copy -f h264 -y .cache/untagged.h264
+          .cache/native-build/h264_fixture .cache/untagged.h264 .cache/bt709.h264
+          ffmpeg -v error -xerror -i .cache/bt709.h264 -f null -
+          ffprobe -v error -select_streams v:0 -show_entries stream=color_space,color_transfer,color_primaries -of json .cache/bt709.h264 > .cache/color.json
+          python -c 'import json; s=json.load(open(".cache/color.json"))["streams"][0]; assert all(s[k]=="bt709" for k in ("color_space","color_transfer","color_primaries")), s'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-build-evidence
+          path: |
+            .cache/ffmpeg-host/build-manifest.json
+            .cache/ffmpeg-build-host/config.h
+            .cache/native-build/Testing/Temporary/

@@ -255,15 +255,21 @@ static void event(const Json &e) {
                 shared_file["durationMs"] = nullptr;
                 send("file.load", shared_file);
             }
-        } else if (kind == "rtc.answer" && media)
+        } else if (kind != "error" && body.value("sessionId", "") != session)
+            return;
+        else if (kind == "rtc.answer" && media)
             media->answer(data.at("sdp"), data.at("negotiationId"));
         else if (kind == "rtc.ice" && media)
             media->ice(data);
+        else if (kind == "rtc.restart" && media) {
+            media->restart(data);
+            status("媒体连接中断，正在恢复…");
+        }
         else if (kind == "session.stop") {
             media.reset();
             session.clear();
             command("stop");
-            status("接收端已停止");
+            status(data.value("reason", "") == "RTC_RECOVERY_EXHAUSTED" ? "媒体恢复超时，请重新分享" : "接收端已停止");
         } else if (kind == "error") {
             media.reset();
             status(data.value("code", "ERROR"));
@@ -363,6 +369,7 @@ static void click(int id) {
         pending_session =
             send("session.start",
                  {{"mode", mode},
+                  {"rtcRecovery", "replace-v1"},
                   {"audioRequested", SendMessageW(audio_check, BM_GETCHECK, 0, 0) == BST_CHECKED}});
         break;
     case 6: {

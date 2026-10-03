@@ -20,6 +20,8 @@ class MainActivity : Activity() {
     private var peer: RtcPeer? = null
     private var player: PlatformPlayer? = null
     private var sessionId: String? = null
+    private var negotiationId: String? = null
+    private var readySent = false
     private lateinit var state: TextView
     private lateinit var invitation: TextView
     private lateinit var display: FrameLayout
@@ -72,7 +74,7 @@ class MainActivity : Activity() {
                 if (body.getString("mode") == "mirror") {
                     val renderer = SurfaceViewRenderer(this)
                     display.addView(renderer, FrameLayout.LayoutParams(-1, -1))
-                    peer = RtcPeer(this, renderer, { type, data -> if (sessionId == activeSession) core?.send(type, activeSession, data) }, { value -> runOnUiThread { if (sessionId == activeSession) mediaStatus(value) } })
+                    peer = RtcPeer(this, renderer, { type, data -> if (sessionId == activeSession) core?.send(type, activeSession, data) }, { value -> runOnUiThread { if (sessionId == activeSession) mediaStatus(value) } }, recoveryEnabled = body.optString("rtcRecovery") == "replace-v1")
                 } else {
                     player = PlatformPlayer(this) { value -> if (sessionId == activeSession) mediaStatus(value) }
                     display.addView(player!!.view, FrameLayout.LayoutParams(-1, -1))
@@ -80,8 +82,8 @@ class MainActivity : Activity() {
                 invitation.visibility = View.GONE
                 state.text = "正在建立媒体连接…"
             }
-            "message" -> when (body.getString("type")) {
-                "rtc.offer" -> body.getJSONObject("body").let { peer?.receiveOffer(it.getString("sdp"), it.getString("negotiationId")) }
+            "message" -> if (body.optString("sessionId") == sessionId) when (body.getString("type")) {
+                "rtc.offer" -> body.getJSONObject("body").let { negotiationId = it.getString("negotiationId"); readySent = false; peer?.receiveOffer(it.getString("sdp"), negotiationId!!) }
                 "rtc.ice" -> peer?.ice(body.getJSONObject("body"))
                 "file.load" -> body.getJSONObject("body").let { player?.load(it.getString("url"), it.getString("fingerprint")) }
                 "playback.command" -> body.getJSONObject("body").let {
@@ -98,7 +100,7 @@ class MainActivity : Activity() {
         when {
             value == "first_frame" || value == "ready" -> {
                 state.text = "正在播放"
-                core?.send("session.state", sessionId, JSONObject().put("state", "ready"))
+                if (!readySent) { readySent = true; core?.send("session.state", sessionId, JSONObject().put("state", "ready").put("negotiationId", negotiationId)) }
             }
             value.startsWith("statistics:") -> core?.send("statistics", sessionId, JSONObject(value.removePrefix("statistics:")))
             value == "ended" -> { core?.command("stop"); stopMedia() }
@@ -115,6 +117,7 @@ class MainActivity : Activity() {
     }
     private fun stopMedia() {
         sessionId = null
+        negotiationId = null; readySent = false
         peer?.close(); peer = null
         player?.close(); player = null
         display.removeAllViews()

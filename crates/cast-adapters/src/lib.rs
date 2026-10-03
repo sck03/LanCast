@@ -14,6 +14,7 @@ pub mod media_http;
 #[cfg(feature = "sender")]
 pub mod profiles;
 pub mod protocol;
+mod rtc_recovery;
 pub mod runtime;
 pub mod session;
 #[cfg(feature = "sender")]
