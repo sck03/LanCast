@@ -69,11 +69,26 @@ jobs:
           yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
       - run: rustup toolchain install 1.98.1 --profile minimal
+      - uses: actions/cache/restore@v4
+        id: native-cache
+        with:
+          path: |
+            android/app-*/src/**/jniLibs/
+            .cache/ffmpeg-install-*/build-manifest.json
+          key: android-native-v1-${{ hashFiles('Cargo.lock', '**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/build-android-*.py', 'scripts/build-ffmpeg.py') }}
       - name: Build product-specific Rust and minimal TS JNI libraries
+        if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
           export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
           python scripts/build-android-core.py
           python scripts/build-android-media.py
+      - uses: actions/cache/save@v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            android/app-*/src/**/jniLibs/
+            .cache/ffmpeg-install-*/build-manifest.json
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
       - name: Build Kotlin apps and lint
         working-directory: android
         run: |

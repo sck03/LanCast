@@ -103,7 +103,7 @@ class RtcPeer(
         })
         capture!!.initialize(texture, context, videoSource!!.capturerObserver)
         capture!!.startCapture(profile.optInt("width", 1280), profile.optInt("height", 720), profile.optInt("fps", 30))
-        if (internalAudio) playback!!.start(capture!!.mediaProjection)
+        if (internalAudio) playback!!.start(checkNotNull(capture!!.mediaProjection) { "CAPTURE_PROJECTION_UNAVAILABLE" })
         videoTrack = f.createVideoTrack("screen", videoSource)
         peer!!.addTrack(videoTrack, listOf("lancast"))
         if (internalAudio) {

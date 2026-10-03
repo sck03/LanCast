@@ -10,7 +10,6 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.HandlerThread
-import android.os.SystemClock
 import android.view.Surface
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -41,7 +40,7 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                 width = (metrics.widthPixels * scale).toInt() / 2 * 2
                 height = (metrics.heightPixels * scale).toInt() / 2 * 2
                 mux = TsMux(width, height, internalAudio, sink)
-                baseUs = SystemClock.elapsedRealtimeNanos() / 1000
+                baseUs = System.nanoTime() / 1000
                 val manager = context.getSystemService(MediaProjectionManager::class.java)
                 projection = manager.getMediaProjection(Activity.RESULT_OK, permission)
                 projection!!.registerCallback(object : MediaProjection.Callback() {
@@ -114,7 +113,7 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
         // This thread exclusively owns audio codec I/O. Mux calls run on the shared worker.
         audioThread = Thread({
             val pcm = ByteArray(4096); var frames = 0L
-            val origin = SystemClock.elapsedRealtimeNanos() / 1000 - baseUs
+            val origin = System.nanoTime() / 1000 - baseUs
             val info = MediaCodec.BufferInfo()
             val pending = java.util.concurrent.Semaphore(2)
             try {

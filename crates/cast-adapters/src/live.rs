@@ -78,7 +78,9 @@ impl LiveResource {
         // 16 * 65424 = 1046784 bytes, below the per-reader 1 MiB budget.
         let (tx, rx) = mpsc::channel(16);
         let stop = self.stop.child_token();
-        self.readers.lock().unwrap().push(Reader {
+        let mut readers = self.readers.lock().unwrap();
+        readers.retain(|r| !r.tx.is_closed() && !r.stop.is_cancelled());
+        readers.push(Reader {
             tx,
             stop: stop.clone(),
         });
@@ -108,6 +110,9 @@ impl LiveResource {
         // Unknown-length body: Hyper emits chunked for HTTP/1.1, close-delimited for HTTP/1.0.
         if head {
             response.headers_mut().remove(header::CONTENT_LENGTH);
+            *response.body_mut() =
+                StreamBody::new(stream::empty::<Result<Frame<Bytes>, std::io::Error>>())
+                    .boxed_unsync();
             return response;
         }
         self.pulls.fetch_add(1, Ordering::Release);
@@ -177,6 +182,32 @@ impl LiveResource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn head_never_claims_a_finite_live_length() {
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        let (url, task) = live
+            .clone()
+            .bind("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let head = client.head(&url).send().await.unwrap();
+        assert_eq!(head.status(), 200);
+        assert!(!head.headers().contains_key("content-length"));
+        assert_eq!(head.headers()["content-type"], "video/mpeg");
+        assert_eq!(live.pulls(), 0);
+        assert_eq!(
+            client
+                .get(format!("{url}?token=wrong"))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            404
+        );
+        live.revoke();
+        task.await.unwrap();
+    }
     #[test]
     fn slow_readers_are_isolated_and_stop_is_immediate() {
         let live = LiveResource::new("127.0.0.1".parse().unwrap());
