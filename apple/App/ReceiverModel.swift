@@ -31,10 +31,10 @@ final class ReceiverModel: ObservableObject {
             core = try CoreSession { [weak self] in self?.event($0) }
             core?.command("listen", ["address": address, "name": "LanCast Apple", "variant": "apple"])
             status = "正在启动安全接收…"
-        } catch { status = error.localizedDescription }
+        } catch { stop(); status = error.localizedDescription }
     }
-    func approve(_ accept: Bool) {
-        if let approval { core?.command("approve", ["connectionId": approval.id, "accept": accept]) }
+    func approve(_ accept: Bool, connection: String? = nil) {
+        if let id = connection ?? approval?.id { core?.command("approve", ["connectionId": id, "accept": accept]) }
         approval = nil
     }
     func refreshInvite() { core?.command("invite") }
@@ -50,15 +50,18 @@ final class ReceiverModel: ObservableObject {
     }
     private func clearMedia() {
         generation = UUID(); session = nil
+        clearPlayer()
+        rtc?.close(); rtc = nil; video = nil
+    }
+    private func clearPlayer() {
         observation = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver) }; endObserver = nil
         player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
         fileBridge?.close(); fileBridge = nil
-        rtc?.close(); rtc = nil; video = nil
     }
     private func event(_ event: JSONObject) {
         let body = event.object("body")
         switch event.string("type") {
-        case "receiver.ready": listening = true; fingerprint = body.string("fingerprint"); invite = body.string("invite"); status = "等待连接；请发送端核对完整指纹"
+        case "receiver.ready": listening = true; address = body.string("address"); fingerprint = body.string("fingerprint"); invite = body.string("invite"); status = "等待连接；请发送端核对完整指纹"
         case "receiver.invite": invite = body.string("invite")
         case "pair.request":
             // Never overwrite an unanswered approval with another device's request.
@@ -96,13 +99,15 @@ final class ReceiverModel: ObservableObject {
             case "session.stop": clearMedia(); status = "发送端已停止"
             default: break
             }
-        case "session.closed", "stopped": clearMedia(); status = "会话已结束"
-        case "error": status = body.string("code"); if session != nil { stopMedia(); status = body.string("code") }
+        case "session.closed": clearMedia(); status = "会话已结束"
+        case "error":
+            if !listening { stop() } else if session != nil { stopMedia() }
+            status = body.string("code")
         default: break
         }
     }
     private func prepareFile(_ data: JSONObject) {
-        fileBridge?.close(); fileBridge = nil
+        clearPlayer(); generation = UUID()
         let current = generation
         do {
             fileBridge = try CoreSession { [weak self] event in
@@ -110,6 +115,10 @@ final class ReceiverModel: ObservableObject {
                 self.fileEvent(event)
             }
             fileBridge?.command("bridge.create", ["url": data.string("url"), "fingerprint": data.string("fingerprint")])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+                guard let self, self.generation == current, self.player?.currentItem?.status != .readyToPlay else { return }
+                self.stopMedia(); self.status = "文件加载超时，请检查发送端与媒体格式"
+            }
         } catch { stopMedia(); status = error.localizedDescription }
     }
     private func fileEvent(_ event: JSONObject) {

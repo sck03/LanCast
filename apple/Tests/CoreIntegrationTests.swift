@@ -3,6 +3,12 @@ import XCTest
 
 final class CoreIntegrationTests: XCTestCase {
     func testPinnedPairingRequiresApprovalAndStopsSession() throws {
+        try verifyStop(closeConnection: false)
+    }
+    func testClosingAuthenticatedSenderRevokesReceiverSession() throws {
+        try verifyStop(closeConnection: true)
+    }
+    private func verifyStop(closeConnection: Bool) throws {
         let active = expectation(description: "authenticated session reached receiver")
         let ended = expectation(description: "stop reached receiver")
         var receiver: CoreSession!
@@ -15,6 +21,7 @@ final class CoreIntegrationTests: XCTestCase {
             case "pair.request": approvalSeen = true; receiver.command("approve", ["connectionId": body.string("connectionId"), "accept": true])
             case "session.started": XCTAssertTrue(approvalSeen); active.fulfill()
             case "message": if body.string("type") == "session.stop" { ended.fulfill() }
+            case "session.closed": if closeConnection { ended.fulfill() }
             case "error": XCTFail(body.string("code"))
             default: break
             }
@@ -22,10 +29,13 @@ final class CoreIntegrationTests: XCTestCase {
         sender = try CoreSession { event in
             let body = event.object("body")
             if event.string("type") == "connected" { sender.send("session.start", session: nil, body: ["mode": "mirror", "audioRequested": false]) }
-            if event.string("type") == "message", body.string("type") == "session.accepted" { sender.send("session.stop", session: body.string("sessionId"), body: ["reason": "test_complete"]) }
+            if event.string("type") == "message", body.string("type") == "session.accepted" {
+                if closeConnection { sender.close() }
+                else { sender.send("session.stop", session: body.string("sessionId"), body: ["reason": "test_complete"]) }
+            }
             if event.string("type") == "error" { XCTFail(body.string("code")) }
         }
-        defer { sender.close(); receiver.close() }
+        defer { sender.close(); receiver.close(); sender = nil; receiver = nil }
         receiver.command("listen", ["address": "127.0.0.1:0", "name": "LanCast XCTest", "variant": "apple"])
         wait(for: [active, ended], timeout: 15)
     }
@@ -39,7 +49,7 @@ final class CoreIntegrationTests: XCTestCase {
             if event.string("type") == "pair.request" { XCTFail("Unverified TLS client reached approval") }
         }
         sender = try CoreSession { event in if event.string("type") == "error" { rejected.fulfill() } }
-        defer { sender.close(); receiver.close() }
+        defer { sender.close(); receiver.close(); sender = nil; receiver = nil }
         receiver.command("listen", ["address": "127.0.0.1:0", "name": "LanCast pin test"])
         wait(for: [rejected], timeout: 15)
     }

@@ -88,7 +88,10 @@ final class SenderModel: ObservableObject {
             Task { @MainActor in
                 guard let self, self.generation == current else { return }
                 do { try await self.capture.start(source: source, audio: wantsAudio) }
-                catch { self.stop(); self.status = "采集失败：\(error.localizedDescription)" }
+                catch {
+                    guard self.generation == current else { return }
+                    self.stop(); self.status = "采集失败：\(error.localizedDescription)"
+                }
             }
         }
         do { try sender.connect(ticket(), mirror: true) } catch { status = error.localizedDescription }

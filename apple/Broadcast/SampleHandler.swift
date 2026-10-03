@@ -8,7 +8,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
     private let sampleSlots = DispatchSemaphore(value: 3)
     override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            guard let self, !self.stopped else { return }
             do {
                 let ticket = try BroadcastStore.consume()
                 let sender = SenderSession(); self.sender = sender

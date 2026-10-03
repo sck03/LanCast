@@ -2,6 +2,14 @@ import XCTest
 @testable import LanCastContracts
 
 final class SessionContractsTests: XCTestCase {
+    func testFramesFitWithoutCroppingPortraitOrSquareSources() {
+        let portrait = FrameSize.fit(width: 1080, height: 1920, maxWidth: 1280, maxHeight: 720)
+        XCTAssertEqual(portrait.width, 720); XCTAssertEqual(portrait.height, 1280)
+        let square = FrameSize.fit(width: 2048, height: 2048, maxWidth: 1280, maxHeight: 720)
+        XCTAssertEqual(square.width, 720); XCTAssertEqual(square.height, 720)
+        let small = FrameSize.fit(width: 321, height: 181, maxWidth: 1280, maxHeight: 720)
+        XCTAssertEqual(small.width, 320); XCTAssertEqual(small.height, 180)
+    }
     func testTicketRejectsExpiredAndClockRollback() throws {
         let now = Date(timeIntervalSince1970: 1000)
         let ticket = try BroadcastTicket(address: "192.168.1.2:8787", fingerprint: String(repeating: "a", count: 64), invite: "one-use", audio: true, now: now)

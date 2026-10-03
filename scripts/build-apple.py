@@ -86,7 +86,9 @@ def main():
     common = ["xcodebuild", "-project", str(APPLE / "LanCast.xcodeproj"), "-scheme", scheme, "-configuration", "Debug", "-derivedDataPath", str(CACHE / "DerivedData")]
     if args.platform == "macos":
         run("swift", "test", "--package-path", APPLE / "Contracts")
-        run(*common, "test", "-destination", "platform=macOS", "-resultBundlePath", output / "tests.xcresult", "CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "CODE_SIGN_ENTITLEMENTS=", "ENABLE_HARDENED_RUNTIME=NO")
+        run(*common, "test", "-destination", "platform=macOS", "-parallel-testing-enabled", "NO",
+            "-test-timeouts-enabled", "YES", "-maximum-test-execution-time-allowance", "90",
+            "-resultBundlePath", output / "tests.xcresult", "CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "CODE_SIGN_ENTITLEMENTS=", "ENABLE_HARDENED_RUNTIME=NO")
     else:
         dest = "iOS" if args.platform == "ios" else "tvOS"
         run(*common, "build", "-destination", f"generic/platform={dest}", "CODE_SIGNING_ALLOWED=NO")

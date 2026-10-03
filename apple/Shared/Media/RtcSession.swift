@@ -5,6 +5,8 @@ import LanCastContracts
 
 /// All SDP/ICE and lifetime mutations run here. Capture queues only submit bounded samples.
 final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRenderer {
+    // Process lifetime, shared by sender/receiver factories. Never clean up while peers exist.
+    private static let sslReady = LKRTCInitializeSSL()
     private let queue = DispatchQueue(label: "dev.lancast.rtc")
     private let videoSlots = DispatchSemaphore(value: 2)
     private var factory: LKRTCPeerConnectionFactory?
@@ -21,6 +23,10 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     private var closed = false
     private var receivedFrame = false
     private var statsTimer: DispatchSourceTimer?
+    private var frameSize: FrameSize?
+    private var maxWidth: Int32 = 1280
+    private var maxHeight: Int32 = 720
+    private var maxFps: Int32 = 30
     private let signal: (String, JSONObject) -> Void
     private let status: (String) -> Void
     private let track: (LKRTCVideoTrack?) -> Void
@@ -43,12 +49,22 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
     }
     private func initialize() throws {
         guard peer == nil else { return }
+        guard Self.sslReady else { throw CastFailure.invalid("RTC_SSL_INITIALIZE_FAILED") }
         let encoder = LKRTCVideoEncoderFactoryH264()
         let decoder = LKRTCVideoDecoderFactoryH264()
         if sending {
             let input = LCSystemAudioDevice(); audioInput = input
             factory = LKRTCPeerConnectionFactory(encoderFactory: encoder, decoderFactory: decoder, audioDevice: input)
-        } else { factory = LKRTCPeerConnectionFactory(encoderFactory: encoder, decoderFactory: decoder) }
+        } else {
+            let receiver = LKRTCPeerConnectionFactory(audioDeviceModuleType: .audioEngine, bypassVoiceProcessing: true,
+                encoderFactory: encoder, decoderFactory: decoder, audioProcessingModule: nil)
+            let device = receiver.audioDeviceModule
+            guard device.setEngineAvailability(LKRTCAudioEngineAvailability(isInputAvailable: false, isOutputAvailable: withAudio)) == 0,
+                  device.setPlatformVoiceProcessingAllowed(false) == 0 else {
+                throw CastFailure.invalid("AUDIO_OUTPUT_INITIALIZE_FAILED")
+            }
+            factory = receiver
+        }
         let config = LKRTCConfiguration(); config.sdpSemantics = .unifiedPlan; config.bundlePolicy = .maxBundle
         config.iceServers = [] // LAN only; no external STUN, TURN or service account.
         peer = factory?.peerConnection(with: config, constraints: constraints, delegate: self)
@@ -67,7 +83,9 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
         try initialize()
         guard let factory, let peer else { return }
         let source = factory.videoSource(forScreenCast: true); self.source = source
-        source.adaptOutputFormat(toWidth: Int32(profile["width"] as? Int ?? 1280), height: Int32(profile["height"] as? Int ?? 720), fps: Int32(profile["fps"] as? Int ?? 30))
+        maxWidth = Int32(clamping: min(3840, max(2, profile["width"] as? Int ?? 1280)))
+        maxHeight = Int32(clamping: min(2160, max(2, profile["height"] as? Int ?? 720)))
+        maxFps = Int32(clamping: min(60, max(1, profile["fps"] as? Int ?? 30)))
         capturer = LKRTCVideoCapturer(delegate: source)
         let video = factory.videoTrack(with: source, trackId: "screen")
         let sendOnly = LKRTCRtpTransceiverInit(); sendOnly.direction = .sendOnly; sendOnly.streamIds = ["lancast"]
@@ -150,6 +168,11 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
                   let pixel = CMSampleBufferGetImageBuffer(sample) else { return }
             let seconds = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sample))
             guard seconds.isFinite, seconds >= 0, seconds < Double(Int64.max) / 1e9 else { return }
+            let size = FrameSize.fit(width: CVPixelBufferGetWidth(pixel), height: CVPixelBufferGetHeight(pixel), maxWidth: self.maxWidth, maxHeight: self.maxHeight)
+            if self.frameSize != size {
+                self.frameSize = size
+                source.adaptOutputFormat(toWidth: size.width, height: size.height, fps: self.maxFps)
+            }
             let frame = LKRTCVideoFrame(buffer: LKRTCCVPixelBuffer(pixelBuffer: pixel), rotation: rotation, timeStampNs: Int64(seconds * 1e9))
             source.capturer(capturer, didCapture: frame)
         }

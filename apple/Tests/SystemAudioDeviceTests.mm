@@ -32,6 +32,7 @@
             NSInteger bus, UInt32 frames, const AudioBufferList *data, void *context,
             LKRTCAudioDeviceRenderRecordedDataBlock render) {
         XCTAssertGreaterThan(frames, 0u); XCTAssertLessThanOrEqual(frames, 480u);
+        if (!data || !frames || frames > 480) { XCTFail(@"Invalid converted audio"); return -1; }
         XCTAssertEqual(data->mNumberBuffers, 1u);
         XCTAssertEqual(data->mBuffers[0].mNumberChannels, 2u);
         const int16_t *pcm = static_cast<const int16_t *>(data->mBuffers[0].mData);
@@ -46,17 +47,21 @@
     const size_t samples = 8820;
     CMBlockBufferRef block = nullptr;
     XCTAssertEqual(CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault, nullptr, samples * sizeof(float),
-        kCFAllocatorDefault, nullptr, 0, samples * sizeof(float), 0, &block), noErr);
+        kCFAllocatorDefault, nullptr, 0, samples * sizeof(float), kCMBlockBufferAssureMemoryNowFlag, &block), noErr);
+    if (!block) { [device terminateDevice]; return; }
     char *bytes = nullptr;
     XCTAssertEqual(CMBlockBufferGetDataPointer(block, 0, nullptr, nullptr, &bytes), noErr);
+    if (!bytes) { [device terminateDevice]; CFRelease(block); return; }
     for (size_t i = 0; i < samples; ++i) reinterpret_cast<float *>(bytes)[i] = .25f;
     AudioStreamBasicDescription asbd = {44100, kAudioFormatLinearPCM,
         kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked, 4, 1, 4, 1, 32, 0};
     CMAudioFormatDescriptionRef format = nullptr;
     XCTAssertEqual(CMAudioFormatDescriptionCreate(kCFAllocatorDefault, &asbd, 0, nullptr, 0, nullptr, nullptr, &format), noErr);
+    if (!format) { [device terminateDevice]; CFRelease(block); return; }
     CMSampleTimingInfo timing = {CMTimeMake(1, 44100), kCMTimeZero, kCMTimeInvalid};
     size_t size = sizeof(float); CMSampleBufferRef sample = nullptr;
     XCTAssertEqual(CMSampleBufferCreateReady(kCFAllocatorDefault, block, format, samples, 1, &timing, 1, &size, &sample), noErr);
+    if (!sample) { [device terminateDevice]; CFRelease(format); CFRelease(block); return; }
     [device pushSample:sample];
     [self waitForExpectations:@[received] timeout:5];
     XCTAssertTrue([device terminateDevice]);

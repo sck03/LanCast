@@ -46,8 +46,8 @@ struct ContentView: View {
         }
         .alert(item: $receiver.approval) { request in
             Alert(title: Text("允许此设备投屏？"), message: Text("\(request.name)\n\(request.address)"),
-                  primaryButton: .default(Text("允许"), action: { receiver.approve(true) }),
-                  secondaryButton: .cancel(Text("拒绝"), action: { receiver.approve(false) }))
+                  primaryButton: .default(Text("允许"), action: { receiver.approve(true, connection: request.id) }),
+                  secondaryButton: .cancel(Text("拒绝"), action: { receiver.approve(false, connection: request.id) }))
         }
     }
     private var receiverPanel: some View {

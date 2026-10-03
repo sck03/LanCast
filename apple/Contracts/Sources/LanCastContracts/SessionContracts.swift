@@ -48,3 +48,16 @@ public struct SessionGate {
     public mutating func stop() { generation &+= 1; pending = nil; session = nil }
     public func matches(_ generation: UInt64) -> Bool { self.generation == generation }
 }
+
+/// Even encoder dimensions, preserving source aspect ratio and orientation.
+public struct FrameSize: Equatable {
+    public let width: Int32
+    public let height: Int32
+    public static func fit(width: Int, height: Int, maxWidth: Int32, maxHeight: Int32) -> FrameSize {
+        let w = Double(max(2, width)), h = Double(max(2, height))
+        let long = Double(max(2, max(maxWidth, maxHeight)))
+        let short = Double(max(2, min(maxWidth, maxHeight)))
+        let scale = min(1, min((w >= h ? long : short) / w, (w >= h ? short : long) / h))
+        return FrameSize(width: max(2, Int32(w * scale) / 2 * 2), height: max(2, Int32(h * scale) / 2 * 2))
+    }
+}
