@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-04",
+  "timezone": "Asia/Shanghai",
+  "commit": "5f291028a0a49120e2e55072268f98d5ce2a9d18",
+  "workflow": "https://github.com/sck03/LanCast/actions/runs/37138396721",
+  "conclusion": "success",
+  "existingPlatformRegression": {
+    "workflow": "https://github.com/sck03/LanCast/actions/runs/37138396744",
+    "conclusion": "success",
+    "jobs": ["core (ubuntu-24.04)", "core (windows-2022)", "native", "android", "windows"]
+  },
+  "toolchain": {
+    "xcode": "16.4 (16F6)",
+    "rust": "1.98.1"
+  },
+  "dependencies": {
+    "LiveKitWebRTC": {
+      "version": "150.7871.02",
+      "sha256": "a523cd141d2aa6c3638d49fea1f72b0aafd28a8818c35fc240e08418da3d2fda"
+    },
+    "XcodeGen": {
+      "version": "2.44.1",
+      "sha256": "a2e905fb68446e9bb4008cdfe2e13e3f176d0cbcca828b71770f8e53fca91b73"
+    }
+  },
+  "tests": {
+    "passed": 9,
+    "failed": 0,
+    "cases": [
+      "testFramesFitWithoutCroppingPortraitOrSquareSources",
+      "testPartialPinAndInvalidEndpointRejected",
+      "testStopAndReplacementRejectOldReplies",
+      "testTicketRejectsExpiredAndClockRollback",
+      "testClosingAuthenticatedSenderRevokesReceiverSession",
+      "testPinnedPairingRequiresApprovalAndStopsSession",
+      "testWrongPinNeverReachesApproval",
+      "testH264SyntheticFramesCrossIceDtlsSrtpAndDecode",
+      "testResamplesMonoFloatToStereoPCMAndTerminates"
+    ]
+  },
+  "archiveVerification": {
+    "command": "python scripts/verify-apple-artifacts.py .cache/artifacts/37138396721",
+    "result": "passed",
+    "checks": [
+      "size and SHA-256",
+      "Mach-O executable and embedded framework architectures",
+      "minimum OS and local network/Bonjour declarations",
+      "matching host/extension App Group and ReplayKit metadata",
+      "no XCTest bundle in app archives"
+    ]
+  },
+  "packages": [
+    {
+      "file": "LanCastMac-Release.zip",
+      "architectures": [
+        "arm64",
+        "x86_64"
+      ],
+      "minimumOS": "13.0",
+      "bytes": 22006422,
+      "sha256": "8f4d3ca2b31e4d6f08cf888ca61d9c392213c0cb860186f550a51fe941b62f03"
+    },
+    {
+      "file": "LanCastIOS-Debug-iphoneos.zip",
+      "architectures": [
+        "arm64"
+      ],
+      "minimumOS": "16.0",
+      "bytes": 19741051,
+      "sha256": "091988bdbbce59b8fc467968aba31bbc2094f56b0f6c4c89f13d04db9de3e877"
+    },
+    {
+      "file": "LanCastIOS-Debug-iphonesimulator.zip",
+      "architectures": [
+        "arm64"
+      ],
+      "minimumOS": "16.0",
+      "bytes": 34389392,
+      "sha256": "7e6e86b4fcf242a3963dc6090f5a255a6b24fa906f4d477b242576965c813bec"
+    },
+    {
+      "file": "LanCastTV-Debug-appletvos.zip",
+      "architectures": [
+        "arm64"
+      ],
+      "minimumOS": "17.0",
+      "bytes": 9802368,
+      "sha256": "5e49d0d9041fb483d5942b47cde3eee2f9120402cf4eb82bb357b8af47c4f235"
+    },
+    {
+      "file": "LanCastTV-Debug-appletvsimulator.zip",
+      "architectures": [
+        "arm64"
+      ],
+      "minimumOS": "17.0",
+      "bytes": 10051830,
+      "sha256": "77b1cccdedeeb137db0b0c3dac7964c93e830d9d5142bd21a5193d71ac0a0454"
+    }
+  ],
+  "scope": "Builds, synthetic loopback, PCM conversion and archive inspection; no physical-device, performance, signing or distribution acceptance."
+}
