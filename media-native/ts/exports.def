@@ -1,0 +1,5 @@
+EXPORTS
+lc_ts_create
+lc_ts_video
+lc_ts_audio
+lc_ts_destroy

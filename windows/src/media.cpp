@@ -15,6 +15,7 @@ struct MediaSender::State {
     Event event; HMODULE module=nullptr; LcRtcHandle handle=0;
     LcRtcCreateFn create=nullptr; LcRtcCommandFn command=nullptr; LcRtcDestroyFn destroy=nullptr;
     std::atomic_bool active{false};
+    std::function<int32_t(const uint8_t*, size_t)> ts;
     ~State() { if(handle && destroy) destroy(handle); if(module) FreeLibrary(module); }
     void send(const Json& message) {
         if(!active || !handle) return;
@@ -24,7 +25,7 @@ struct MediaSender::State {
 bool MediaSender::available() {
     auto module=load(); if(!module) return false;
     auto version=reinterpret_cast<LcRtcVersionFn>(GetProcAddress(module,"lc_rtc_version"));
-    bool valid=version && version()==1 && GetProcAddress(module,"lc_rtc_create") && GetProcAddress(module,"lc_rtc_command") && GetProcAddress(module,"lc_rtc_destroy");
+    bool valid=version && version()==2 && GetProcAddress(module,"lc_rtc_create") && GetProcAddress(module,"lc_rtc_command") && GetProcAddress(module,"lc_rtc_destroy");
     FreeLibrary(module); return valid;
 }
 MediaSender::MediaSender(Event event):state_(std::make_shared<State>()) { state_->event=std::move(event); }
@@ -36,15 +37,20 @@ void MediaSender::start(HWND window,bool audio,const Json& profile) {
     s.create=reinterpret_cast<LcRtcCreateFn>(GetProcAddress(s.module,"lc_rtc_create"));
     s.command=reinterpret_cast<LcRtcCommandFn>(GetProcAddress(s.module,"lc_rtc_command"));
     s.destroy=reinterpret_cast<LcRtcDestroyFn>(GetProcAddress(s.module,"lc_rtc_destroy"));
-    if(!version || version()!=1 || !s.create || !s.command || !s.destroy) throw std::runtime_error("RTC_ABI_MISMATCH");
-    LcRtcConfig c{}; c.size=sizeof(c); c.abi_version=1; c.window_handle=reinterpret_cast<uintptr_t>(window);
+    if(!version || version()!=2 || !s.create || !s.command || !s.destroy) throw std::runtime_error("RTC_ABI_MISMATCH");
+    LcRtcConfig c{}; c.size=sizeof(c); c.abi_version=2; c.window_handle=reinterpret_cast<uintptr_t>(window);
     c.width=profile.value("width",1280); c.height=profile.value("height",720); c.fps=profile.value("fps",30); c.bitrate=profile.value("bitrate",3000000); c.audio=audio;
+    c.route=profile.value("live",false)?1:0; c.synthetic=profile.value("synthetic",false)?1:0;
+    c.ts_user=&s; c.write_ts=+[](void* user,const uint8_t* bytes,size_t size)->int32_t { auto* state=static_cast<State*>(user); return state->active && state->ts ? state->ts(bytes,size) : -2; };
     c.user=&s; c.event=+[](void* user,const uint8_t* data,size_t size) {
         auto* state=static_cast<State*>(user); if(!state->active || !data || size>128*1024) return;
         try { auto event=Json::parse(data,data+size); state->event(event.at("type").get<std::string>(),event.value("body",Json::object())); } catch(...) {}
     };
     s.active=true; s.handle=s.create(&c);
     if(!s.handle) { s.active=false; throw std::runtime_error("RTC_INITIALIZATION_FAILED"); }
+}
+void MediaSender::start_live(HWND window,bool audio,bool synthetic,std::function<int32_t(const uint8_t*,size_t)> sink) {
+    state_->ts=std::move(sink); start(window,audio,{{"live",true},{"synthetic",synthetic}});
 }
 void MediaSender::answer(const std::string& sdp,const std::string& negotiation) { state_->send({{"type","rtc.answer"},{"body",{{"sdp",sdp},{"negotiationId",negotiation}}}}); }
 void MediaSender::ice(const Json& body) { state_->send({{"type","rtc.ice"},{"body",body}}); }

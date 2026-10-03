@@ -14,6 +14,10 @@ typedef struct LcRtcConfig {
     uint32_t width, height, fps, bitrate, audio;
     LcRtcEvent event;
     void* user;
+    /* ABI 2: route 0=WebRTC, 1=DLNA TS. synthetic never captures the desktop or audio. */
+    uint32_t route, synthetic;
+    int32_t (*write_ts)(void* user, const uint8_t* bytes, size_t length);
+    void* ts_user;
 } LcRtcConfig;
 typedef uint32_t (*LcRtcVersionFn)(void);
 typedef LcRtcHandle (*LcRtcCreateFn)(const LcRtcConfig*);

@@ -14,6 +14,7 @@ public:
     MediaSender(const MediaSender&) = delete;
     MediaSender& operator=(const MediaSender&) = delete;
     void start(HWND window, bool audio, const Json& profile);
+    void start_live(HWND window, bool audio, bool synthetic, std::function<int32_t(const uint8_t*, size_t)> sink);
     void answer(const std::string& sdp, const std::string& negotiation);
     void ice(const Json& body);
     void pump() {}
