@@ -1,0 +1,126 @@
+name: LanCast
+options:
+  bundleIdPrefix: dev.lancast
+  deploymentTarget:
+    macOS: '13.0'
+    iOS: '16.0'
+    tvOS: '17.0'
+packages:
+  LanCastContracts:
+    path: Contracts
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    CODE_SIGNING_ALLOWED: NO
+    SWIFT_OBJC_BRIDGING_HEADER: Shared/Bridge.h
+    HEADER_SEARCH_PATHS: ['$(SRCROOT)/../core/include', '$(SRCROOT)/Shared/Media']
+    OTHER_LDFLAGS: ['$(inherited)', '-lc++', '-liconv', '-lresolv', '-framework', Security, '-framework', SystemConfiguration]
+    GENERATE_INFOPLIST_FILE: YES
+    MARKETING_VERSION: '0.3.0'
+    CURRENT_PROJECT_VERSION: '1'
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_STRICT_CONCURRENCY: targeted
+targetTemplates:
+  Shared:
+    sources: [Shared]
+    dependencies:
+      - package: LanCastContracts
+      - framework: Dependencies/LiveKitWebRTC.xcframework
+        embed: true
+      - framework: Dependencies/LanCastCore.xcframework
+        embed: false
+    settings:
+      base:
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: '连接局域网内的 LanCast 设备并传输您授权的画面和文件。'
+    info:
+      path: Config/${target_name}-Info.plist
+      properties:
+        NSLocalNetworkUsageDescription: '连接局域网内的 LanCast 设备并传输您授权的画面和文件。'
+        NSBonjourServices: ['_lancast._tcp']
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+  App:
+    templates: [Shared]
+    type: application
+    sources: [App]
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: LanCast
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+targets:
+  LanCastMac:
+    templates: [App]
+    platform: macOS
+    sources: [Mac]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.lancast.mac
+        CODE_SIGN_ENTITLEMENTS: Config/Mac.entitlements
+  LanCastIOS:
+    templates: [App]
+    platform: iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.lancast.ios
+        CODE_SIGN_ENTITLEMENTS: Config/iOS.entitlements
+        TARGETED_DEVICE_FAMILY: '1,2'
+    info:
+      properties:
+        LanCastAppGroup: group.dev.lancast.shared
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    dependencies:
+      - target: LanCastBroadcast
+        embed: true
+  LanCastBroadcast:
+    templates: [Shared]
+    type: app-extension
+    platform: iOS
+    sources: [Broadcast]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.lancast.ios.broadcast
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGN_ENTITLEMENTS: Config/iOS.entitlements
+        TARGETED_DEVICE_FAMILY: '1,2'
+    info:
+      properties:
+        LanCastAppGroup: group.dev.lancast.shared
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: '$(PRODUCT_MODULE_NAME).SampleHandler'
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+  LanCastTV:
+    templates: [App]
+    platform: tvOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.lancast.tv
+        TARGETED_DEVICE_FAMILY: '3'
+  LanCastTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests]
+    dependencies:
+      - target: LanCastMac
+    settings:
+      base:
+        SWIFT_OBJC_BRIDGING_HEADER: ''
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  LanCastMac:
+    build:
+      targets:
+        LanCastMac: all
+    test:
+      targets: [LanCastTests]
+  LanCastIOS:
+    build:
+      targets:
+        LanCastIOS: all
+  LanCastTV:
+    build:
+      targets:
+        LanCastTV: all

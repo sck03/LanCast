@@ -18,3 +18,9 @@ dist/
 **/jniLibs/**/*.so
 __pycache__/
 *.py[cod]
+apple/Dependencies/
+apple/*.xcodeproj/
+apple/Contracts/.build/
+apple/Contracts/.swiftpm/
+*.xcuserstate
+apple/Config/*-Info.plist

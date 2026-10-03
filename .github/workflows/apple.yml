@@ -1,0 +1,43 @@
+name: Apple clients
+on:
+  push:
+    branches: [main]
+    paths: ['apple/**', 'core/**', 'crates/**', 'Cargo.*', 'rust-toolchain.toml', 'scripts/build-apple.py', '.github/workflows/apple.yml']
+  pull_request:
+    paths: ['apple/**', 'core/**', 'crates/**', 'Cargo.*', 'rust-toolchain.toml', 'scripts/build-apple.py', '.github/workflows/apple.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  apple:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos, ios, tvos]
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.98.1 --profile minimal
+      - uses: actions/cache@v4
+        with:
+          key: apple-${{ matrix.platform }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'scripts/build-apple.py') }}
+          restore-keys: apple-${{ matrix.platform }}-
+          path: |
+            target/
+            ~/.cargo/registry/
+            .cache/apple/webrtc.zip
+            .cache/apple/xcodegen.zip
+      - name: Build Apple clients and run Mac integration tests
+        run: python3 scripts/build-apple.py --platform ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LanCast-Apple-${{ matrix.platform }}-development
+          path: |
+            dist/apple/${{ matrix.platform }}/
+            apple/LanCast.xcodeproj/
+            apple/Config/*-Info.plist
