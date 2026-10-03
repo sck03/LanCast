@@ -61,6 +61,11 @@ jobs:
           cargo run --locked -p cast-adapters --example validate_ts -- .cache/synthetic.ts .cache/join-tests
           cargo run --locked -p cast-adapters --example validate_live -- .cache/synthetic.ts .cache/join-tests
           for stream in .cache/join-tests/*.ts; do ffmpeg -v error -xerror -i "$stream" -f null -; done
+          ffmpeg -v error -i .cache/synthetic.ts -map 0:v:0 -c copy -f h264 -y .cache/untagged.h264
+          .cache/native-build/h264_fixture .cache/untagged.h264 .cache/bt709.h264
+          ffmpeg -v error -xerror -i .cache/bt709.h264 -f null -
+          ffprobe -v error -select_streams v:0 -show_entries stream=color_space,color_transfer,color_primaries -of json .cache/bt709.h264 > .cache/color.json
+          python -c 'import json; s=json.load(open(".cache/color.json"))["streams"][0]; assert all(s[k]=="bt709" for k in ("color_space","color_transfer","color_primaries")), s'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

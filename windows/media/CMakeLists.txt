@@ -14,13 +14,15 @@ FetchContent_Declare(opus GIT_REPOSITORY https://github.com/xiph/opus.git GIT_TA
 set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(datachannel opus)
-add_library(lancast_rtc SHARED backend.cpp capture.cpp encoder.cpp audio.cpp rtc_channel.cpp ts_output.cpp)
+add_library(lancast_rtc SHARED backend.cpp capture.cpp encoder.cpp audio.cpp rtc_channel.cpp ts_output.cpp h264_metadata.cpp)
 target_include_directories(lancast_rtc PRIVATE ../../media-native/include)
 target_compile_definitions(lancast_rtc PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00)
 target_compile_options(lancast_rtc PRIVATE /W4 /utf-8 /EHsc)
 target_link_libraries(lancast_rtc PRIVATE datachannel Opus::opus nlohmann_json::nlohmann_json
     d3d11 dxgi mfplat mf mfuuid wmcodecdspuuid runtimeobject windowsapp ole32 oleaut32 uuid avrt)
 set_target_properties(lancast_rtc PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+add_custom_command(TARGET lancast_rtc POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_SOURCE_DIR}/../.cache/ts-windows/lancast_ts.dll" "$<TARGET_FILE_DIR:lancast_rtc>")
 add_executable(rtc_contract rtc_contract.cpp rtc_channel.cpp)
 target_compile_definitions(rtc_contract PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_compile_options(rtc_contract PRIVATE /W4 /utf-8 /EHsc)
@@ -33,6 +35,8 @@ target_compile_definitions(media_abi_contract PRIVATE NOMINMAX WIN32_LEAN_AND_ME
 target_compile_options(media_abi_contract PRIVATE /W4 /utf-8 /EHsc)
 add_test(NAME media_abi_contract COMMAND media_abi_contract $<TARGET_FILE:lancast_rtc>)
 set_tests_properties(media_abi_contract PROPERTIES TIMEOUT 45)
+add_custom_command(TARGET media_abi_contract POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_SOURCE_DIR}/../.cache/ts-windows/lancast_ts.dll" "$<TARGET_FILE_DIR:media_abi_contract>")
 add_executable(media_probe probe.cpp)
 target_include_directories(media_probe PRIVATE ../../media-native/include)
 target_compile_definitions(media_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

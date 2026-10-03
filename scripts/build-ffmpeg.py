@@ -31,6 +31,7 @@ build = cache / ("ffmpeg-build-" + (args.android or "host"))
 build.mkdir(exist_ok=True)
 prefix = args.prefix.resolve()
 options = [str(source / "configure"), "--prefix=" + str(prefix), "--disable-everything", "--disable-programs", "--disable-doc", "--disable-network", "--disable-autodetect", "--disable-avdevice", "--disable-avfilter", "--disable-swscale", "--disable-swresample", "--disable-gpl", "--disable-nonfree", "--disable-shared", "--enable-static", "--enable-pic", "--enable-muxer=mpegts", "--disable-x86asm"]
+options += ["--enable-bsf=h264_metadata"]  # SPS/VUI metadata only; no software encoder/decoder.
 if args.android:
     ndk = Path(os.environ["ANDROID_NDK_HOME"])
     tools = ndk / "toolchains/llvm/prebuilt/linux-x86_64/bin"

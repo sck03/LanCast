@@ -1,4 +1,5 @@
 #include "capture.h"
+#include "h264_metadata.h"
 #include "lancast_rtc.h"
 #include "rtc_channel.h"
 #include "ts_output.h"
@@ -17,6 +18,7 @@ struct Backend {
     std::atomic_uint bitrate;
     std::unique_ptr<lancast::RtcChannel> rtc;
     std::unique_ptr<lancast::TsOutput> ts;
+    std::unique_ptr<lancast::H264Metadata> metadata;
     std::unique_ptr<lancast::Capture> capture;
     explicit Backend(const LcRtcConfig &c) : config(c), bitrate(c.bitrate) {}
     void emit(std::string type, nlohmann::json body) noexcept {
@@ -40,6 +42,12 @@ struct Backend {
         c.audio = config.audio != 0;
         c.synthetic = config.synthetic != 0;
         c.live = config.route == 1;
+        metadata = std::make_unique<lancast::H264Metadata>([this](const lancast::Packet &p) {
+            if (rtc)
+                rtc->send(p);
+            else
+                ts->send(p);
+        });
         if (c.live)
             ts = std::make_unique<lancast::TsOutput>(c, config.write_ts, config.ts_user);
         else
@@ -56,7 +64,9 @@ struct Backend {
                         capture->request_keyframe();
                     capture->set_bitrate(bitrate);
                 }
-                if (rtc)
+                if (p.codec == lancast::Codec::H264)
+                    metadata->send(p);
+                else if (rtc)
                     rtc->send(p);
                 else
                     ts->send(p);
@@ -69,6 +79,7 @@ struct Backend {
         if (capture)
             capture->stop();
         capture.reset();
+        metadata.reset();
         rtc.reset();
         ts.reset();
     }

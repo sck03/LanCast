@@ -3,3 +3,6 @@ lc_ts_create
 lc_ts_video
 lc_ts_audio
 lc_ts_destroy
+lc_h264_create
+lc_h264_write
+lc_h264_destroy

@@ -25,6 +25,17 @@ int32_t lc_ts_video(LcTsMux* mux, const uint8_t* data, size_t size, int64_t pts_
 int32_t lc_ts_audio(LcTsMux* mux, const uint8_t* data, size_t size, int64_t pts_us);
 /* Not callable from write callback. Owner serializes all calls and destroy. */
 void lc_ts_destroy(LcTsMux* mux);
+/* H.264 Annex-B metadata normalization; encoded slices are never decoded/re-encoded. */
+typedef struct LcH264Filter LcH264Filter;
+typedef int32_t (*LcH264Write)(void*, const uint8_t*, size_t, int64_t pts_us, uint32_t keyframe);
+typedef struct LcH264Config {
+    uint32_t size, abi_version;
+    LcH264Write write;
+    void* user;
+} LcH264Config;
+int32_t lc_h264_create(const LcH264Config* config, LcH264Filter** filter);
+int32_t lc_h264_write(LcH264Filter* filter, const uint8_t* bytes, size_t length, int64_t pts_us, uint32_t keyframe);
+void lc_h264_destroy(LcH264Filter* filter);
 #ifdef __cplusplus
 }
 #endif
