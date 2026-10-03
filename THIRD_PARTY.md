@@ -16,8 +16,8 @@
 | FFmpeg | 8.0.1，SHA256见build-ffmpeg.py | MPEG-TS封装、Windows H.264 SPS/VUI元数据修正 | LGPL-2.1-or-later配置；GPL/nonfree禁用，无软件编码器/解码器 |
 | nlohmann/json | 65ee68451d8eb2b5f3a30b410476ab83deb3289b | Windows JSON | MIT |
 | Gradle wrapper | 8.13，分发ZIP哈希固定 | 构建 | Apache-2.0 |
-| LiveKitWebRTC Apple XCFramework | 150.7871.02，SHA256见build-apple.py | Apple H.264/Opus/ICE/DTLS/SRTP，无云服务依赖 | WebRTC BSD及附带第三方许可；上游二进制，非本仓库源构建 |
-| XcodeGen | 2.44.1，SHA256见build-apple.py | 构建时生成Xcode工程，不进入运行包 | MIT |
+| LiveKitWebRTC Apple XCFramework | 150.7871.02，SHA256见apple_build.py | Apple H.264/Opus/ICE/DTLS/SRTP，无云服务依赖 | WebRTC BSD及附带第三方许可；上游二进制，非本仓库源构建 |
+| XcodeGen | 2.44.1，SHA256见apple_build.py | 构建时生成Xcode工程，不进入运行包 | MIT |
 | Apple系统框架 | 具体SDK版本见build-report.json | SwiftUI/ScreenCaptureKit/ReplayKit/AVFoundation/Metal | 系统SDK条款；不是开源替代库 |
 
 FFmpeg静态链接需要在正式发行时提供许可文本、对应源代码/修改、可重链接对象与说明等适用材料。当前CI调试产物不等于完成这些义务；发布门槛记录于08。配置报告应核对实际构建结果，不仅看脚本。

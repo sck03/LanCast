@@ -17,8 +17,8 @@ settings:
     HEADER_SEARCH_PATHS: ['$(SRCROOT)/../core/include', '$(SRCROOT)/Shared/Media']
     OTHER_LDFLAGS: ['$(inherited)', '-lc++', '-liconv', '-lresolv', '-framework', Security, '-framework', SystemConfiguration]
     GENERATE_INFOPLIST_FILE: YES
-    MARKETING_VERSION: '0.3.0'
-    CURRENT_PROJECT_VERSION: '1'
+    MARKETING_VERSION: '0.4.0'
+    CURRENT_PROJECT_VERSION: '4'
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     ENABLE_HARDENED_RUNTIME: YES
     SWIFT_STRICT_CONCURRENCY: targeted
@@ -37,6 +37,8 @@ targetTemplates:
     info:
       path: Config/${target_name}-Info.plist
       properties:
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
         NSLocalNetworkUsageDescription: '连接局域网内的 LanCast 设备并传输您授权的画面和文件。'
         NSBonjourServices: ['_lancast._tcp']
         NSAppTransportSecurity:

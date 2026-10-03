@@ -12,35 +12,42 @@ struct Signals {
     std::vector<int> tracks;
     std::string negotiation;
     std::atomic_int packets{0}, keyframes{0};
+    std::atomic_int receiver{-1};
 };
 int main() {
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     Signals signals;
     int receiver = -1;
     try {
+        auto create_receiver = [&] {
         rtcConfiguration config{};
         config.disableAutoNegotiation = true;
         receiver = rtcCreatePeerConnection(&config);
         if (receiver < 0)
             throw std::runtime_error("receiver creation failed");
+        signals.receiver = receiver;
         rtcSetUserPointer(receiver, &signals);
-        rtcSetLocalDescriptionCallback(receiver, [](int, const char *sdp, const char *, void *p) {
+        rtcSetLocalDescriptionCallback(receiver, [](int pc, const char *sdp, const char *, void *p) {
             auto &s = *static_cast<Signals *>(p);
             std::lock_guard lock(s.mutex);
+            if (pc != s.receiver) return;
             s.to_sender.push_back({{"type", "rtc.answer"},
                                    {"body", {{"sdp", sdp}, {"negotiationId", s.negotiation}}}});
         });
-        rtcSetLocalCandidateCallback(receiver, [](int, const char *candidate, const char *mid,
+        rtcSetLocalCandidateCallback(receiver, [](int pc, const char *candidate, const char *mid,
                                                   void *p) {
             auto &s = *static_cast<Signals *>(p);
             std::lock_guard lock(s.mutex);
+            if (pc != s.receiver) return;
             s.to_sender.push_back(
                 {{"type", "rtc.ice"},
                  {"body",
                   {{"candidate", candidate}, {"sdpMid", mid}, {"negotiationId", s.negotiation}}}});
         });
-        rtcSetTrackCallback(receiver, [](int, int track, void *p) {
+        rtcSetTrackCallback(receiver, [](int pc, int track, void *p) {
             auto &s = *static_cast<Signals *>(p);
+            std::lock_guard lock(s.mutex);
+            if (pc != s.receiver) return;
             rtcSetUserPointer(track, p);
             rtcSetMessageCallback(track, [](int, const char *bytes, int size, void *user) {
                 // This verifies transport/decryption and RTP framing, not H.264 decoding.
@@ -48,9 +55,18 @@ int main() {
                     ++static_cast<Signals *>(user)->packets;
             });
             rtcChainRtcpReceivingSession(track);
-            std::lock_guard lock(s.mutex);
             s.tracks.push_back(track);
         });
+        };
+        auto close_receiver = [&] {
+            signals.receiver = -1;
+            rtcClosePeerConnection(receiver);
+            std::vector<int> tracks;
+            { std::lock_guard lock(signals.mutex); tracks.swap(signals.tracks); }
+            for (int track : tracks) rtcDeleteTrack(track);
+            rtcDeletePeerConnection(receiver); receiver = -1;
+        };
+        create_receiver();
         {
             lancast::RtcChannel sender(
                 true,
@@ -59,11 +75,21 @@ int main() {
                     signals.to_receiver.push_back({{"type", type}, {"body", body}});
                 },
                 [&] { ++signals.keyframes; }, [](uint32_t) {});
+            for (int phase = 0; phase < 2; ++phase) {
+            if (phase == 1) {
+                close_receiver();
+                std::string previous;
+                { std::lock_guard lock(signals.mutex); previous = signals.negotiation;
+                  signals.to_sender.clear(); signals.to_receiver.clear(); }
+                create_receiver();
+                sender.command({{"type", "rtc.restart"}, {"body", {{"negotiationId", previous}}}});
+            }
+            const int before = signals.packets;
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
             int64_t timestamp = 0;
             bool offer = false;
             std::vector<Json> remote_ice;
-            while (signals.packets < 4 && std::chrono::steady_clock::now() < deadline) {
+            while (signals.packets < before + 4 && std::chrono::steady_clock::now() < deadline) {
                 std::vector<Json> outgoing, incoming;
                 {
                     std::lock_guard lock(signals.mutex);
@@ -75,6 +101,9 @@ int main() {
                     if (event.at("type") == "rtc.offer") {
                         {
                             std::lock_guard lock(signals.mutex);
+                            if (phase == 1 && (b.at("negotiationId") == signals.negotiation ||
+                                               b.value("previousNegotiationId", "") != signals.negotiation))
+                                throw std::runtime_error("replacement reused or lost negotiation lineage");
                             signals.negotiation = b.at("negotiationId");
                         }
                         if (rtcSetRemoteDescription(
@@ -103,8 +132,9 @@ int main() {
                 timestamp += 20000;
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
-            if (signals.packets < 4 || signals.keyframes < 1)
+            if (signals.packets < before + 4 || signals.keyframes < phase + 1)
                 throw std::runtime_error("no decrypted RTP received");
+            }
             bool rejected = false;
             try {
                 sender.command({{"type", "rtc.ice"}, {"body", {{"negotiationId", "stale"}}}});
@@ -114,14 +144,10 @@ int main() {
             if (!rejected)
                 throw std::runtime_error("stale negotiation accepted");
         }
-        rtcClosePeerConnection(receiver);
-        for (int track : signals.tracks)
-            rtcDeleteTrack(track);
-        rtcDeletePeerConnection(receiver);
-        receiver = -1;
+        close_receiver();
         rtcCleanup();
         CoUninitialize();
-        std::cout << "PASS: local ICE/DTLS/SRTP, H264/Opus RTP, stale negotiation and shutdown\n";
+        std::cout << "PASS: local ICE/DTLS/SRTP, H264/Opus RTP before/after transport replacement, stale negotiation and shutdown\n";
         return 0;
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';

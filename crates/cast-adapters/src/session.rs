@@ -151,6 +151,22 @@ impl RetryBudget {
 mod tests {
     use super::*;
     #[test]
+    fn replacement_requires_capability_and_current_parent() {
+        let mut s = Session::new(Uuid::new_v4(), "mirror").unwrap();
+        let first = Uuid::new_v4();
+        let next = Uuid::new_v4();
+        s.negotiate(first, None).unwrap();
+        assert!(s.negotiate(next, Some(first)).is_err());
+        s.rtc_recovery = true;
+        assert!(s.negotiate(first, Some(first)).is_err());
+        assert!(s.negotiate(next, None).is_err());
+        s.negotiate(next, Some(first)).unwrap();
+        assert!(s.negotiate(first, None).is_err());
+        assert_eq!(s.negotiation, Some(next));
+        s.stop();
+        assert!(s.negotiate(Uuid::new_v4(), Some(next)).is_err());
+    }
+    #[test]
     fn lifecycle_and_owner() {
         let user = Uuid::new_v4();
         let mut s = Session::new(user, "mirror").unwrap();

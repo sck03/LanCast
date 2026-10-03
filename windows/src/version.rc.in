@@ -1,0 +1,26 @@
+#include <winver.h>
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @LC_VERSION_COMMAS@,@LC_BUILD_NUMBER@
+ PRODUCTVERSION @LC_VERSION_COMMAS@,@LC_BUILD_NUMBER@
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+BEGIN
+ BLOCK "StringFileInfo"
+ BEGIN
+  BLOCK "040904b0"
+  BEGIN
+   VALUE "CompanyName", "LanCast contributors\0"
+   VALUE "FileDescription", "LanCast LAN screen sharing\0"
+   VALUE "FileVersion", "@LC_APP_VERSION@.@LC_BUILD_NUMBER@\0"
+   VALUE "ProductName", "LanCast\0"
+   VALUE "ProductVersion", "@LC_APP_VERSION@\0"
+   VALUE "OriginalFilename", "LanCast.exe\0"
+  END
+ END
+ BLOCK "VarFileInfo"
+ BEGIN
+  VALUE "Translation", 0x0409, 1200
+ END
+END

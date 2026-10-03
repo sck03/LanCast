@@ -10,10 +10,12 @@ import json
 import os
 import pathlib
 import platform
+import plistlib
 import shutil
 import subprocess
 import time
 import urllib.request
+from build_config import add_arguments, from_args, record
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APPLE = ROOT / "apple"
@@ -47,11 +49,14 @@ def fetch(url, destination, digest):
 
 def main(target):
     parser = argparse.ArgumentParser(description=__doc__)
+    add_arguments(parser)
     parser.add_argument("--prepare-only", action="store_true")
     args = parser.parse_args()
     args.platform = target
+    product = from_args(target, args)
     if platform.system() != "Darwin":
         raise SystemExit("Apple builds require macOS/Xcode; run the Apple Actions workflow.")
+    build_inputs = record(product)
     CACHE.mkdir(parents=True, exist_ok=True); DEPS.mkdir(parents=True, exist_ok=True)
     fetch(f"https://github.com/livekit/webrtc-xcframework/releases/download/{WEBRTC_VERSION}/LiveKitWebRTC.xcframework.zip", CACHE / "webrtc.zip", WEBRTC_SHA)
     fetch(f"https://github.com/yonaskolb/XcodeGen/releases/download/{XCODEGEN_VERSION}/xcodegen.zip", CACHE / "xcodegen.zip", XCODEGEN_SHA)
@@ -84,7 +89,8 @@ def main(target):
     shutil.copy2(ROOT / "THIRD_PARTY.md", output / "THIRD_PARTY.md")
     shutil.copy2(ROOT / "LICENSE", output / "LanCast-LICENSE.txt")
     scheme = {"macos": "LanCastMac", "ios": "LanCastIOS", "tvos": "LanCastTV"}[args.platform]
-    common = ["xcodebuild", "-project", str(APPLE / "LanCast.xcodeproj"), "-scheme", scheme, "-configuration", "Debug", "-derivedDataPath", str(CACHE / "DerivedData")]
+    version_settings = [f"MARKETING_VERSION={product.version}", f"CURRENT_PROJECT_VERSION={product.build_number}"]
+    common = ["xcodebuild", "-project", str(APPLE / "LanCast.xcodeproj"), "-scheme", scheme, "-configuration", "Debug" if target == "macos" else product.configuration, "-derivedDataPath", str(CACHE / "DerivedData"), *version_settings]
     products = CACHE / "DerivedData/Build/Products"
     if args.platform == "macos":
         run("swift", "test", "--package-path", APPLE / "Contracts")
@@ -93,9 +99,9 @@ def main(target):
             "-resultBundlePath", output / f"tests-{time.time_ns()}.xcresult", "CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "CODE_SIGN_ENTITLEMENTS=", "ENABLE_HARDENED_RUNTIME=NO")
         # Test hosts contain XCTest bundles and only the runner's architecture. Ship a
         # separately built universal app so Intel Macs receive a compiled executable too.
-        universal = CACHE / "MacUniversal"
+        universal = CACHE / "MacDelivery"
         run("xcodebuild", "-project", APPLE / "LanCast.xcodeproj", "-scheme", scheme,
-            "-configuration", "Release", "-derivedDataPath", universal, "build",
+            "-configuration", product.configuration, "-derivedDataPath", universal, "build", *version_settings,
             "-destination", "generic/platform=macOS", "ARCHS=arm64 x86_64", "ONLY_ACTIVE_ARCH=NO", "CODE_SIGNING_ALLOWED=NO")
         products = universal / "Build/Products"
     else:
@@ -104,15 +110,24 @@ def main(target):
         run(*common, "build", "-destination", f"generic/platform={dest} Simulator", "ARCHS=arm64", "CODE_SIGNING_ALLOWED=NO")
     binaries = []
     for app in products.glob(f"*/{scheme}.app"):
+        if not app.parent.name.startswith(product.configuration):
+            continue
+        info_path = app / ("Contents/Info.plist" if target == "macos" else "Info.plist")
+        info = plistlib.loads(info_path.read_bytes())
+        if info.get("CFBundleShortVersionString") != product.version or str(info.get("CFBundleVersion")) != str(product.build_number):
+            raise RuntimeError("Product version/build number not applied to " + str(app))
         executable = app / (f"Contents/MacOS/{scheme}" if args.platform == "macos" else scheme)
         architectures = subprocess.check_output(["lipo", "-archs", executable], text=True).strip().split()
         if args.platform == "macos" and set(architectures) != {"arm64", "x86_64"}:
             raise RuntimeError("Mac app is missing a required architecture")
         binaries.append({"product": app.parent.name, "architectures": architectures})
         run("ditto", "-c", "-k", "--keepParent", app, output / f"{scheme}-{app.parent.name}.zip")
+    if len(binaries) != (1 if target == "macos" else 2):
+        raise RuntimeError("Missing or unexpected Apple build products")
     report = {
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "platform": args.platform, "webrtcVersion": WEBRTC_VERSION, "webrtcSha256": WEBRTC_SHA,
+        "buildConfig": build_inputs,
         "xcodegenVersion": XCODEGEN_VERSION, "xcodegenSha256": XCODEGEN_SHA,
         "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
         "rust": subprocess.check_output(["rustc", "--version"], text=True).strip(),

@@ -17,6 +17,124 @@ fn event(engine: &Engine, kind: &str) -> Value {
         std::thread::sleep(Duration::from_millis(10));
     }
 }
+
+fn signal(engine: &Engine, kind: &str, session: &Value, body: Value) {
+    let mut message = cast_adapters::protocol::Message::new(kind, body);
+    message.session_id = session.as_str().map(|s| s.parse().unwrap());
+    engine
+        .command(json!({"op":"send", "message":message}))
+        .unwrap();
+}
+
+fn message(engine: &Engine, kind: &str) -> Value {
+    loop {
+        let value = event(engine, "message");
+        assert_ne!(value["type"], "error", "Unexpected protocol error: {value}");
+        if value["type"] == kind {
+            return value;
+        }
+    }
+}
+
+#[test]
+fn negotiated_recovery_relays_new_transport_and_filters_stale_signals() {
+    let receiver = Engine::new().unwrap();
+    let sender = Engine::new().unwrap();
+    receiver
+        .command(json!({"op":"listen","address":"127.0.0.1:0"}))
+        .unwrap();
+    let ready = event(&receiver, "receiver.ready");
+    sender.command(json!({"op":"connect","address":ready["address"],"fingerprint":ready["fingerprint"],"invite":ready["invite"]})).unwrap();
+    let approval = event(&receiver, "pair.request");
+    receiver
+        .command(json!({"op":"approve","connectionId":approval["connectionId"],"accept":true}))
+        .unwrap();
+    event(&sender, "connected");
+    signal(
+        &sender,
+        "session.start",
+        &Value::Null,
+        json!({"mode":"mirror","rtcRecovery":"replace-v1"}),
+    );
+    let accepted = message(&sender, "session.accepted");
+    assert_eq!(accepted["body"]["rtcRecovery"], "replace-v1");
+    let session = &accepted["sessionId"];
+    let started = event(&receiver, "session.started");
+    assert_eq!(started["rtcRecovery"], "replace-v1");
+    let first = uuid::Uuid::new_v4();
+    let second = uuid::Uuid::new_v4();
+    signal(
+        &sender,
+        "rtc.offer",
+        session,
+        json!({"sdp":"synthetic-first", "negotiationId":first}),
+    );
+    message(&receiver, "rtc.offer");
+    for engine in [&sender, &receiver] {
+        signal(
+            engine,
+            "rtc.state",
+            session,
+            json!({"negotiationId":first,"state":"connected"}),
+        );
+    }
+    signal(
+        &sender,
+        "rtc.state",
+        session,
+        json!({"negotiationId":first,"state":"failed"}),
+    );
+    let restart = message(&sender, "rtc.restart");
+    assert_eq!(restart["body"]["attempt"], 1);
+    signal(
+        &sender,
+        "rtc.offer",
+        session,
+        json!({"sdp":"synthetic-second","negotiationId":second,"previousNegotiationId":first}),
+    );
+    assert_eq!(
+        message(&receiver, "rtc.offer")["body"]["negotiationId"],
+        second.to_string()
+    );
+    signal(
+        &receiver,
+        "rtc.answer",
+        session,
+        json!({"sdp":"stale","negotiationId":first}),
+    );
+    signal(
+        &receiver,
+        "rtc.answer",
+        session,
+        json!({"sdp":"current","negotiationId":second}),
+    );
+    assert_eq!(message(&sender, "rtc.answer")["body"]["sdp"], "current");
+    for id in [first, second] {
+        signal(
+            &sender,
+            "rtc.ice",
+            session,
+            json!({"candidate":"synthetic","sdpMLineIndex":0,"negotiationId":id}),
+        );
+    }
+    assert_eq!(
+        message(&receiver, "rtc.ice")["body"]["negotiationId"],
+        second.to_string()
+    );
+    for engine in [&sender, &receiver] {
+        signal(
+            engine,
+            "rtc.state",
+            session,
+            json!({"negotiationId":second,"state":"connected"}),
+        );
+    }
+    sender.command(json!({"op":"stop"})).unwrap();
+    event(&sender, "stopped");
+    event(&receiver, "session.closed");
+    sender.close();
+    receiver.close();
+}
 #[test]
 fn pinned_pairing_and_nonblocking_stop_during_pending_approval() {
     let receiver = Engine::new().unwrap();

@@ -1,7 +1,14 @@
+param([ValidateSet('Debug', 'Release')][string]$Configuration = 'Release')
 $ErrorActionPreference = 'Stop'
 $destination = Join-Path $PWD 'dist/LanCast-Windows-x64'
 New-Item -ItemType Directory -Force $destination | Out-Null
-Copy-Item -LiteralPath windows/build/Release/LanCast.exe,windows/build/Release/lancast_core.dll,windows/build/Release/lancast_rtc.dll,.cache/ts-windows/lancast_ts.dll -Destination $destination
+Copy-Item -LiteralPath "windows/build/$Configuration/LanCast.exe","windows/build/$Configuration/lancast_core.dll","windows/build/$Configuration/lancast_rtc.dll",.cache/ts-windows/lancast_ts.dll -Destination $destination
+python scripts/build_config.py --platform windows --configuration $Configuration
+if ($LASTEXITCODE -ne 0) { throw 'Invalid Windows product version' }
+Copy-Item -LiteralPath dist/reports/build-windows.json -Destination $destination
+$buildReport = Get-Content -LiteralPath dist/reports/build-windows.json -Raw | ConvertFrom-Json
+$versionInfo = (Get-Item -LiteralPath "$destination/LanCast.exe").VersionInfo
+if ($versionInfo.ProductVersion -ne $buildReport.version -or $versionInfo.FileVersion -ne "$($buildReport.version).$($buildReport.build_number)") { throw 'Windows executable version does not match build inputs' }
 Copy-Item -LiteralPath LICENSE,THIRD_PARTY.md -Destination $destination
 $licenses = Join-Path $destination 'licenses'
 New-Item -ItemType Directory -Force $licenses | Out-Null

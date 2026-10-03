@@ -2,10 +2,28 @@ name: Android
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","android/**","media-native/**","scripts/build-android-*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","android/**","media-native/**","scripts/build-android-*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: 'Source branch, tag or commit (blank uses the selected workflow ref)'
+        type: string
+        default: ''
+      version:
+        description: 'Application major.minor.patch (blank uses build-config.json)'
+        type: string
+        default: ''
+      build_number:
+        description: 'Build number 1-65535 (blank uses build-config.json)'
+        type: string
+        default: ''
+      configuration:
+        description: 'Application build mode; Release outputs still require production signing'
+        type: choice
+        options: [Debug, Release]
+        default: Debug
 permissions:
   contents: read
 concurrency:
@@ -17,6 +35,18 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - name: Validate product version and record build inputs
+        id: build-config
+        env:
+          LC_VERSION: ${{ inputs.version }}
+          LC_BUILD_NUMBER: ${{ inputs.build_number }}
+          LC_CONFIGURATION: ${{ inputs.configuration }}
+        run: python scripts/build_config.py --platform android --github
+      - name: Test build input validation
+        run: python -m unittest discover -s scripts/tests
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -47,18 +77,10 @@ jobs:
             android/app-*/src/**/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
           key: ${{ steps.native-cache.outputs.cache-primary-key }}
-      - name: Build Kotlin apps and lint
-        working-directory: android
+      - name: Build Kotlin apps lint and verify dependency separation
         run: |
-          chmod +x gradlew
-          ./gradlew :app-receiver:assembleStandardDebug :app-receiver:assembleLegacyDebug :app-sender:assembleDebug :app-receiver:lintStandardDebug :app-receiver:lintLegacyDebug :app-sender:lintDebug :media-webrtc:testDebugUnitTest --stacktrace
-      - name: Verify player dependency separation
-        working-directory: android
-        run: |
-          ./gradlew :app-receiver:dependencies --configuration legacyDebugRuntimeClasspath > legacy-dependencies.txt
-          ./gradlew :app-receiver:dependencies --configuration standardDebugRuntimeClasspath > standard-dependencies.txt
-          if grep -q 'androidx.media3' legacy-dependencies.txt; then exit 1; fi
-          grep -q 'media3-common:1.11.1' standard-dependencies.txt
+          chmod +x android/gradlew
+          python scripts/build-android.py
       - run: python scripts/verify-apks.py
       - run: python scripts/package-native-evidence.py android
       - uses: actions/upload-artifact@v4
@@ -68,9 +90,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-debug-apks-and-reports
+          name: android-apks-${{ steps.build-config.outputs.label }}
           path: |
             android/app-*/build/outputs/apk/**/*.apk
             android/app-*/build/reports/
             android/*-dependencies.txt
+            dist/reports/build-android.json
             .cache/ffmpeg-install-*/build-manifest.json

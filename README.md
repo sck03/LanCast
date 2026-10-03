@@ -13,6 +13,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - DLNA：发现与控制、合成画面／提示音测试、用户确认档案、通过后直播、拉流监控与一次恢复；MP4 文件能力独立。
 - Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 与固定上游 TLS 媒体桥。
 - Rust domain/core/adapters/ffi 分层，编码像素不穿过控制层；媒体队列有界，停止可打断等待。
+- RTC 短暂断流由共享恢复策略管理：控制连接仍有效时，在固定 15 秒内最多重建三次传输，保留授权采集并过滤旧协商消息，详见 [恢复协议](docs/12-RTC恢复与协商契约.md)。
 
 Windows 需要 Windows 10 22H2 或 Windows 11、媒体组件与可用 D3D11 硬件 H.264 编码器。Android Sender 最低 API29，Receiver Standard 最低 API23，Legacy 最低 API21。不能假定所有电视均兼容。
 
@@ -24,9 +25,9 @@ DLNA：选择本机 LAN IPv4 和电视，点击“测试 DLNA 画面和声音”
 
 ## 构建与测试
 
-[GitHub Actions](https://github.com/sck03/LanCast/actions/workflows/ci.yml)编译 Rust、最小 TS、Windows 原生媒体和三个 Android 调试 APK，归档产物与检查报告。
+[GitHub Actions](https://github.com/sck03/LanCast/actions)已按 Windows、Android、macOS、iOS、tvOS 分为独立工作流，Linux 核心与原生媒体各有独立检查。每个产品支持手动设置源码分支／标签／提交、应用版本号、构建号与 Debug／Release；用法和入口见[独立构建指南](docs/13-独立平台构建与版本配置.md)。
 
-[Apple Actions](https://github.com/sck03/LanCast/actions/workflows/apple.yml)构建三个 Apple 目标并执行 Mac 集成测试。Mac 上可运行 `python3 scripts/build-apple.py --platform macos`（或 `ios` / `tvos`）；设备安装另需有效签名与广播 App Group。构建结果与真机状态见审阅入口。
+默认应用版本与构建号统一从 [build-config.json](build-config.json) 读取。Apple 分别使用 `python3 scripts/build-macos.py`、`build-ios.py`、`build-tvos.py`，Mac 执行集成测试并生成通用包。设备安装另需有效签名与广播 App Group。
 
 ```sh
 python scripts/check-architecture.py

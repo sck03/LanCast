@@ -5,8 +5,10 @@ android {
     buildToolsVersion = "35.0.0"
     defaultConfig {
         applicationId = "dev.lancast.receiver"
-        minSdk = 21; targetSdk = 36; versionCode = 2; versionName = "0.2.0-alpha"
-        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
+        minSdk = 21; targetSdk = 36
+        versionCode = rootProject.extra["productBuild"] as Int
+        versionName = rootProject.extra["productVersion"] as String
+        ndk { abiFilters += (rootProject.extra["productAbis"] as List<*>).map { it.toString() } }
     }
     buildFeatures { buildConfig = true }
     flavorDimensions += "support"

@@ -2,10 +2,28 @@ name: tvOS
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","apple/**","scripts/apple_build.py","scripts/build-tvos.py",".github/workflows/tvos.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-tvos.py",".github/workflows/tvos.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","apple/**","scripts/apple_build.py","scripts/build-tvos.py",".github/workflows/tvos.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-tvos.py",".github/workflows/tvos.yml"]
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: 'Source branch, tag or commit (blank uses the selected workflow ref)'
+        type: string
+        default: ''
+      version:
+        description: 'Application major.minor.patch (blank uses build-config.json)'
+        type: string
+        default: ''
+      build_number:
+        description: 'Build number 1-65535 (blank uses build-config.json)'
+        type: string
+        default: ''
+      configuration:
+        description: 'Application build mode; Release outputs still require production signing'
+        type: choice
+        options: [Debug, Release]
+        default: Debug
 permissions:
   contents: read
 concurrency:
@@ -17,6 +35,18 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - name: Validate product version and record build inputs
+        id: build-config
+        env:
+          LC_VERSION: ${{ inputs.version }}
+          LC_BUILD_NUMBER: ${{ inputs.build_number }}
+          LC_CONFIGURATION: ${{ inputs.configuration }}
+        run: python scripts/build_config.py --platform tvos --github
+      - name: Test build input validation
+        run: python -m unittest discover -s scripts/tests
       - run: rustup toolchain install 1.98.1 --profile minimal
       - uses: actions/cache/restore@v4
         id: apple-cache
@@ -42,7 +72,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: LanCast-Apple-tvos-development
+          name: LanCast-Apple-tvos-${{ steps.build-config.outputs.label }}
           path: |
             dist/apple/tvos/
             apple/LanCast.xcodeproj/

@@ -1072,6 +1072,7 @@ async fn connect(
                         event(&events, "message", serde_json::to_value(response)?);
                     }
                     _ = tick.tick() => {
+                        if rx.is_closed() { break; }
                         ensure!(last_seen.elapsed() < Duration::from_secs(15), "HEARTBEAT_TIMEOUT");
                         if let Some(message) = recovery.as_mut().and_then(|r| r.poll(epoch.elapsed().as_millis() as u64)) {
                             if message.kind == "session.stop" { send(&mut ws, &message).await?; recovery = None; }

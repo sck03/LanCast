@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """Fail CI when APKs omit JNI ABIs or mix unexpected player dependencies."""
-import pathlib, struct, zipfile
+import pathlib, struct, zipfile, os, re, subprocess, json, hashlib
+from build_config import resolve, record
 root = pathlib.Path(__file__).resolve().parents[1]
-apks = list((root/"android").glob("app-*/build/outputs/apk/**/*debug.apk"))
-assert len(apks) == 3, f"Expected 3 debug APKs, found {len(apks)}"
+config = resolve("android")
+mode = config.configuration.lower()
+apks = list((root/"android").glob(f"app-*/build/outputs/apk/**/{mode}/*.apk"))
+assert len(apks) == 3, f"Expected 3 {mode} APKs, found {len(apks)}"
+sdk = pathlib.Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"])
+aapt = sdk / "build-tools/35.0.0" / ("aapt.exe" if os.name == "nt" else "aapt")
+report = record(config)
+report["artifacts"] = []
 for apk in apks:
+    metadata = subprocess.check_output([str(aapt), "dump", "badging", str(apk)], text=True)
+    assert re.search(r"versionCode='" + str(config.build_number) + "'", metadata), "APK build number mismatch"
+    assert re.search(r"versionName='" + re.escape(config.version) + "'", metadata), "APK version mismatch"
     with zipfile.ZipFile(apk) as archive:
-        for abi in ("armeabi-v7a","arm64-v8a"):
+        packaged_abis = {p.split("/")[1] for p in archive.namelist() if p.startswith("lib/") and p.endswith(".so")}
+        assert packaged_abis == set(config.android_abis), f"Unexpected ABIs: {packaged_abis}"
+        for abi in config.android_abis:
             libraries = ["liblancast_core.so", "libjingle_peerconnection_so.so"]
             if "app-sender" in apk.parts:
                 libraries.append("liblancast_media.so")
@@ -35,3 +47,5 @@ for apk in apks:
                         required = 16384 if abi == "arm64-v8a" else 4096
                         assert align >= required, f"{apk.name}/{path}: PT_LOAD alignment {align} is below {required}"
     print(f"PASS {apk.name}: expected JNI, ARM64 16KB and ARM32 4KB PT_LOAD alignment")
+    report["artifacts"].append({"file": str(apk.relative_to(root)), "bytes": apk.stat().st_size, "sha256": hashlib.sha256(apk.read_bytes()).hexdigest()})
+(root / "dist/reports/build-android.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

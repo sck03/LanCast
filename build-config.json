@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "0.4.0",
+  "build_number": 4,
+  "configuration": {
+    "windows": "Release",
+    "android": "Debug",
+    "macos": "Release",
+    "ios": "Debug",
+    "tvos": "Debug"
+  },
+  "android_abis": ["armeabi-v7a", "arm64-v8a"]
+}

@@ -30,17 +30,34 @@ def main():
     parser.add_argument("--failed-logs", action="store_true")
     parser.add_argument("--logs", action="store_true", help="Save logs for all completed jobs, including passing tests")
     parser.add_argument("--download", help="Download one named build artifact into the task cache")
+    parser.add_argument("--artifacts", action="store_true", help="List artifact names and sizes for this run")
+    parser.add_argument("--dispatch", action="store_true", help="Run one independent product workflow")
+    parser.add_argument("--ref", default="main", help="Workflow branch/tag for manual dispatch")
+    parser.add_argument("--source-ref", default="", help="Optional application source branch/tag/commit")
+    parser.add_argument("--version")
+    parser.add_argument("--build-number")
+    parser.add_argument("--configuration", choices=["Debug", "Release"])
     args = parser.parse_args()
     credential = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n", text=True, capture_output=True, check=True)
     fields = dict(line.split("=", 1) for line in credential.stdout.splitlines() if "=" in line)
     token = fields.get("password", "")
     opener = urllib.request.build_opener(Redirect())
 
-    def get(endpoint, raw=False):
-        request = urllib.request.Request(f"https://api.github.com/repos/{REPO}/{endpoint}", headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+    def get(endpoint, raw=False, payload=None):
+        request = urllib.request.Request(f"https://api.github.com/repos/{REPO}/{endpoint}", data=None if payload is None else json.dumps(payload).encode(), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type":"application/json"})
         with opener.open(request, timeout=30) as response:
             data = response.read()
-        return data if raw else json.loads(data)
+        return data if raw else (json.loads(data) if data else None)
+
+    if args.dispatch:
+        from build_config import resolve
+        if args.workflow not in [p + ".yml" for p in ("windows", "android", "macos", "ios", "tvos")]:
+            raise SystemExit("Select an independent product --workflow (windows/android/macos/ios/tvos.yml)")
+        config = resolve(args.workflow[:-4], version=args.version, build_number=args.build_number, configuration=args.configuration, environ={})
+        inputs = {"source_ref":args.source_ref, "version":config.version, "build_number":str(config.build_number), "configuration":config.configuration}
+        get(f"actions/workflows/{args.workflow}/dispatches", payload={"ref":args.ref,"inputs":inputs})
+        print(json.dumps({"dispatched":args.workflow,"ref":args.ref,"inputs":inputs}))
+        return
 
     if args.run:
         run = get(f"actions/runs/{args.run}")
@@ -57,6 +74,9 @@ def main():
         run = runs[0]
     jobs = get(f"actions/runs/{run['id']}/jobs?per_page=100")["jobs"]
     print(json.dumps({"run": run["id"], "sha": run["head_sha"], "status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"], "jobs": [{"id": j["id"], "name": j["name"], "status": j["status"], "conclusion": j["conclusion"], "step": next((s["name"] for s in j["steps"] if s["status"] == "in_progress" or s["conclusion"] == "failure"), None)} for j in jobs]}, indent=2))
+    if args.artifacts:
+        artifacts = get(f"actions/runs/{run['id']}/artifacts?per_page=100")["artifacts"]
+        print(json.dumps({"artifacts":[{"name":a["name"], "bytes":a["size_in_bytes"], "expired":a["expired"]} for a in artifacts]}, indent=2))
     if args.failed_logs or args.logs:
         for job in jobs:
             if job["conclusion"] == "failure" or (args.logs and job["status"] == "completed"):
