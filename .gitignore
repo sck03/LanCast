@@ -16,3 +16,5 @@ android/media-webrtc/libs/*.aar
 .vs/
 dist/
 **/jniLibs/**/*.so
+__pycache__/
+*.py[cod]
