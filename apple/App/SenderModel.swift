@@ -48,6 +48,7 @@ final class SenderModel: ObservableObject {
         } catch { status = error.localizedDescription }
     }
     func connectFile() {
+        stopCapture()
         do { try sender.connect(ticket(), mirror: false) } catch { status = error.localizedDescription }
     }
     func shareFile(_ result: Result<[URL], Error>) {
@@ -79,6 +80,7 @@ final class SenderModel: ObservableObject {
     }
     func startMirror() {
         guard let source = sources.first(where: { $0.id == selectedSource }) else { status = "请先选择窗口或显示器"; return }
+        stopCapture()
         let current = UUID(); generation = current
         let wantsAudio = audio
         capture.video = { [weak self] in self?.sender.pushVideo($0) }

@@ -12,6 +12,7 @@ import pathlib
 import platform
 import shutil
 import subprocess
+import time
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -88,7 +89,7 @@ def main():
         run("swift", "test", "--package-path", APPLE / "Contracts")
         run(*common, "test", "-destination", "platform=macOS", "-parallel-testing-enabled", "NO",
             "-test-timeouts-enabled", "YES", "-maximum-test-execution-time-allowance", "90",
-            "-resultBundlePath", output / "tests.xcresult", "CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "CODE_SIGN_ENTITLEMENTS=", "ENABLE_HARDENED_RUNTIME=NO")
+            "-resultBundlePath", output / f"tests-{time.time_ns()}.xcresult", "CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "CODE_SIGN_ENTITLEMENTS=", "ENABLE_HARDENED_RUNTIME=NO")
     else:
         dest = "iOS" if args.platform == "ios" else "tvOS"
         run(*common, "build", "-destination", f"generic/platform={dest}", "CODE_SIGNING_ALLOWED=NO")

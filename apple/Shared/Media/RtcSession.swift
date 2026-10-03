@@ -59,7 +59,7 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate, LKRTCVideoRendere
             let receiver = LKRTCPeerConnectionFactory(audioDeviceModuleType: .audioEngine, bypassVoiceProcessing: true,
                 encoderFactory: encoder, decoderFactory: decoder, audioProcessingModule: nil)
             let device = receiver.audioDeviceModule
-            guard device.setEngineAvailability(LKRTCAudioEngineAvailability(isInputAvailable: false, isOutputAvailable: withAudio)) == 0,
+            guard device.setEngineAvailability(LKRTCAudioEngineAvailability(isInputAvailable: false, isOutputAvailable: ObjCBool(withAudio))) == 0,
                   device.setPlatformVoiceProcessingAllowed(false) == 0 else {
                 throw CastFailure.invalid("AUDIO_OUTPUT_INITIALIZE_FAILED")
             }
