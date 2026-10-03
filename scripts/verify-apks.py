@@ -30,5 +30,8 @@ for apk in apks:
                     kind = struct.unpack_from(endian+"I",elf,base)[0]
                     if kind == 1:
                         align = struct.unpack_from(endian+("Q" if bits==2 else "I"),elf,base+(48 if bits==2 else 28))[0]
-                        assert align >= 16384, f"{apk.name}/{path}: PT_LOAD alignment {align} is below 16KB"
-    print(f"PASS {apk.name}: ARM32/ARM64 JNI and 16KB PT_LOAD alignment")
+                        # Android's 16KB execution target is ARM64. The separate ARM32
+                        # legacy ABI is a 4KB target; never label its upstream library 16KB.
+                        required = 16384 if abi == "arm64-v8a" else 4096
+                        assert align >= required, f"{apk.name}/{path}: PT_LOAD alignment {align} is below {required}"
+    print(f"PASS {apk.name}: expected JNI, ARM64 16KB and ARM32 4KB PT_LOAD alignment")

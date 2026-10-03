@@ -68,7 +68,10 @@ where
     F: Fn(Request<Incoming>) -> Fut + Send + 'static,
     Fut: Future<Output = Response<Body>> + Send + 'static,
 {
-    let service = service_fn(move |r| {
+    let connection_stop = stop.child_token();
+    let request_stop = connection_stop.clone();
+    let service = service_fn(move |mut r: Request<Incoming>| {
+        r.extensions_mut().insert(request_stop.clone());
         let f = handler(r);
         async move { Ok::<_, Infallible>(f.await) }
     });
@@ -80,5 +83,5 @@ where
         .max_buf_size(16384)
         .keep_alive(false);
     let connection = builder.serve_connection(TokioIo::new(stream), service);
-    tokio::select! { biased; _ = stop.cancelled() => {}, _ = connection => {} }
+    tokio::select! { biased; _ = connection_stop.cancelled() => {}, _ = connection => {} }
 }

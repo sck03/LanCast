@@ -74,10 +74,13 @@ impl LiveResource {
             });
         Ok(())
     }
-    fn subscribe(&self) -> (mpsc::Receiver<(Instant, Bytes)>, CancellationToken) {
+    fn subscribe(
+        &self,
+        connection: Option<CancellationToken>,
+    ) -> (mpsc::Receiver<(Instant, Bytes)>, CancellationToken) {
         // 16 * 65424 = 1046784 bytes, below the per-reader 1 MiB budget.
         let (tx, rx) = mpsc::channel(16);
-        let stop = self.stop.child_token();
+        let stop = connection.unwrap_or_else(|| self.stop.child_token());
         let mut readers = self.readers.lock().unwrap();
         readers.retain(|r| !r.tx.is_closed() && !r.stop.is_cancelled());
         readers.push(Reader {
@@ -116,7 +119,7 @@ impl LiveResource {
             return response;
         }
         self.pulls.fetch_add(1, Ordering::Release);
-        let (rx, stop) = self.subscribe();
+        let (rx, stop) = self.subscribe(request.extensions().get::<CancellationToken>().cloned());
         let state = (
             rx,
             stop,
@@ -211,8 +214,8 @@ mod tests {
     #[test]
     fn slow_readers_are_isolated_and_stop_is_immediate() {
         let live = LiveResource::new("127.0.0.1".parse().unwrap());
-        let (_slow, slow_stop) = live.subscribe();
-        let (mut fast, fast_stop) = live.subscribe();
+        let (_slow, slow_stop) = live.subscribe(None);
+        let (mut fast, fast_stop) = live.subscribe(None);
         let mut packet = [0xff; 188];
         packet[..4].copy_from_slice(&[0x47, 0x1f, 0xff, 0x10]);
         for _ in 0..17 {
