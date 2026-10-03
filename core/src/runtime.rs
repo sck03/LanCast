@@ -1,0 +1,635 @@
+use crate::{
+    auth::{self, Identity, Invitation},
+    capabilities::Profile,
+    discovery, dlna,
+    media_http::{self, Resource},
+    protocol::{MAX_FRAME, Message},
+    session::{Session, State},
+};
+use anyhow::{Context, ensure};
+use futures_util::{SinkExt, StreamExt};
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, SocketAddr},
+    sync::{Arc, Mutex as StdMutex, mpsc as std_mpsc},
+    time::{Duration, Instant},
+};
+use tokio::{
+    net::TcpListener,
+    sync::{Mutex, Semaphore, mpsc, oneshot},
+    task::JoinHandle,
+};
+use tokio_tungstenite::{
+    Connector, WebSocketStream,
+    tungstenite::{Message as Frame, protocol::WebSocketConfig},
+};
+use uuid::Uuid;
+
+type Events = std_mpsc::SyncSender<String>;
+fn emit(events: &Events, value: Value) {
+    let _ = events.try_send(value.to_string());
+}
+fn event(events: &Events, kind: &str, body: Value) {
+    emit(events, json!({"type":kind,"body":body}));
+}
+fn wire_config() -> WebSocketConfig {
+    WebSocketConfig::default()
+        .max_message_size(Some(MAX_FRAME))
+        .max_frame_size(Some(MAX_FRAME))
+        .max_write_buffer_size(512 * 1024)
+}
+fn string<'a>(v: &'a Value, key: &str) -> anyhow::Result<&'a str> {
+    v[key].as_str().with_context(|| format!("MISSING_{key}"))
+}
+pub struct Engine {
+    command: mpsc::Sender<Value>,
+    events: StdMutex<std_mpsc::Receiver<String>>,
+    thread: StdMutex<Option<std::thread::JoinHandle<()>>>,
+}
+impl Engine {
+    pub fn new() -> anyhow::Result<Self> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let (command, mut receiver) = mpsc::channel::<Value>(32);
+        let (events, output) = std_mpsc::sync_channel(256);
+        let thread = std::thread::Builder::new()
+            .name("lancast-control".into())
+            .spawn(move || {
+                let runtime = tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(2)
+                    .enable_all()
+                    .build()
+                    .expect("runtime");
+                runtime.block_on(async move {
+                    let identity = match Identity::create() {
+                        Ok(v) => Arc::new(v),
+                        Err(_) => {
+                            event(&events, "error", json!({"code":"IDENTITY_FAILED"}));
+                            return;
+                        }
+                    };
+                    let mut state = Runtime {
+                        identity,
+                        server: None,
+                        client: None,
+                        tasks: Vec::new(),
+                        resources: Vec::new(),
+                        renderers: HashMap::new(),
+                        events: events.clone(),
+                    };
+                    while let Some(command) = receiver.recv().await {
+                        if command["op"] == "shutdown" {
+                            break;
+                        }
+                        if let Err(error) = state.command(command).await {
+                            event(&events, "error", json!({"code":error.to_string()}));
+                        }
+                    }
+                    for resource in state.resources {
+                        resource.revoke();
+                    }
+                    for task in state.tasks {
+                        task.abort();
+                    }
+                });
+                runtime.shutdown_timeout(Duration::from_secs(2));
+            })?;
+        Ok(Self {
+            command,
+            events: StdMutex::new(output),
+            thread: StdMutex::new(Some(thread)),
+        })
+    }
+    pub fn command(&self, value: Value) -> anyhow::Result<()> {
+        self.command
+            .try_send(value)
+            .map_err(|_| anyhow::anyhow!("COMMAND_QUEUE_FULL_OR_CLOSED"))
+    }
+    pub fn poll(&self) -> Option<String> {
+        self.events.lock().ok()?.try_recv().ok()
+    }
+    pub fn close(&self) {
+        let _ = self.command.blocking_send(json!({"op":"shutdown"}));
+        if let Ok(mut thread) = self.thread.lock()
+            && let Some(thread) = thread.take()
+        {
+            let _ = thread.join();
+        }
+    }
+}
+struct Runtime {
+    identity: Arc<Identity>,
+    server: Option<Arc<Server>>,
+    client: Option<mpsc::Sender<Message>>,
+    tasks: Vec<JoinHandle<()>>,
+    resources: Vec<Arc<Resource>>,
+    renderers: HashMap<String, dlna::Renderer>,
+    events: Events,
+}
+struct Server {
+    identity: Arc<Identity>,
+    invitation: Mutex<Invitation>,
+    pending: Mutex<HashMap<Uuid, oneshot::Sender<bool>>>,
+    session: Mutex<Option<Session>>,
+    connections: Mutex<HashMap<Uuid, mpsc::Sender<Message>>>,
+    events: Events,
+    variant: String,
+}
+impl Runtime {
+    async fn command(&mut self, c: Value) -> anyhow::Result<()> {
+        match string(&c, "op")? {
+            "listen" => {
+                ensure!(self.server.is_none(), "ALREADY_LISTENING");
+                let address: SocketAddr = string(&c, "address")?.parse()?;
+                ensure!(!address.ip().is_unspecified(), "SELECT_LAN_INTERFACE");
+                let listener = TcpListener::bind(address).await.context("PORT_IN_USE")?;
+                let server = Arc::new(Server {
+                    identity: self.identity.clone(),
+                    invitation: Mutex::new(Invitation::new(Instant::now())),
+                    pending: Mutex::new(HashMap::new()),
+                    session: Mutex::new(None),
+                    connections: Mutex::new(HashMap::new()),
+                    events: self.events.clone(),
+                    variant: c["variant"].as_str().unwrap_or("standard").into(),
+                });
+                let advertisement = if let IpAddr::V4(ip) = address.ip() {
+                    Some(discovery::Advertisement::start(
+                        &self.identity.id.to_string(),
+                        c["name"].as_str().unwrap_or("LanCast"),
+                        ip,
+                        address.port(),
+                        &server.variant,
+                    )?)
+                } else {
+                    None
+                };
+                event(
+                    &self.events,
+                    "receiver.ready",
+                    json!({"address":address.to_string(),"fingerprint":self.identity.fingerprint,"invite":server.invitation.lock().await.token(),"deviceId":self.identity.id,"expiresInMs":120000,"trust":"session_only"}),
+                );
+                let task_server = server.clone();
+                self.tasks.push(tokio::spawn(async move {
+                    let _advertisement = advertisement;
+                    let _ = serve(listener, task_server).await;
+                }));
+                self.server = Some(server);
+            }
+            "invite" => {
+                let server = self.server.as_ref().context("NOT_LISTENING")?;
+                let mut invitation = server.invitation.lock().await;
+                *invitation = Invitation::new(Instant::now());
+                event(
+                    &self.events,
+                    "receiver.invite",
+                    json!({"invite":invitation.token(),"expiresInMs":120000}),
+                );
+            }
+            "approve" => {
+                let server = self.server.as_ref().context("NOT_LISTENING")?;
+                let id = Uuid::parse_str(string(&c, "connectionId")?)?;
+                if let Some(tx) = server.pending.lock().await.remove(&id) {
+                    let _ = tx.send(c["accept"].as_bool().unwrap_or(false));
+                }
+            }
+            "scan" => {
+                let events = self.events.clone();
+                self.tasks.push(tokio::spawn(async move {
+                    match tokio::task::spawn_blocking(discovery::scan_lancast).await {
+                        Ok(Ok(devices)) => event(&events, "devices", json!({"devices":devices})),
+                        _ => event(&events, "error", json!({"code":"DISCOVERY_FAILED"})),
+                    }
+                }));
+            }
+            "connect" => {
+                ensure!(self.client.is_none(), "ALREADY_CONNECTED");
+                let (tx, task) = connect(
+                    self.identity.clone(),
+                    string(&c, "address")?,
+                    string(&c, "fingerprint")?,
+                    string(&c, "invite")?,
+                    c["name"].as_str().unwrap_or("LanCast Sender"),
+                    self.events.clone(),
+                )
+                .await?;
+                self.client = Some(tx);
+                self.tasks.push(task);
+            }
+            "send" => {
+                let msg = Message::parse(&c["message"].to_string())?;
+                if let Some(tx) = &self.client {
+                    tx.try_send(msg).context("SIGNAL_QUEUE_FULL")?;
+                } else if let Some(server) = &self.server {
+                    let mut session = server.session.lock().await;
+                    let active = session.as_mut().context("NO_SESSION")?;
+                    ensure!(msg.session_id == Some(active.id), "SESSION_EXPIRED");
+                    ensure!(
+                        matches!(
+                            msg.kind.as_str(),
+                            "rtc.answer"
+                                | "rtc.ice"
+                                | "statistics"
+                                | "session.state"
+                                | "session.stop"
+                                | "error"
+                        ),
+                        "INVALID_DIRECTION"
+                    );
+                    if matches!(msg.kind.as_str(), "rtc.answer" | "rtc.ice") {
+                        ensure!(
+                            msg.body["negotiationId"]
+                                .as_str()
+                                .and_then(|v| Uuid::parse_str(v).ok())
+                                == active.negotiation,
+                            "STALE_NEGOTIATION"
+                        );
+                    }
+                    if msg.kind == "session.state" && msg.body["state"] == "ready" {
+                        active.ready()?;
+                    }
+                    if let Some(tx) = server.connections.lock().await.get(&active.owner) {
+                        tx.try_send(msg.clone()).context("SIGNAL_QUEUE_FULL")?;
+                    }
+                    if msg.kind == "session.stop" {
+                        active.stop();
+                        *session = None;
+                    }
+                } else {
+                    anyhow::bail!("NOT_CONNECTED");
+                }
+            }
+            "stop" => {
+                for resource in self.resources.drain(..) {
+                    resource.revoke();
+                }
+                if let Some(server) = &self.server {
+                    let mut guard = server.session.lock().await;
+                    if let Some(s) = guard.as_mut() {
+                        let mut msg =
+                            Message::new("session.stop", json!({"reason":"receiver_stopped"}));
+                        msg.session_id = Some(s.id);
+                        if let Some(tx) = server.connections.lock().await.get(&s.owner) {
+                            let _ = tx.try_send(msg);
+                        }
+                        s.stop();
+                    }
+                    *guard = None;
+                }
+                event(&self.events, "stopped", json!({}));
+            }
+            "dlna.scan" => {
+                let interface = string(&c, "interface")?.parse()?;
+                let devices = discovery::scan_dlna(interface).await?;
+                for d in &devices {
+                    self.renderers.insert(d.id.clone(), d.clone());
+                }
+                event(&self.events, "dlna.devices", json!({"devices":devices}));
+            }
+            "file.share" => {
+                let file = if let Some(path) = c["path"].as_str() {
+                    std::fs::File::open(path)?
+                } else {
+                    #[cfg(unix)]
+                    {
+                        use std::os::fd::FromRawFd;
+                        let fd = c["fd"].as_i64().context("FILE_REQUIRED")?;
+                        ensure!(fd >= 0 && fd <= i32::MAX as i64, "INVALID_FD");
+                        unsafe { std::fs::File::from_raw_fd(fd as i32) }
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        anyhow::bail!("FILE_REQUIRED")
+                    }
+                };
+                let resource = Resource::from_file(file, string(&c, "allowedIp")?.parse()?)?;
+                let encrypted = c["encrypted"].as_bool().unwrap_or(true);
+                let tls = if encrypted {
+                    Some(Arc::new(self.identity.server_config()?))
+                } else {
+                    None
+                };
+                let (url, task) = media_http::bind_resource(
+                    resource.clone(),
+                    string(&c, "address")?.parse()?,
+                    tls,
+                )
+                .await?;
+                event(
+                    &self.events,
+                    "file.shared",
+                    json!({"url":url,"length":resource.length,"mime":"video/mp4","fingerprint":self.identity.fingerprint,"encrypted":encrypted}),
+                );
+                self.resources.push(resource);
+                self.tasks.push(task);
+            }
+            "dlna.load" | "dlna.command" => {
+                let device = self
+                    .renderers
+                    .get(string(&c, "deviceId")?)
+                    .context("DLNA_UNAVAILABLE")?
+                    .clone();
+                let controller = dlna::Controller::new(device)?;
+                if c["op"] == "dlna.load" {
+                    controller
+                        .load(
+                            string(&c, "url")?,
+                            c["title"].as_str().unwrap_or("LanCast Video"),
+                        )
+                        .await?;
+                    controller.command("play", None).await?;
+                    event(
+                        &self.events,
+                        "dlna.state",
+                        json!({"state":"command_accepted","firstFrameMeasured":false}),
+                    );
+                } else {
+                    let state = controller
+                        .command(string(&c, "action")?, c["positionMs"].as_u64())
+                        .await?;
+                    event(
+                        &self.events,
+                        "dlna.state",
+                        json!({"response":state,"firstFrameMeasured":false}),
+                    );
+                }
+            }
+            _ => anyhow::bail!("UNKNOWN_COMMAND"),
+        }
+        Ok(())
+    }
+}
+// The handshake callback signature is imposed by tungstenite's public API.
+#[allow(clippy::result_large_err)]
+async fn serve(listener: TcpListener, server: Arc<Server>) -> anyhow::Result<()> {
+    let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server.identity.server_config()?));
+    let slots = Arc::new(Semaphore::new(8));
+    loop {
+        let (stream, address) = listener.accept().await?;
+        let Ok(permit) = slots.clone().try_acquire_owned() else {
+            continue;
+        };
+        let acceptor = acceptor.clone();
+        let server = server.clone();
+        tokio::spawn(async move {
+            let _permit = permit;
+            let handshake = async {
+                let tls = acceptor.accept(stream).await?;
+                let ws=tokio_tungstenite::accept_hdr_async_with_config(tls,|request:&tokio_tungstenite::tungstenite::handshake::server::Request,response:tokio_tungstenite::tungstenite::handshake::server::Response|{
+            if request.uri().path()!="/v1/ws"||request.headers().contains_key("origin"){Err(tokio_tungstenite::tungstenite::http::Response::builder().status(403).body(Some("Native control endpoint".into())).unwrap())}else{Ok(response)}
+        },Some(wire_config())).await?;
+                Ok::<_, anyhow::Error>(ws)
+            };
+            if let Ok(Ok(ws)) = tokio::time::timeout(Duration::from_secs(8), handshake).await {
+                let _ = receiver_connection(ws, address.ip(), server).await;
+            }
+        });
+    }
+}
+async fn send<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
+    ws: &mut WebSocketStream<S>,
+    message: &Message,
+) -> anyhow::Result<()> {
+    ws.send(Frame::Text(serde_json::to_string(message)?.into()))
+        .await?;
+    Ok(())
+}
+async fn receive<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
+    ws: &mut WebSocketStream<S>,
+) -> anyhow::Result<Message> {
+    loop {
+        match ws.next().await.context("DISCONNECTED")?? {
+            Frame::Text(text) => return Message::parse(&text),
+            Frame::Ping(data) => ws.send(Frame::Pong(data)).await?,
+            Frame::Pong(_) => {}
+            _ => anyhow::bail!("DISCONNECTED"),
+        }
+    }
+}
+async fn receiver_connection<
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+>(
+    mut ws: WebSocketStream<S>,
+    ip: IpAddr,
+    server: Arc<Server>,
+) -> anyhow::Result<()> {
+    let nonce = auth::random_token();
+    send(
+        &mut ws,
+        &Message::new("auth.challenge", json!({"nonce":nonce,"expiresInMs":30000})),
+    )
+    .await?;
+    let pair = tokio::time::timeout(Duration::from_secs(30), receive(&mut ws)).await??;
+    ensure!(pair.kind == "pair.request", "AUTH_REQUIRED");
+    let owner = Uuid::parse_str(pair.string("senderDeviceId")?)?;
+    let public = pair.string("senderPublicKey")?;
+    auth::verify(public, &nonce, owner, pair.string("signature")?)?;
+    server
+        .invitation
+        .lock()
+        .await
+        .consume(pair.string("invite")?, Instant::now())?;
+    let connection = Uuid::new_v4();
+    let (tx, rx) = oneshot::channel();
+    server.pending.lock().await.insert(connection, tx);
+    event(
+        &server.events,
+        "pair.request",
+        json!({"connectionId":connection,"senderDeviceId":owner,"senderName":pair.string("senderName")?.chars().take(80).collect::<String>(),"address":ip.to_string()}),
+    );
+    let accepted = tokio::time::timeout(Duration::from_secs(60), rx).await;
+    server.pending.lock().await.remove(&connection);
+    if !matches!(accepted, Ok(Ok(true))) {
+        send(&mut ws, &pair.error("PAIR_REJECTED")).await?;
+        return Ok(());
+    }
+    send(&mut ws,&pair.reply("pair.accepted",json!({"receiverDeviceId":server.identity.id,"deviceToken":auth::random_token(),"receiverPublicKey":server.identity.public_key,"trust":"session_only"}))).await?;
+    let fingerprint = {
+        use base64::Engine;
+        hex::encode(Sha256::digest(
+            base64::engine::general_purpose::STANDARD.decode(public)?,
+        ))
+    };
+    let (tx, mut outgoing) = mpsc::channel::<Message>(32);
+    server.connections.lock().await.insert(owner, tx);
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(5));
+    let mut last_seen = Instant::now();
+    let outcome: anyhow::Result<()>=async {loop{tokio::select!{
+        received=receive(&mut ws)=>{let mut request=received?;last_seen=Instant::now();if request.kind=="ping"{send(&mut ws,&request.reply("pong",request.body.clone())).await?;continue;}
+            if request.kind=="pong"{continue;}
+            let response=handle_request(&server,owner,ip,&fingerprint,&mut request).await.unwrap_or_else(|e|request.error(&e.to_string()));send(&mut ws,&response).await?;
+        }
+        message=outgoing.recv()=>{if let Some(message)=message{send(&mut ws,&message).await?;}else{break;}}
+        _=heartbeat.tick()=>{ensure!(last_seen.elapsed()<Duration::from_secs(15),"HEARTBEAT_TIMEOUT");send(&mut ws,&Message::new("ping",json!({"nonce":Uuid::new_v4()}))).await?;}
+    }}Ok(())}.await;
+    server.connections.lock().await.remove(&owner);
+    {
+        let mut session = server.session.lock().await;
+        if let Some(s) = session.as_mut()
+            && s.owner == owner
+        {
+            s.stop();
+            *session = None;
+            event(
+                &server.events,
+                "session.closed",
+                json!({"reason":"control_disconnected","requiresNewConsent":true}),
+            );
+        }
+    }
+    outcome
+}
+async fn handle_request(
+    server: &Server,
+    owner: Uuid,
+    ip: IpAddr,
+    fingerprint: &str,
+    request: &mut Message,
+) -> anyhow::Result<Message> {
+    let mut guard = server.session.lock().await;
+    if let Some(s) = guard.as_ref()
+        && s.owner == owner
+        && let Some(response) = s.cached(request.id, Instant::now())
+    {
+        return Ok(response);
+    }
+    if request.kind == "session.start" {
+        ensure!(guard.is_none(), "BUSY");
+        let mode = request.string("mode")?;
+        let session = Session::new(owner, mode)?;
+        let mut response=request.reply("session.accepted",json!({"sessionId":session.id,"selectedProfile":Profile::conservative(server.variant=="legacy"),"audioPolicy":"explicit_capture_only"}));
+        response.session_id = Some(session.id);
+        *guard = Some(session);
+        guard
+            .as_mut()
+            .unwrap()
+            .remember(request.id, response.clone(), Instant::now());
+        event(
+            &server.events,
+            "session.started",
+            json!({"sessionId":response.session_id,"mode":mode,"senderIp":ip.to_string(),"senderFingerprint":fingerprint}),
+        );
+        return Ok(response);
+    }
+    if request.kind == "session.stop" && guard.is_none() {
+        return Ok(request.reply("ack", json!({})));
+    }
+    let session = guard.as_mut().context("SESSION_EXPIRED")?;
+    session.authorize(owner, request.session_id)?;
+    match request.kind.as_str() {
+        "rtc.offer" => {
+            ensure!(
+                session.mode == "mirror"
+                    && matches!(session.state, State::Negotiating | State::Streaming),
+                "INVALID_STATE"
+            );
+            session.negotiation = Some(Uuid::parse_str(request.string("negotiationId")?)?);
+        }
+        "rtc.ice" => {
+            ensure!(
+                request.body["negotiationId"]
+                    .as_str()
+                    .and_then(|s| Uuid::parse_str(s).ok())
+                    == session.negotiation,
+                "STALE_NEGOTIATION"
+            );
+        }
+        "file.load" => {
+            ensure!(session.mode == "file", "INVALID_STATE");
+            let url = url::Url::parse(request.string("url")?)?;
+            ensure!(
+                url.scheme() == "https"
+                    && url
+                        .host_str()
+                        .and_then(|s| s.trim_matches(['[', ']']).parse::<IpAddr>().ok())
+                        == Some(ip)
+                    && url.username().is_empty()
+                    && url.password().is_none()
+                    && url.path().starts_with("/media/")
+                    && url.query().is_none()
+                    && url.fragment().is_none(),
+                "UNSAFE_MEDIA_URL"
+            );
+            ensure!(request.string("mime")? == "video/mp4", "MEDIA_UNSUPPORTED");
+            request.body["fingerprint"] = json!(fingerprint);
+        }
+        "playback.command" => {
+            ensure!(session.mode == "file", "INVALID_STATE");
+            match request.string("action")? {
+                "play" | "pause" => {}
+                "seek" => ensure!(
+                    request.body["positionMs"].as_u64().is_some(),
+                    "INVALID_POSITION"
+                ),
+                "volume" => ensure!(
+                    request.body["value"]
+                        .as_f64()
+                        .is_some_and(|n| (0.0..=1.0).contains(&n)),
+                    "INVALID_VOLUME"
+                ),
+                _ => anyhow::bail!("UNKNOWN_COMMAND"),
+            }
+        }
+        "session.stop" => {}
+        _ => anyhow::bail!("UNKNOWN_MESSAGE"),
+    }
+    event(&server.events, "message", serde_json::to_value(&request)?);
+    let response = request.reply("ack", json!({}));
+    session.remember(request.id, response.clone(), Instant::now());
+    if request.kind == "session.stop" {
+        session.stop();
+        *guard = None;
+    }
+    Ok(response)
+}
+async fn connect(
+    identity: Arc<Identity>,
+    address: &str,
+    pin: &str,
+    invite: &str,
+    name: &str,
+    events: Events,
+) -> anyhow::Result<(mpsc::Sender<Message>, JoinHandle<()>)> {
+    let endpoint: SocketAddr = address.parse()?;
+    ensure!(!endpoint.ip().is_unspecified(), "INVALID_ADDRESS");
+    let config = auth::pinned_config(pin)?;
+    let url = format!("wss://{endpoint}/v1/ws");
+    let (mut ws, _) = tokio::time::timeout(
+        Duration::from_secs(8),
+        tokio_tungstenite::connect_async_tls_with_config(
+            url,
+            Some(wire_config()),
+            false,
+            Some(Connector::Rustls(Arc::new(config))),
+        ),
+    )
+    .await??;
+    let challenge = tokio::time::timeout(Duration::from_secs(30), receive(&mut ws)).await??;
+    ensure!(challenge.kind == "auth.challenge", "AUTH_REQUIRED");
+    let pair = Message::new(
+        "pair.request",
+        json!({"invite":invite,"senderDeviceId":identity.id,"senderName":name,"senderPublicKey":identity.public_key,"signature":identity.sign(challenge.string("nonce")?)?}),
+    );
+    send(&mut ws, &pair).await?;
+    event(&events, "pair.waiting", json!({}));
+    let accepted = tokio::time::timeout(Duration::from_secs(65), receive(&mut ws)).await??;
+    ensure!(accepted.kind == "pair.accepted", "PAIR_REJECTED");
+    event(
+        &events,
+        "connected",
+        json!({"address":address,"trust":"session_only"}),
+    );
+    let (tx, mut rx) = mpsc::channel::<Message>(32);
+    let task = tokio::spawn(async move {
+        let result:anyhow::Result<()>=async{loop{tokio::select!{
+            request=rx.recv()=>{match request{Some(request)=>send(&mut ws,&request).await?,None=>break}},
+            response=tokio::time::timeout(Duration::from_secs(15),receive(&mut ws))=>{let response=response??;if response.kind=="ping"{send(&mut ws,&response.reply("pong",response.body.clone())).await?;}else{event(&events,"message",serde_json::to_value(response)?);}}
+        }}Ok(())}.await;
+        event(
+            &events,
+            "disconnected",
+            json!({"reason":if result.is_err(){"connection_lost"}else{"closed"},"requiresNewConsent":true}),
+        );
+    });
+    Ok((tx, task))
+}

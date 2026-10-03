@@ -1,0 +1,84 @@
+name: Build and test
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: SDK and NDK
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Build Rust JNI for ARM32 and ARM64
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+        run: python scripts/build-android-core.py
+      - name: Build Kotlin apps and run lint
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app-receiver:assembleStandardDebug :app-receiver:assembleLegacyDebug :app-sender:assembleDebug :app-receiver:lintStandardDebug :app-receiver:lintLegacyDebug :app-sender:lintDebug --stacktrace
+      - name: Verify player dependency separation
+        working-directory: android
+        run: |
+          ./gradlew :app-receiver:dependencyInsight --configuration legacyDebugRuntimeClasspath --dependency media3-common > legacy-dependencies.txt
+          ./gradlew :app-receiver:dependencyInsight --configuration standardDebugRuntimeClasspath --dependency media3-common > standard-dependencies.txt
+          grep -q 'media3-common:1.8.1' legacy-dependencies.txt
+          grep -q 'media3-common:1.11.1' standard-dependencies.txt
+      - run: python scripts/verify-apks.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-apks-and-reports
+          path: |
+            android/app-*/build/outputs/apk/**/*.apk
+            android/app-*/build/reports/
+            android/*-dependencies.txt
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.98.1 --profile minimal
+      - run: cargo build --release --locked --target x86_64-pc-windows-msvc -p lancast-core
+      - name: Install verified GStreamer SDK
+        shell: pwsh
+        run: ./scripts/install-gstreamer.ps1
+      - name: Build native client
+        run: |
+          cmake -S windows -B windows/build -A x64 -DGST_ROOT=C:/gstreamer/1.0/msvc_x86_64
+          cmake --build windows/build --config Release
+      - name: Package client and shared media libraries
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LanCast-Windows-x64
+          path: dist/LanCast-Windows-x64/
