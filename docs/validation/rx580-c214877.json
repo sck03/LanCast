@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "commit": "c2148776b10c9ec3bf5c54f438eea7f080cfe430",
+  "decoder": "ffmpeg version 7.1-essentials_build-www.gyan.dev Copyright (c) 2000-2024 the FFmpeg developers",
+  "fixture": "rx580-synthetic-c214877.ts",
+  "sha256": "a114f73817d0ed4c792088d76f9989d233cbc8678b4a2a132975ef56eb7dbb09",
+  "bytes": 2388352,
+  "video": "Stream #0:0[0x100]: Video: h264 (Constrained Baseline) ([27][0][0][0] / 0x001B), yuv420p(tv, bt709, progressive), 1280x720 [SAR 1:1 DAR 16:9], 30 fps, 30 tbr, 90k tbn",
+  "audio": "Stream #0:1[0x101]: Audio: aac (LC) ([15][0][0][0] / 0x000F), 48000 Hz, stereo, fltp, 118 kb/s",
+  "videoPackets": 173,
+  "ptsEqualsDts": true,
+  "strictlyIncreasing": true,
+  "minStep90k": 2694,
+  "maxStep90k": 3331,
+  "spanSeconds": 5.736266666666666,
+  "rgbAtSeconds": [
+    0.5,
+    1.5,
+    2.5
+  ],
+  "rgb": [
+    [
+      253,
+      0,
+      0
+    ],
+    [
+      0,
+      255,
+      0
+    ],
+    [
+      0,
+      0,
+      253
+    ]
+  ],
+  "audioPeakHz": 440,
+  "audioRms": 0.12117555762716457,
+  "scope": "synthetic GPU/MFT/TS decode only; excludes screen capture, loopback audio, TV display and end-to-end latency"
+}
