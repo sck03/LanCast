@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <objbase.h>
 #include <commdlg.h>
 #include <commctrl.h>
 #include <nlohmann/json.hpp>
