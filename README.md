@@ -10,7 +10,7 @@
 - WSS 配对、一次邀请、完整 SPKI 指纹与电视确认；Hyper 文件服务、Range、目标 IP/token、撤销。
 - DLNA 独立控制与连续 TS HTTP 发布，有界队列、慢读关闭和实际起播内容检查。
 - Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 和 Rust TLS 媒体桥，移除旧 Media3。
-- Android 镜像使用固定上游 AAR 过渡；新增 DLNA 原生采集/TS 试验代码，尚需构建与实机验收。
+- Android 镜像使用固定上游 AAR 过渡；新增 DLNA 原生采集/TS 试验代码，CI 构建、lint 与 ABI 检查通过，实机验收未完成。
 - Windows 默认构建为原生控制/文件客户端，不再要求 GStreamer。**WGC/MF/WASAPI/libwebrtc 自建媒体后端未完成，屏幕分享按钮禁用。**
 
 ## 构建与验证

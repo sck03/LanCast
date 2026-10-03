@@ -48,3 +48,19 @@ fn pinned_pairing_and_nonblocking_stop_during_pending_approval() {
     assert!(start.elapsed() < Duration::from_secs(3));
     receiver.close();
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn rejected_file_command_closes_the_transferred_descriptor() {
+    use std::os::fd::IntoRawFd;
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let engine = Engine::new().unwrap();
+    engine.close();
+    let fd = file.reopen().unwrap().into_raw_fd();
+    let path = format!("/proc/self/fd/{fd}");
+    let before = std::fs::read_link(&path).unwrap();
+    assert!(engine.command(json!({"op":"file.share","fd":fd})).is_err());
+    if let Ok(now) = std::fs::read_link(path) {
+        assert_ne!(now, before);
+    }
+}

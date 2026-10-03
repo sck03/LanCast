@@ -44,24 +44,61 @@ fn wire_config() -> WebSocketConfig {
 fn string<'a>(v: &'a Value, key: &str) -> anyhow::Result<&'a str> {
     v[key].as_str().with_context(|| format!("MISSING_{key}"))
 }
+struct QueuedCommand {
+    value: Value,
+    file: Option<std::fs::File>,
+    generation: u64,
+}
+impl QueuedCommand {
+    fn new(value: Value) -> anyhow::Result<Self> {
+        #[cfg(unix)]
+        let file = if value["op"] == "file.share" && value["path"].is_null() {
+            use std::os::fd::FromRawFd;
+            let fd = value["fd"].as_i64().context("FILE_REQUIRED")?;
+            ensure!(fd >= 0 && fd <= i32::MAX as i64, "INVALID_FD");
+            // Native caller transfers a valid detached descriptor. Queue rejection,
+            // cancellation and shutdown now close it through ordinary RAII.
+            Some(unsafe { std::fs::File::from_raw_fd(fd as i32) })
+        } else {
+            None
+        };
+        #[cfg(not(unix))]
+        let file = None;
+        Ok(Self {
+            value,
+            file,
+            generation: 0,
+        })
+    }
+    fn stop() -> Self {
+        Self {
+            value: json!({"op":"stop"}),
+            file: None,
+            generation: 0,
+        }
+    }
+}
 pub struct Engine {
-    command: mpsc::Sender<Value>,
+    command: mpsc::Sender<QueuedCommand>,
     events: StdMutex<std_mpsc::Receiver<String>>,
     thread: StdMutex<Option<std::thread::JoinHandle<()>>>,
     shutdown: CancellationToken,
     stop: Arc<tokio::sync::Notify>,
+    generation: Arc<std::sync::atomic::AtomicU64>,
     #[cfg(feature = "sender")]
     live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
 }
 impl Engine {
     pub fn new() -> anyhow::Result<Self> {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let (command, mut receiver) = mpsc::channel::<Value>(32);
+        let (command, mut receiver) = mpsc::channel::<QueuedCommand>(32);
         let (events, output) = std_mpsc::sync_channel(256);
         let shutdown = CancellationToken::new();
         let shutdown_worker = shutdown.clone();
         let stop = Arc::new(tokio::sync::Notify::new());
         let stop_worker = stop.clone();
+        let generation = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let worker_generation = generation.clone();
         #[cfg(feature = "sender")]
         let live = Arc::new(StdMutex::new(None));
         #[cfg(feature = "sender")]
@@ -98,29 +135,35 @@ impl Engine {
                     loop {
                         let command = tokio::select! { biased;
                             _ = shutdown_worker.cancelled() => break,
-                            _ = stop_worker.notified() => Some(json!({"op":"stop"})),
+                            _ = stop_worker.notified() => Some(QueuedCommand::stop()),
                             c = receiver.recv() => c,
                         };
                         let Some(command) = command else {
                             break;
                         };
+                        if command.value["op"] != "stop"
+                            && command.generation
+                                != worker_generation.load(std::sync::atomic::Ordering::Acquire)
+                        {
+                            continue;
+                        }
                         let result = tokio::select! { biased;
                             _ = shutdown_worker.cancelled() => break,
                             _ = stop_worker.notified() => None,
-                            r = state.command(command) => Some(r),
+                            r = state.command(command.value, command.file) => Some(r),
                         };
                         match result {
                             Some(Err(error)) => {
                                 event(&events, "error", json!({"code":error.to_string()}))
                             }
                             None => {
-                                let _ = state.command(json!({"op":"stop"})).await;
+                                let _ = state.command(json!({"op":"stop"}), None).await;
                             }
                             _ => {}
                         }
                         state.tasks.retain(|task| !task.is_finished());
                     }
-                    let _ = state.command(json!({"op":"stop"})).await;
+                    let _ = state.command(json!({"op":"stop"}), None).await;
                     for resource in state.resources {
                         resource.revoke();
                     }
@@ -137,22 +180,27 @@ impl Engine {
             thread: StdMutex::new(Some(thread)),
             shutdown,
             stop,
+            generation,
             #[cfg(feature = "sender")]
             live,
         })
     }
     pub fn command(&self, value: Value) -> anyhow::Result<()> {
+        let mut command = QueuedCommand::new(value)?;
         ensure!(!self.shutdown.is_cancelled(), "ENGINE_CLOSED");
-        if value["op"] == "stop" {
+        if command.value["op"] == "stop" {
+            self.generation
+                .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
             self.stop.notify_one();
             return Ok(());
         }
-        if value["op"] == "shutdown" {
+        if command.value["op"] == "shutdown" {
             self.shutdown();
             return Ok(());
         }
+        command.generation = self.generation.load(std::sync::atomic::Ordering::Acquire);
         self.command
-            .try_send(value)
+            .try_send(command)
             .map_err(|_| anyhow::anyhow!("COMMAND_QUEUE_FULL_OR_CLOSED"))
     }
     pub fn poll(&self) -> Option<String> {
@@ -203,7 +251,11 @@ struct Server {
     variant: String,
 }
 impl Runtime {
-    async fn command(&mut self, c: Value) -> anyhow::Result<()> {
+    async fn command(
+        &mut self,
+        c: Value,
+        granted_file: Option<std::fs::File>,
+    ) -> anyhow::Result<()> {
         match string(&c, "op")? {
             "listen" => {
                 ensure!(self.server.is_none(), "ALREADY_LISTENING");
@@ -365,20 +417,12 @@ impl Runtime {
             }
             "file.share" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
-                let file = if let Some(path) = c["path"].as_str() {
+                let file = if let Some(file) = granted_file {
+                    file
+                } else if let Some(path) = c["path"].as_str() {
                     std::fs::File::open(path)?
                 } else {
-                    #[cfg(unix)]
-                    {
-                        use std::os::fd::FromRawFd;
-                        let fd = c["fd"].as_i64().context("FILE_REQUIRED")?;
-                        ensure!(fd >= 0 && fd <= i32::MAX as i64, "INVALID_FD");
-                        unsafe { std::fs::File::from_raw_fd(fd as i32) }
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        anyhow::bail!("FILE_REQUIRED")
-                    }
+                    anyhow::bail!("FILE_REQUIRED")
                 };
                 let resource = Resource::from_file(file, string(&c, "allowedIp")?.parse()?)?;
                 let encrypted = c["encrypted"].as_bool().unwrap_or(true);
