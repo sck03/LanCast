@@ -44,6 +44,7 @@ cd android
 Windows：使用 VS2022 C++/Windows SDK、UCRT64 和 Python。先按工作流构建最小 TS DLL，再执行：
 
 ```powershell
+$env:RUSTFLAGS = '-C target-feature=+crt-static'
 cargo build --release --locked --target x86_64-pc-windows-msvc -p cast-ffi
 ./scripts/build-windows-deps.ps1
 cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$PWD/.cache/mbedtls-install"

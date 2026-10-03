@@ -154,10 +154,16 @@ impl Engine {
                         {
                             continue;
                         }
-                        let result = tokio::select! { biased;
-                            _ = shutdown_worker.cancelled() => break,
-                            _ = stop_worker.notified() => None,
-                            r = state.command(command.value, command.file) => Some(r),
+                        // Once teardown begins, finish its bounded renderer cleanup. A duplicate
+                        // stop must not detach the old cleanup and let it race a new session.
+                        let result = if command.value["op"] == "stop" {
+                            Some(state.command(command.value, command.file).await)
+                        } else {
+                            tokio::select! { biased;
+                                _ = shutdown_worker.cancelled() => break,
+                                _ = stop_worker.notified() => None,
+                                r = state.command(command.value, command.file) => Some(r),
+                            }
                         };
                         match result {
                             Some(Err(error)) => {

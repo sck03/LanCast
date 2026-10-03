@@ -4,7 +4,12 @@
 #include "ts_output.h"
 #include <map>
 #include <mutex>
+#include <rtc/global.hpp>
 namespace {
+void cleanup_rtc() {
+    rtcCleanup();
+    rtc::Cleanup().wait();
+}
 struct Backend {
     LcRtcConfig config;
     std::atomic_bool active{true};
@@ -89,7 +94,7 @@ extern "C" __declspec(dllexport) LcRtcHandle lc_rtc_create(const LcRtcConfig *c)
             return handle;
         } catch (...) {
             if (registry.empty())
-                rtcCleanup();
+                cleanup_rtc();
             return 0;
         }
     } catch (...) {
@@ -124,7 +129,7 @@ extern "C" __declspec(dllexport) void lc_rtc_destroy(LcRtcHandle h) {
         registry.erase(it);
         // Before the host unloads this DLL, every libdatachannel worker must have exited.
         if (registry.empty())
-            rtcCleanup();
+            cleanup_rtc();
     } catch (...) {
     }
 }

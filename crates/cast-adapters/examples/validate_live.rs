@@ -203,6 +203,10 @@ async fn main() -> anyhow::Result<()> {
             }
         })
         .await?;
+        // The TV owner may switch sources while this session is stopping. Do not stop their source.
+        if index == 1 {
+            tv.lock().unwrap().uri = "http://192.0.2.5/other.mp4".into();
+        }
         live.revoke();
         ensure!(
             tokio::time::timeout(Duration::from_secs(3), reader).await?? > 188 * 20,
@@ -210,8 +214,8 @@ async fn main() -> anyhow::Result<()> {
         );
         tokio::time::timeout(Duration::from_secs(3), supervisor).await???;
         ensure!(
-            !tv.lock().unwrap().playing,
-            "renderer left playing after cancellation"
+            tv.lock().unwrap().playing == (index == 1),
+            "incorrect renderer ownership on cancellation"
         );
         http.await?;
         soap.abort();

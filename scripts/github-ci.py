@@ -2,9 +2,12 @@
 """Inspect this repository's Actions without printing or persisting Git credentials."""
 import argparse
 import json
+import io
 import pathlib
+import re
 import subprocess
 import urllib.request
+import zipfile
 
 REPO = "sck03/LanCast"
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -22,6 +25,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=int)
     parser.add_argument("--failed-logs", action="store_true")
+    parser.add_argument("--download", help="Download one named build artifact into the task cache")
     args = parser.parse_args()
     credential = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n", text=True, capture_output=True, check=True)
     fields = dict(line.split("=", 1) for line in credential.stdout.splitlines() if "=" in line)
@@ -45,6 +49,23 @@ def main():
                 data = get(f"actions/jobs/{job['id']}/logs", raw=True).decode("utf-8", errors="replace")
                 path.write_text(data.replace(token, "[REDACTED]") if token else data, encoding="utf-8")
                 print(str(path))
+    if args.download:
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", args.download):
+            raise SystemExit("Invalid artifact name")
+        artifacts = get(f"actions/runs/{run['id']}/artifacts?per_page=100")["artifacts"]
+        selected = next((a for a in artifacts if a["name"] == args.download and not a["expired"]), None)
+        if not selected:
+            raise SystemExit("Artifact not available in this run")
+        destination = (ROOT / ".cache/artifacts" / str(run["id"]) / args.download).resolve()
+        with zipfile.ZipFile(io.BytesIO(get(f"actions/artifacts/{selected['id']}/zip", raw=True))) as archive:
+            if len(archive.infolist()) > 10000 or sum(e.file_size for e in archive.infolist()) > 1024**3:
+                raise SystemExit("Artifact exceeds extraction limit")
+            for entry in archive.infolist():
+                if not (destination / entry.filename).resolve().is_relative_to(destination):
+                    raise SystemExit("Unsafe artifact path")
+            destination.mkdir(parents=True, exist_ok=True)
+            archive.extractall(destination)
+        print(str(destination))
 
 
 if __name__ == "__main__":

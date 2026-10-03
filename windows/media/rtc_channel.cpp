@@ -1,7 +1,35 @@
 #include "rtc_channel.h"
 #include <atomic>
+#include <map>
 #include <objbase.h>
 namespace lancast {
+namespace {
+// The C API hands callbacks a copied raw user pointer; deletion alone does not wait for it.
+// Pass an opaque integer and resolve it under a callback gate instead of dereferencing a dying
+// owner.
+std::mutex callback_mutex;
+std::map<uintptr_t, RtcChannel *> callback_owners;
+uintptr_t next_callback = 0;
+uintptr_t register_callback(RtcChannel *owner) {
+    std::lock_guard lock(callback_mutex);
+    const auto token = ++next_callback;
+    callback_owners.emplace(token, owner);
+    return token;
+}
+void unregister_callback(uintptr_t token) {
+    std::lock_guard lock(callback_mutex);
+    callback_owners.erase(token);
+}
+template <class Fn> void with_user(void *pointer, Fn &&fn) noexcept {
+    try {
+        std::lock_guard lock(callback_mutex);
+        const auto it = callback_owners.find(reinterpret_cast<uintptr_t>(pointer));
+        if (it != callback_owners.end())
+            fn(*it->second);
+    } catch (...) {
+    }
+}
+} // namespace
 static void rtc_check(int result) {
     if (result < 0)
         throw std::runtime_error("RTC_OPERATION_FAILED");
@@ -26,33 +54,48 @@ RtcChannel::RtcChannel(bool audio, Event event, std::function<void()> keyframe,
     pc_ = rtcCreatePeerConnection(&c);
     rtc_check(pc_);
     try {
-        rtcSetUserPointer(pc_, this);
+        callback_token_ = register_callback(this);
+        rtcSetUserPointer(pc_, reinterpret_cast<void *>(callback_token_));
         rtc_check(
             rtcSetLocalDescriptionCallback(pc_, [](int, const char *sdp, const char *, void *user) {
-                auto &self = *static_cast<RtcChannel *>(user);
-                self.emit("rtc.offer", {{"sdp", sdp}, {"negotiationId", self.negotiation_}});
+                with_user(user, [&](RtcChannel &self) {
+                    self.emit("rtc.offer", {{"sdp", sdp}, {"negotiationId", self.negotiation_}});
+                    self.description_sent_ = true;
+                    for (auto &ice : self.local_ice_)
+                        self.emit("rtc.ice", std::move(ice));
+                    self.local_ice_.clear();
+                });
             }));
         rtc_check(rtcSetLocalCandidateCallback(
             pc_, [](int, const char *candidate, const char *mid, void *user) {
-                auto &self = *static_cast<RtcChannel *>(user);
-                self.emit("rtc.ice", {{"candidate", candidate},
-                                      {"sdpMid", mid},
-                                      {"sdpMLineIndex", std::string(mid) == "audio" ? 1 : 0},
-                                      {"negotiationId", self.negotiation_}});
+                with_user(user, [&](RtcChannel &self) {
+                    nlohmann::json ice{{"candidate", candidate},
+                                       {"sdpMid", mid},
+                                       {"sdpMLineIndex", std::string(mid) == "audio" ? 1 : 0},
+                                       {"negotiationId", self.negotiation_}};
+                    if (self.description_sent_)
+                        self.emit("rtc.ice", std::move(ice));
+                    else if (self.local_ice_.size() < 64)
+                        self.local_ice_.push_back(std::move(ice));
+                    else
+                        self.emit("media.error", {{"code", "ICE_QUEUE_FULL"}});
+                });
             }));
         rtc_check(rtcSetStateChangeCallback(pc_, [](int, rtcState state, void *user) {
-            auto &self = *static_cast<RtcChannel *>(user);
-            if (state == RTC_CONNECTED) {
-                self.keyframe_();
-                self.emit("media.connected", {{"transport", "dtls_srtp"}});
-            } else if (state == RTC_FAILED || state == RTC_DISCONNECTED)
-                self.emit("media.error", {{"code", "RTC_DISCONNECTED"}});
+            with_user(user, [&](RtcChannel &self) {
+                if (state == RTC_CONNECTED) {
+                    self.keyframe_();
+                    self.emit("media.connected", {{"transport", "dtls_srtp"}});
+                } else if (state == RTC_FAILED || state == RTC_DISCONNECTED)
+                    self.emit("media.error", {{"code", "RTC_DISCONNECTED"}});
+            });
         }));
         video_ = add_track(false);
         if (audio)
             audio_ = add_track(true);
         rtc_check(rtcSetLocalDescription(pc_, "offer"));
     } catch (...) {
+        unregister_callback(callback_token_);
         if (video_ >= 0)
             rtcDeleteTrack(video_);
         if (audio_ >= 0)
@@ -78,7 +121,7 @@ int RtcChannel::add_track(bool audio) {
     const auto track = rtcAddTrackEx(pc_, &t);
     rtc_check(track);
     try {
-        rtcSetUserPointer(track, this);
+        rtcSetUserPointer(track, reinterpret_cast<void *>(callback_token_));
         rtcPacketizerInit p{};
         p.ssrc = ssrc;
         p.cname = "lancast";
@@ -91,10 +134,11 @@ int RtcChannel::add_track(bool audio) {
         rtc_check(rtcChainRtcpSrReporter(track));
         rtc_check(rtcChainRtcpNackResponder(track, 256));
         if (!audio) {
-            rtc_check(rtcChainPliHandler(
-                track, [](int, void *user) { static_cast<RtcChannel *>(user)->keyframe_(); }));
+            rtc_check(rtcChainPliHandler(track, [](int, void *user) {
+                with_user(user, [](RtcChannel &self) { self.keyframe_(); });
+            }));
             rtc_check(rtcChainRembHandler(track, [](int, unsigned bitrate, void *user) {
-                static_cast<RtcChannel *>(user)->bitrate_(bitrate);
+                with_user(user, [&](RtcChannel &self) { self.bitrate_(bitrate); });
             }));
         }
         return track;
@@ -110,7 +154,8 @@ void RtcChannel::emit(std::string type, nlohmann::json body) noexcept {
     }
 }
 RtcChannel::~RtcChannel() {
-    // C API deletion clears callbacks and waits for callbacks already in flight.
+    // Removing the token waits for in-flight callbacks and prevents late callbacks finding us.
+    unregister_callback(callback_token_);
     if (pc_ >= 0)
         rtcClosePeerConnection(pc_);
     if (video_ >= 0)

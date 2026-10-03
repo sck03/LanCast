@@ -24,5 +24,8 @@ class RtcChannel {
     std::mutex mutex_;
     bool answered_ = false;
     std::vector<nlohmann::json> remote_ice_;
+    uintptr_t callback_token_ = 0;
+    bool description_sent_ = false;
+    std::vector<nlohmann::json> local_ice_;
 };
 } // namespace lancast

@@ -104,6 +104,12 @@ pub async fn run(
         tokio::select! { biased; _ = cancel.cancelled() => Ok(()), result = work => result };
     resource.revoke();
     // Bounded best-effort cleanup is independent of the cancelled media token.
-    let _ = tokio::time::timeout(Duration::from_secs(2), controller.command("stop", None)).await;
+    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+        if controller.current_uri().await? == url {
+            controller.command("stop", None).await?;
+        }
+        Ok::<_, anyhow::Error>(())
+    })
+    .await;
     result
 }
