@@ -52,7 +52,7 @@ object SenderRuntime {
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         if (generation == active) {
                             if (value == "dlna_capture_started") command("dlna.load", JSONObject().put("deviceId", dlnaId).put("url", liveUrl).put("title", "LanCast Live").put("live", true))
-                            else if (value.endsWith("FAILED") || value.contains("REQUIRED") || value == "CAPTURE_REVOKED") stop()
+                            else stop() // All other DlnaCapture callbacks are terminal errors/revocation.
                             observer?.invoke(JSONObject().put("type", "media.status").put("body", JSONObject().put("status", value)))
                         }
                     }

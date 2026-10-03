@@ -52,7 +52,7 @@ class RtcPeer(
     }
     private fun submit(action: () -> Unit) {
         if (!closed.get()) worker.post {
-            if (!closed.get()) try { action() } catch (e: Exception) { status(e.message ?: "MEDIA_FAILED"); close() }
+            if (!closed.get()) try { action() } catch (_: Exception) { status("MEDIA_FAILED"); close() }
         }
     }
     private fun initialize(internalAudio: Boolean) {

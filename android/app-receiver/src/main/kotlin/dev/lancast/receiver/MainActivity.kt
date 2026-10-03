@@ -102,6 +102,9 @@ class MainActivity : Activity() {
             }
             value.startsWith("statistics:") -> core?.send("statistics", sessionId, JSONObject(value.removePrefix("statistics:")))
             value == "ended" -> { core?.command("stop"); stopMedia() }
+            value.endsWith("FAILED") || value == "MEDIA_UNSUPPORTED" || value == "MEDIA_SOURCE_FAILED" -> {
+                core?.command("stop"); stopMedia(); state.text = value
+            }
             else -> state.text = value
         }
     }
