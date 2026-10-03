@@ -7,7 +7,12 @@ assert len(apks) == 3, f"Expected 3 debug APKs, found {len(apks)}"
 for apk in apks:
     with zipfile.ZipFile(apk) as archive:
         for abi in ("armeabi-v7a","arm64-v8a"):
-            for lib in ("liblancast_core.so","libjingle_peerconnection_so.so"):
+            libraries = ["liblancast_core.so", "libjingle_peerconnection_so.so"]
+            if "app-sender" in apk.parts:
+                libraries.append("liblancast_media.so")
+            else:
+                assert f"lib/{abi}/liblancast_media.so" not in archive.namelist(), "TS sender library leaked into receiver"
+            for lib in libraries:
                 path = f"lib/{abi}/{lib}"
                 assert path in archive.namelist(), f"{apk.name}: missing {path}"
                 elf = archive.read(path)

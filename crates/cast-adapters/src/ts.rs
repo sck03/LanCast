@@ -78,8 +78,12 @@ impl StartGate {
                 let programs = pat.get(8..pat.len().saturating_sub(4)).unwrap_or_default();
                 for program in programs.as_chunks::<4>().0 {
                     if program[0] != 0 || program[1] != 0 {
-                        if self.pmt.is_none() {
+                        if !self.idr {
                             self.pmt = Some(((program[2] as u16 & 31) << 8) | program[3] as u16);
+                            self.video = None;
+                            self.sps = false;
+                            self.pps = false;
+                            self.tail.clear();
                             self.pending.clear();
                         }
                         break;
