@@ -20,6 +20,7 @@ class MainActivity : Activity() {
     private lateinit var local: EditText
     private lateinit var audio: CheckBox
     private var pendingAudio = false
+    private var profileRequest: String? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 16, 24, 16) }
@@ -62,7 +63,8 @@ class MainActivity : Activity() {
                 .setPositiveButton("继续并选择分享内容") { _, _ ->
                     SenderRuntime.localAddress = local.text.toString().trim()
                     pendingAudio = audio.isChecked
-                    SenderRuntime.command("profile.check", JSONObject().put("deviceId", SenderRuntime.dlnaId).put("audio", pendingAudio))
+                    profileRequest = java.util.UUID.randomUUID().toString()
+                    SenderRuntime.command("profile.check", JSONObject().put("deviceId", SenderRuntime.dlnaId).put("audio", pendingAudio).put("requestId", profileRequest))
                 }.setNegativeButton("取消", null).show()
         }
         button("选择 MP4 视频播放") {
@@ -72,7 +74,7 @@ class MainActivity : Activity() {
         button("暂停") { SenderRuntime.playback("pause") }
         button("播放") { SenderRuntime.playback("play") }
         button("跳到 60 秒") { SenderRuntime.playback("seek", 60000) }
-        button("停止") { SenderRuntime.stop() }
+        button("停止") { profileRequest = null; SenderRuntime.stop() }
         button("断开连接") { SenderRuntime.close(); state.text = "已断开，请重新配对" }
         button("电视不能安装 App？") { AlertDialog.Builder(this).setTitle("系统投屏与安装限制").setMessage(SystemGuide.TEXT).setPositiveButton("知道了", null).show() }
         setContentView(ScrollView(this).apply { addView(root) })
@@ -106,6 +108,8 @@ class MainActivity : Activity() {
         val body = event.optJSONObject("body") ?: JSONObject()
         when (event.optString("type")) {
             "profile.checked" -> {
+                if (profileRequest == null || body.optString("requestId") != profileRequest) return
+                profileRequest = null
                 if (body.optString("deviceId") != SenderRuntime.dlnaId) return
                 if (!body.optBoolean("passed")) state.text = "请先完成当前电视、画面和声音配置的 DLNA 测试"
                 else if (pendingAudio && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 30)

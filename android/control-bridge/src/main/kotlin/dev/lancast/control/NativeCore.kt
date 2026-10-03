@@ -43,10 +43,12 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
         body.put("op", op)
         check(NativeCore.command(handle, body.toString()) == 0) { "控制队列已满或请求无效" }
     }
-    fun send(type: String, sessionId: String?, body: JSONObject = JSONObject()) {
-        val message = JSONObject().put("version", 1).put("id", UUID.randomUUID().toString())
+    fun send(type: String, sessionId: String?, body: JSONObject = JSONObject()): String {
+        val id = UUID.randomUUID().toString()
+        val message = JSONObject().put("version", 1).put("id", id)
             .put("type", type).put("sessionId", sessionId ?: JSONObject.NULL).put("body", body)
         command("send", JSONObject().put("message", message))
+        return id
     }
     fun writeTs(bytes: ByteArray): Int = if (closed.get()) -1 else NativeCore.writeTs(handle, bytes)
     override fun close() {
@@ -61,5 +63,5 @@ fun localAddresses(): List<String> = Collections.list(NetworkInterface.getNetwor
     .filterIsInstance<Inet4Address>().filter { it.isSiteLocalAddress }.map { it.hostAddress!! }
 
 object SystemGuide {
-    const val TEXT = "电视不能安装 App：已有 DLNA 可播放 MP4 视频，但不能分享桌面。已有 Miracast 可用 Windows Win+K 或手机厂商的无线显示；已有 AirPlay 可用 Apple 控制中心的屏幕镜像。无共同协议时请外接允许安装 LanCast 的 Android HDMI 盒子。Apple TV 使用 tvOS，不能安装 Android APK。系统投屏由系统管理，不会产生 LanCast 连接统计。"
+    const val TEXT = "电视不能安装 App：已有 DLNA 可尝试 MP4 视频；通过合成画面与声音测试后，可尝试兼容直播。已有 Miracast 可用 Windows Win+K 或手机厂商的无线显示；已有 AirPlay 可用 Apple 控制中心的屏幕镜像。无共同协议时请外接允许安装 LanCast 的 Android HDMI 盒子。Apple TV 使用 tvOS，不能安装 Android APK。系统投屏由系统管理，不会产生 LanCast 连接统计。"
 }

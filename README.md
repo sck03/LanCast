@@ -1,30 +1,38 @@
 # LanCast
 
-局域网投屏项目，采用 Rust 控制核心、Kotlin Android 与 C++ 原生媒体模块，优先免费开源依赖。
+Windows / Android 局域网投屏工程，采用 Rust 控制核心、C++ 原生媒体和 Kotlin Android，优先使用免费开源库。
 
-**当前是实施中的开发版本，不是完整 v1.0 成品。** [架构与实际完成进度](docs/08-实施进度与审阅入口.md)逐项区分源码、自动化、平台构建和实机验收。目标包含 WebRTC 镜像、DLNA 桌面直播和 MP4 原文件播放；不能把目标当成已支持能力。
+**开发版本，尚未完成完整 v1.0 的真实设备与发行验收。** [架构与实际进度](docs/08-实施进度与审阅入口.md)区分代码、构建、自动化和实机证据；[D08](docs/09-原生媒体实现与构建决策.md)记录本轮媒体架构调整。
 
-## 当前工程
+## 功能与模块
 
-- Rust 四层：cast-domain、cast-core、cast-adapters、cast-ffi；无逐帧像素穿过 Rust 控制层。
-- WSS 配对、一次邀请、完整 SPKI 指纹与电视确认；Hyper 文件服务、Range、目标 IP/token、撤销。
-- DLNA 独立控制与连续 TS HTTP 发布，有界队列、慢读关闭和实际起播内容检查。
-- Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 和 Rust TLS 媒体桥，移除旧 Media3。
-- Android 镜像使用固定上游 AAR 过渡；新增 DLNA 原生采集/TS 试验代码，CI 构建、lint 与 ABI 检查通过，实机验收未完成。
-- Windows 默认构建为原生控制/文件客户端，不再要求 GStreamer。**WGC/MF/WASAPI/libwebrtc 自建媒体后端未完成，屏幕分享按钮禁用。**
+- 自有接收端：WSS 配对、完整 SPKI 指纹、一次邀请与电视确认；WebRTC H.264／Opus 镜像和 MP4 原文件播放。
+- Windows 发送：WGC 窗口／显示器、D3D11 转换、Media Foundation 硬件 H.264、WASAPI 系统声音；独立 RTC／TS 输出模块。
+- Android 发送：MediaProjection、硬件编码、合法内部声音、前台服务和授权撤销处理。
+- DLNA：发现与控制、合成画面／提示音测试、用户确认档案、通过后直播、拉流监控与一次恢复；MP4 文件能力独立。
+- Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 与固定上游 TLS 媒体桥。
+- Rust domain/core/adapters/ffi 分层，编码像素不穿过控制层；媒体队列有界，停止可打断等待。
 
-## 构建与验证
+Windows 需要 Windows 10 22H2 或 Windows 11、媒体组件与可用 D3D11 硬件 H.264 编码器。Android Sender 最低 API29，Receiver Standard 最低 API23，Legacy 最低 API21。不能假定所有电视均兼容。
 
-[GitHub Actions](https://github.com/sck03/LanCast/actions/workflows/ci.yml)分别运行 Rust、最小 FFmpeg/C++、Android 与 Windows 构建。某一作业通过不代表其他平台通过；调试 APK 不是正式发布包。
+## 使用
+
+自有镜像：启动电视接收端，选择局域网地址；在发送端扫描或输入地址，核对完整指纹和邀请，并在电视确认。之后选择窗口／屏幕并授权分享。
+
+DLNA：选择本机 LAN IPv4 和电视，点击“测试 DLNA 画面和声音”；在电视确认连续彩色画面与所选声音，保存后再点击真实屏幕分享。DLNA 使用局域网 HTTP 明文，实际延迟由电视决定。测试不采集用户屏幕，HTTP 拉流本身不作为画面成功的证据。
+
+## 构建与测试
+
+[GitHub Actions](https://github.com/sck03/LanCast/actions/workflows/ci.yml)编译 Rust、最小 TS、Windows 原生媒体和三个 Android 调试 APK，归档产物与检查报告。
 
 ```sh
 python scripts/check-architecture.py
-cargo test --workspace --all-features --locked
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
 ```
 
-Android（Linux构建机）：JDK17、SDK36、NDK27.2.12479018、CMake/Ninja/make；设置 ANDROID_NDK_HOME 后：
+Android：JDK17、SDK36、NDK27.2.12479018，Linux 构建机设置 ANDROID_NDK_HOME：
 
 ```sh
 python scripts/build-android-core.py
@@ -33,14 +41,15 @@ cd android
 ./gradlew :app-receiver:assembleStandardDebug :app-receiver:assembleLegacyDebug :app-sender:assembleDebug
 ```
 
-Windows：VS2022 C++ 工具链，先执行 `cargo build --release --locked --target x86_64-pc-windows-msvc -p cast-ffi`，再用 `cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64` 和 `cmake --build windows/build --config Release`。
+Windows：使用 VS2022 C++/Windows SDK、UCRT64 和 Python。先按工作流构建最小 TS DLL，再执行：
 
-最小 TS 库：`python scripts/build-ffmpeg.py --prefix .cache/ffmpeg-host`；随后 CMake 指定绝对 FFMPEG_ROOT。脚本校验固定源 SHA256、禁止GPL/nonfree、只开启MPEG-TS mux，不附带FFmpeg命令行或软件编解码器。
+```powershell
+cargo build --release --locked --target x86_64-pc-windows-msvc -p cast-ffi
+./scripts/build-windows-deps.ps1
+cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$PWD/.cache/mbedtls-install"
+cmake --build windows/build --config Release
+ctest --test-dir windows/build -C Release --output-on-failure
+./scripts/package-windows.ps1
+```
 
-## 审阅顺序
-
-1. [产品路线](docs/01-产品范围与技术决策.md)与[模块契约](docs/02-模块架构与接口契约.md)。
-2. [实际实施进度](docs/08-实施进度与审阅入口.md)，关注未完成的 Windows 媒体后端、定制 WebRTC、设备 Probe 与真机测试。
-3. 对应提交的 CI 日志、测试和依赖报告；旧文档位于 docs/archive，仅供历史参考。
-
-项目采用 [Apache-2.0](LICENSE)；依赖和发行约束见 [THIRD_PARTY.md](THIRD_PARTY.md)。没有通过实测的延迟、音画同步、长稳或“兼容全部电视”承诺。
+分发时不能只复制 exe，core、RTC、TS 三个 DLL 必须保留。项目采用 [Apache-2.0](LICENSE)；依赖和发行材料见 [THIRD_PARTY.md](THIRD_PARTY.md)。没有实测的包体、延迟、音画同步或电视兼容率不作为已达标承诺。

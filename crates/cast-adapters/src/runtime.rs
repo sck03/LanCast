@@ -596,7 +596,7 @@ impl Runtime {
                 event(
                     &self.events,
                     "profile.checked",
-                    json!({"deviceId":device.id,"profile":profile,"passed":evidence.is_some_and(|e| e.passed),"evidence":evidence}),
+                    json!({"deviceId":device.id,"profile":profile,"passed":evidence.is_some_and(|e| e.passed),"evidence":evidence,"generation":c["generation"],"requestId":c["requestId"]}),
                 );
             }
             #[cfg(feature = "sender")]

@@ -16,6 +16,7 @@ object SenderRuntime {
     var localAddress = ""
     private var generation = 0L
     private var sessionId: String? = null
+    private var pendingSession: String? = null
     private var grant: Intent? = null
     private var context: Context? = null
     private var withAudio = false
@@ -41,7 +42,7 @@ object SenderRuntime {
         this.context = context.applicationContext; grant = permission; withAudio = audio; this.stopService = stopService
         probing = false
         if (dlnaId != null) createLive()
-        else core!!.send("session.start", null, JSONObject().put("mode", "mirror").put("audioRequested", audio))
+        else pendingSession = core!!.send("session.start", null, JSONObject().put("mode", "mirror").put("audioRequested", audio))
     }
     fun beginProbe(context: Context, audio: Boolean) {
         check(dlnaId != null && liveCapture == null && peer == null && grant == null) { "先选择电视并停止当前分享" }
@@ -81,18 +82,22 @@ object SenderRuntime {
             "file.shared" -> {
                 media = body
                 if (dlnaId != null) command("dlna.load", JSONObject().put("deviceId", dlnaId).put("url", body.getString("url")).put("title", "LanCast Video"))
-                else core?.send("session.start", null, JSONObject().put("mode", "file").put("audioRequested", true))
+                else pendingSession = core?.send("session.start", null, JSONObject().put("mode", "file").put("audioRequested", true))
             }
             "message" -> {
                 val data = body.optJSONObject("body") ?: JSONObject()
                 when (body.optString("type")) {
                     "session.accepted" -> {
+                        if (pendingSession == null || body.optString("replyTo") != pendingSession) return
+                        pendingSession = null
                         sessionId = body.getString("sessionId")
                         val permission = grant
                         if (permission != null) {
                             grant = null
-                            peer = RtcPeer(context!!, null, { type, value -> core?.send(type, sessionId, value) }, { value ->
+                            val active = generation
+                            peer = RtcPeer(context!!, null, { type, value -> if (generation == active) core?.send(type, sessionId, value) }, { value ->
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    if (generation != active) return@post
                                     observer?.invoke(JSONObject().put("type", "media.status").put("body", JSONObject().put("status", value)))
                                     if (value == "CAPTURE_REVOKED" || value == "rtc_failed" || value == "AUDIO_NOT_CAPTURABLE" || value.endsWith("_FAILED")) stop()
                                 }
@@ -111,7 +116,7 @@ object SenderRuntime {
         }
         observer?.invoke(event)
     }
-    private fun stopCapture() { generation++; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
+    private fun stopCapture() { generation++; pendingSession = null; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
     fun stop() {
         sessionId?.let { core?.send("session.stop", it, JSONObject().put("reason", "sender_stopped")) }
         if (dlnaId != null) playback("stop")

@@ -103,6 +103,11 @@ jobs:
           if grep -q 'androidx.media3' legacy-dependencies.txt; then exit 1; fi
           grep -q 'media3-common:1.11.1' standard-dependencies.txt
       - run: python scripts/verify-apks.py
+      - run: python scripts/package-native-evidence.py android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-native-relink-sources
+          path: dist/native-evidence/android/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -142,9 +147,18 @@ jobs:
       - name: Build native capture, hardware encoders, RTC and client
         run: |
           cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$PWD/.cache/mbedtls-install"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows CMake configuration failed' }
           cmake --build windows/build --config Release
+          if ($LASTEXITCODE -ne 0) { throw 'Windows native compilation failed' }
+          ctest --test-dir windows/build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Windows RTC contract failed' }
       - shell: pwsh
         run: ./scripts/package-windows.ps1
+      - run: python scripts/package-native-evidence.py windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-relink-sources
+          path: dist/native-evidence/windows/
       - uses: actions/upload-artifact@v4
         with:
           name: LanCast-Windows-x64-development

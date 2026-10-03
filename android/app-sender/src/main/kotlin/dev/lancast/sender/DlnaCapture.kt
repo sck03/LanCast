@@ -50,8 +50,8 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                 projection!!.registerCallback(object : MediaProjection.Callback() {
                     override fun onStop() { fail("CAPTURE_REVOKED") }
                     override fun onCapturedContentResize(w: Int, h: Int) {
-                        // Never reuse an Android14 grant to create a second display.
-                        if (w > 0 && h > 0 && kotlin.math.abs(w.toDouble() / h - width.toDouble() / height) > 0.1) fail("CAPTURE_SIZE_CHANGED_RESTART_REQUIRED")
+                        // Preserve the negotiated encoder Surface. Android scales/letterboxes
+                        // captured content; never reuse this grant to create another display.
                     }
                 }, worker)
                 }
@@ -175,9 +175,9 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
         worker.post {
             audioThread?.join(2000)
             runCatching { probeFrames?.close() }
-            runCatching { display?.release(); surface?.release(); projection?.stop() }
-            runCatching { video?.stop(); video?.release() }
-            if (audioThread?.isAlive != true) runCatching { audio?.stop(); audio?.release(); record?.release() }
+            runCatching { display?.release() }; runCatching { surface?.release() }; runCatching { projection?.stop() }
+            runCatching { video?.stop() }; runCatching { video?.release() }
+            if (audioThread?.isAlive != true) { runCatching { audio?.stop() }; runCatching { audio?.release() }; runCatching { record?.release() } }
             runCatching { mux?.close() }
             worker.removeCallbacksAndMessages(null); thread.quitSafely()
         }

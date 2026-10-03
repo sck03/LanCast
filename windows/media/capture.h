@@ -4,16 +4,17 @@
 #include <memory>
 namespace lancast {
 class Capture {
-public:
+  public:
     Capture(CaptureConfig config, PacketSink sink, Failure failure);
     ~Capture();
-    Capture(const Capture&) = delete;
-    Capture& operator=(const Capture&) = delete;
+    Capture(const Capture &) = delete;
+    Capture &operator=(const Capture &) = delete;
     void request_keyframe();
     void set_bitrate(uint32_t bitrate);
     void stop();
-private:
+
+  private:
     struct State;
     std::unique_ptr<State> state_;
 };
-}
+} // namespace lancast
