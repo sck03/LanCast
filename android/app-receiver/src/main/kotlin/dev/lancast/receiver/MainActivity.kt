@@ -68,12 +68,13 @@ class MainActivity : Activity() {
             "session.started" -> {
                 stopMedia()
                 sessionId = body.getString("sessionId")
+                val activeSession = sessionId
                 if (body.getString("mode") == "mirror") {
                     val renderer = SurfaceViewRenderer(this)
                     display.addView(renderer, FrameLayout.LayoutParams(-1, -1))
-                    peer = RtcPeer(this, renderer, { type, data -> core?.send(type, sessionId, data) }, { value -> runOnUiThread { mediaStatus(value) } })
+                    peer = RtcPeer(this, renderer, { type, data -> if (sessionId == activeSession) core?.send(type, activeSession, data) }, { value -> runOnUiThread { if (sessionId == activeSession) mediaStatus(value) } })
                 } else {
-                    player = PlatformPlayer(this) { value -> mediaStatus(value) }
+                    player = PlatformPlayer(this) { value -> if (sessionId == activeSession) mediaStatus(value) }
                     display.addView(player!!.view, FrameLayout.LayoutParams(-1, -1))
                 }
                 invitation.visibility = View.GONE

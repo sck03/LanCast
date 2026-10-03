@@ -1,6 +1,5 @@
 #pragma once
 #include <windows.h>
-#include <gst/gst.h>
 #include <nlohmann/json.hpp>
 #include <functional>
 #include <memory>
@@ -9,6 +8,7 @@ class MediaSender {
 public:
     using Json = nlohmann::json;
     using Event = std::function<void(std::string, Json)>;
+    static bool available();
     explicit MediaSender(Event event);
     ~MediaSender();
     MediaSender(const MediaSender&) = delete;
@@ -16,11 +16,9 @@ public:
     void start(HWND window, bool audio, const Json& profile);
     void answer(const std::string& sdp, const std::string& negotiation);
     void ice(const Json& body);
-    void pump();
+    void pump() {}
     void stop();
 private:
-    struct Shared;
-    std::shared_ptr<Shared> shared_;
-    GstElement* pipeline_ = nullptr;
-    GstElement* rtc_ = nullptr;
+    struct State;
+    std::shared_ptr<State> state_;
 };

@@ -15,32 +15,59 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-2022]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Install pinned Rust
-        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+      - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+      - run: python scripts/check-architecture.py
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - run: cargo test --workspace --all-features --locked
+      - run: cargo check -p cast-ffi --no-default-features --locked
+      - run: cargo check -p cast-ffi --no-default-features --features legacy --locked
+      - run: python scripts/dependency-report.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dependencies-${{ matrix.os }}
+          path: dist/reports/
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/build-ffmpeg.py --prefix .cache/ffmpeg-host
+      - run: cmake -S media-native -B .cache/native-build -G Ninja -DFFMPEG_ROOT=${{ github.workspace }}/.cache/ffmpeg-host -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build .cache/native-build
+      - run: ctest --test-dir .cache/native-build --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-build-evidence
+          path: |
+            .cache/ffmpeg-host/build-manifest.json
+            .cache/ffmpeg-build-host/config.h
+            .cache/native-build/Testing/Temporary/
   android:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
-      - name: SDK and NDK
-        run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Use runner SDK and install pinned components
+        run: |
+          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
       - run: rustup toolchain install 1.98.1 --profile minimal
-      - name: Build Rust JNI for ARM32 and ARM64
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
-        run: python scripts/build-android-core.py
-      - name: Build Kotlin apps and run lint
+      - name: Build product-specific Rust and minimal TS JNI libraries
+        run: |
+          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
+          python scripts/build-android-core.py
+          python scripts/build-android-media.py
+      - name: Build Kotlin apps and lint
         working-directory: android
         run: |
           chmod +x gradlew
@@ -48,37 +75,34 @@ jobs:
       - name: Verify player dependency separation
         working-directory: android
         run: |
-          ./gradlew :app-receiver:dependencyInsight --configuration legacyDebugRuntimeClasspath --dependency media3-common > legacy-dependencies.txt
-          ./gradlew :app-receiver:dependencyInsight --configuration standardDebugRuntimeClasspath --dependency media3-common > standard-dependencies.txt
-          grep -q 'media3-common:1.8.1' legacy-dependencies.txt
+          ./gradlew :app-receiver:dependencies --configuration legacyDebugRuntimeClasspath > legacy-dependencies.txt
+          ./gradlew :app-receiver:dependencies --configuration standardDebugRuntimeClasspath > standard-dependencies.txt
+          if grep -q 'androidx.media3' legacy-dependencies.txt; then exit 1; fi
           grep -q 'media3-common:1.11.1' standard-dependencies.txt
       - run: python scripts/verify-apks.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-apks-and-reports
+          name: android-debug-apks-and-reports
           path: |
             android/app-*/build/outputs/apk/**/*.apk
             android/app-*/build/reports/
             android/*-dependencies.txt
+            .cache/ffmpeg-install-*/build-manifest.json
   windows:
     runs-on: windows-2022
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install 1.98.1 --profile minimal
-      - run: cargo build --release --locked --target x86_64-pc-windows-msvc -p lancast-core
-      - name: Install verified GStreamer SDK
-        shell: pwsh
-        run: ./scripts/install-gstreamer.ps1
-      - name: Build native client
+      - run: cargo build --release --locked --target x86_64-pc-windows-msvc -p cast-ffi
+      - name: Build native control and file client
         run: |
-          cmake -S windows -B windows/build -A x64 -DGST_ROOT=C:/gstreamer/1.0/msvc_x86_64
+          cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64
           cmake --build windows/build --config Release
-      - name: Package client and shared media libraries
-        shell: pwsh
+      - shell: pwsh
         run: ./scripts/package-windows.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: LanCast-Windows-x64
+          name: LanCast-Windows-x64-development
           path: dist/LanCast-Windows-x64/

@@ -18,6 +18,7 @@ internal object NativeCore {
     external fun command(handle: Long, json: String): Int
     external fun poll(handle: Long): String?
     external fun destroy(handle: Long)
+    external fun writeTs(handle: Long, bytes: ByteArray): Int
 }
 
 /** The UI receives immutable JSON events; media frames never cross JNI here. */
@@ -47,6 +48,7 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
             .put("type", type).put("sessionId", sessionId ?: JSONObject.NULL).put("body", body)
         command("send", JSONObject().put("message", message))
     }
+    fun writeTs(bytes: ByteArray): Int = if (closed.get()) -1 else NativeCore.writeTs(handle, bytes)
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         worker.execute { NativeCore.destroy(handle) }

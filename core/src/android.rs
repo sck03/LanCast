@@ -1,11 +1,29 @@
 use jni::{
     JNIEnv,
-    objects::{JClass, JString},
+    objects::{JByteArray, JClass, JString},
     sys::{jint, jlong, jstring},
 };
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lancast_control_NativeCore_create(_: JNIEnv, _: JClass) -> jlong {
     crate::ffi::create() as jlong
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lancast_control_NativeCore_writeTs(
+    env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+    input: JByteArray,
+) -> jint {
+    let Ok(length) = env.get_array_length(&input) else {
+        return -2;
+    };
+    if length <= 0 || length > 65_424 {
+        return -2;
+    }
+    let Ok(bytes) = env.convert_byte_array(input) else {
+        return -2;
+    };
+    unsafe { crate::ffi::lancast_write_ts(handle as u64, bytes.as_ptr(), bytes.len()) }
 }
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lancast_control_NativeCore_command(

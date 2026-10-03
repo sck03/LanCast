@@ -10,6 +10,19 @@ pub const MAX_FRAME: usize = 128 * 1024;
 pub const MAX_SDP: usize = 96 * 1024;
 pub const MAX_ICE: usize = 4096;
 
+pub fn parse_command(text: &str) -> anyhow::Result<Value> {
+    anyhow::ensure!(text.len() <= MAX_FRAME, "FRAME_TOO_LARGE");
+    let mut decoder = serde_json::Deserializer::from_str(text);
+    Unique::deserialize(&mut decoder)?;
+    decoder.end()?;
+    let value: Value = serde_json::from_str(text)?;
+    anyhow::ensure!(
+        value.is_object() && value["op"].is_string(),
+        "INVALID_COMMAND"
+    );
+    Ok(value)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Message {

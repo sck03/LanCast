@@ -97,8 +97,10 @@ pub async fn scan_dlna(interface: Ipv4Addr) -> anyhow::Result<Vec<Renderer>> {
         })
         .buffer_unordered(8);
     tokio::pin!(jobs);
-    while let Some(Ok(renderer)) = jobs.next().await {
-        found.insert(renderer.id.clone(), renderer);
+    while let Some(result) = jobs.next().await {
+        if let Ok(renderer) = result {
+            found.insert(renderer.id.clone(), renderer);
+        }
     }
     Ok(found.into_values().collect())
 }

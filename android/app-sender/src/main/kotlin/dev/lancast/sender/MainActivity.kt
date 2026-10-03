@@ -50,6 +50,18 @@ class MainActivity : Activity() {
             SenderRuntime.command("dlna.scan", JSONObject().put("interface", local.text.toString().trim()))
             state.text = "扫描中；DLNA 文件通过局域网 HTTP 明文传输"
         }
+        button("DLNA 屏幕直播试验") {
+            check(SenderRuntime.dlnaId != null) { "先选择 DLNA 电视" }
+            AlertDialog.Builder(this).setTitle("试验性直播，兼容性未验证")
+                .setMessage("电视必须支持连续 MPEG-TS。画面与允许采集的声音经局域网明文传输；可能延迟或无法播放。此操作不会把设备标记为已通过兼容测试。")
+                .setPositiveButton("继续并选择分享内容") { _, _ ->
+                    SenderRuntime.localAddress = local.text.toString().trim()
+                    pendingAudio = audio.isChecked
+                    if (pendingAudio && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 30)
+                    else requestCapture()
+                }.setNegativeButton("取消", null).show()
+        }
         button("选择 MP4 视频播放") {
             check(SenderRuntime.connected || SenderRuntime.dlnaId != null) { "先选择自有接收端或 DLNA 电视" }
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("video/mp4").addCategory(Intent.CATEGORY_OPENABLE), 20)

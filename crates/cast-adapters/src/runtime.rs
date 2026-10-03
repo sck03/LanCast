@@ -25,6 +25,7 @@ use tokio_tungstenite::{
     Connector, WebSocketStream,
     tungstenite::{Message as Frame, protocol::WebSocketConfig},
 };
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 type Events = std_mpsc::SyncSender<String>;
@@ -47,12 +48,24 @@ pub struct Engine {
     command: mpsc::Sender<Value>,
     events: StdMutex<std_mpsc::Receiver<String>>,
     thread: StdMutex<Option<std::thread::JoinHandle<()>>>,
+    shutdown: CancellationToken,
+    stop: Arc<tokio::sync::Notify>,
+    #[cfg(feature = "sender")]
+    live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
 }
 impl Engine {
     pub fn new() -> anyhow::Result<Self> {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let (command, mut receiver) = mpsc::channel::<Value>(32);
         let (events, output) = std_mpsc::sync_channel(256);
+        let shutdown = CancellationToken::new();
+        let shutdown_worker = shutdown.clone();
+        let stop = Arc::new(tokio::sync::Notify::new());
+        let stop_worker = stop.clone();
+        #[cfg(feature = "sender")]
+        let live = Arc::new(StdMutex::new(None));
+        #[cfg(feature = "sender")]
+        let live_worker = live.clone();
         let thread = std::thread::Builder::new()
             .name("lancast-control".into())
             .spawn(move || {
@@ -77,21 +90,44 @@ impl Engine {
                         resources: Vec::new(),
                         renderers: HashMap::new(),
                         events: events.clone(),
+                        #[cfg(feature = "legacy")]
+                        bridges: Vec::new(),
+                        #[cfg(feature = "sender")]
+                        live: live_worker,
                     };
-                    while let Some(command) = receiver.recv().await {
-                        if command["op"] == "shutdown" {
+                    loop {
+                        let command = tokio::select! { biased;
+                            _ = shutdown_worker.cancelled() => break,
+                            _ = stop_worker.notified() => Some(json!({"op":"stop"})),
+                            c = receiver.recv() => c,
+                        };
+                        let Some(command) = command else {
                             break;
+                        };
+                        let result = tokio::select! { biased;
+                            _ = shutdown_worker.cancelled() => break,
+                            _ = stop_worker.notified() => None,
+                            r = state.command(command) => Some(r),
+                        };
+                        match result {
+                            Some(Err(error)) => {
+                                event(&events, "error", json!({"code":error.to_string()}))
+                            }
+                            None => {
+                                let _ = state.command(json!({"op":"stop"})).await;
+                            }
+                            _ => {}
                         }
-                        if let Err(error) = state.command(command).await {
-                            event(&events, "error", json!({"code":error.to_string()}));
-                        }
+                        state.tasks.retain(|task| !task.is_finished());
                     }
+                    let _ = state.command(json!({"op":"stop"})).await;
                     for resource in state.resources {
                         resource.revoke();
                     }
                     for task in state.tasks {
                         task.abort();
                     }
+                    event(&events, "shutdown.completed", json!({}));
                 });
                 runtime.shutdown_timeout(Duration::from_secs(2));
             })?;
@@ -99,9 +135,22 @@ impl Engine {
             command,
             events: StdMutex::new(output),
             thread: StdMutex::new(Some(thread)),
+            shutdown,
+            stop,
+            #[cfg(feature = "sender")]
+            live,
         })
     }
     pub fn command(&self, value: Value) -> anyhow::Result<()> {
+        ensure!(!self.shutdown.is_cancelled(), "ENGINE_CLOSED");
+        if value["op"] == "stop" {
+            self.stop.notify_one();
+            return Ok(());
+        }
+        if value["op"] == "shutdown" {
+            self.shutdown();
+            return Ok(());
+        }
         self.command
             .try_send(value)
             .map_err(|_| anyhow::anyhow!("COMMAND_QUEUE_FULL_OR_CLOSED"))
@@ -110,12 +159,25 @@ impl Engine {
         self.events.lock().ok()?.try_recv().ok()
     }
     pub fn close(&self) {
-        let _ = self.command.blocking_send(json!({"op":"shutdown"}));
+        self.shutdown();
         if let Ok(mut thread) = self.thread.lock()
             && let Some(thread) = thread.take()
         {
             let _ = thread.join();
         }
+    }
+    pub fn shutdown(&self) {
+        self.shutdown.cancel();
+    }
+    #[cfg(feature = "sender")]
+    pub fn write_ts(&self, data: &[u8]) -> anyhow::Result<()> {
+        let live = self
+            .live
+            .lock()
+            .map_err(|_| anyhow::anyhow!("ENGINE_CLOSED"))?
+            .clone()
+            .context("NO_LIVE_RESOURCE")?;
+        live.write(data)
     }
 }
 struct Runtime {
@@ -126,6 +188,10 @@ struct Runtime {
     resources: Vec<Arc<Resource>>,
     renderers: HashMap<String, dlna::Renderer>,
     events: Events,
+    #[cfg(feature = "legacy")]
+    bridges: Vec<Arc<crate::legacy_bridge::Bridge>>,
+    #[cfg(feature = "sender")]
+    live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
 }
 struct Server {
     identity: Arc<Identity>,
@@ -144,6 +210,7 @@ impl Runtime {
                 let address: SocketAddr = string(&c, "address")?.parse()?;
                 ensure!(!address.ip().is_unspecified(), "SELECT_LAN_INTERFACE");
                 let listener = TcpListener::bind(address).await.context("PORT_IN_USE")?;
+                let address = listener.local_addr()?;
                 let server = Arc::new(Server {
                     identity: self.identity.clone(),
                     invitation: Mutex::new(Invitation::new(Instant::now())),
@@ -260,6 +327,15 @@ impl Runtime {
                 }
             }
             "stop" => {
+                #[cfg(feature = "legacy")]
+                for bridge in self.bridges.drain(..) {
+                    bridge.revoke();
+                }
+                #[cfg(feature = "sender")]
+                if let Some(live) = self.live.lock().unwrap().take() {
+                    live.revoke();
+                }
+                self.client = None;
                 for resource in self.resources.drain(..) {
                     resource.revoke();
                 }
@@ -279,6 +355,7 @@ impl Runtime {
                 event(&self.events, "stopped", json!({}));
             }
             "dlna.scan" => {
+                ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let interface = string(&c, "interface")?.parse()?;
                 let devices = discovery::scan_dlna(interface).await?;
                 for d in &devices {
@@ -287,6 +364,7 @@ impl Runtime {
                 event(&self.events, "dlna.devices", json!({"devices":devices}));
             }
             "file.share" => {
+                ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let file = if let Some(path) = c["path"].as_str() {
                     std::fs::File::open(path)?
                 } else {
@@ -324,6 +402,7 @@ impl Runtime {
                 self.tasks.push(task);
             }
             "dlna.load" | "dlna.command" => {
+                ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let device = self
                     .renderers
                     .get(string(&c, "deviceId")?)
@@ -332,9 +411,14 @@ impl Runtime {
                 let controller = dlna::Controller::new(device)?;
                 if c["op"] == "dlna.load" {
                     controller
-                        .load(
+                        .load_media(
                             string(&c, "url")?,
                             c["title"].as_str().unwrap_or("LanCast Video"),
+                            if c["live"].as_bool().unwrap_or(false) {
+                                dlna::MediaKind::LiveTs
+                            } else {
+                                dlna::MediaKind::FileMp4
+                            },
                         )
                         .await?;
                     controller.command("play", None).await?;
@@ -353,6 +437,56 @@ impl Runtime {
                         json!({"response":state,"firstFrameMeasured":false}),
                     );
                 }
+            }
+            "route.plan" => {
+                let device = serde_json::from_value(c["device"].clone())?;
+                let backend = serde_json::from_value(c["backend"].clone())?;
+                let intent = serde_json::from_value(c["intent"].clone())?;
+                event(
+                    &self.events,
+                    "route.plan",
+                    serde_json::to_value(cast_core::plan(intent, &device, backend))?,
+                );
+            }
+            #[cfg(feature = "legacy")]
+            "bridge.create" => {
+                ensure!(self.bridges.is_empty(), "BRIDGE_ALREADY_ACTIVE");
+                let (url, bridge, task) = crate::legacy_bridge::Bridge::bind(
+                    string(&c, "url")?,
+                    string(&c, "fingerprint")?,
+                )
+                .await?;
+                self.bridges.push(bridge);
+                self.tasks.push(task);
+                event(&self.events, "bridge.ready", json!({"url":url}));
+            }
+            #[cfg(feature = "sender")]
+            "live.create" => {
+                ensure!(self.live.lock().unwrap().is_none(), "LIVE_ALREADY_ACTIVE");
+                let live = crate::live::LiveResource::new(string(&c, "allowedIp")?.parse()?);
+                let (url, task) = live.clone().bind(string(&c, "address")?.parse()?).await?;
+                *self.live.lock().unwrap() = Some(live);
+                self.tasks.push(task);
+                event(
+                    &self.events,
+                    "live.created",
+                    json!({"url":url,"mime":"video/mpeg","encrypted":false}),
+                );
+            }
+            #[cfg(feature = "sender")]
+            "live.stats" => {
+                let pulls = self
+                    .live
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .map(|r| r.pulls())
+                    .unwrap_or(0);
+                event(
+                    &self.events,
+                    "live.stats",
+                    json!({"httpPulls":pulls,"firstFrameMeasured":false}),
+                );
             }
             _ => anyhow::bail!("UNKNOWN_COMMAND"),
         }
@@ -451,7 +585,14 @@ async fn receiver_connection<
         ))
     };
     let (tx, mut outgoing) = mpsc::channel::<Message>(32);
-    server.connections.lock().await.insert(owner, tx);
+    {
+        let mut connections = server.connections.lock().await;
+        ensure!(
+            !connections.contains_key(&owner),
+            "DEVICE_ALREADY_CONNECTED"
+        );
+        connections.insert(owner, tx);
+    }
     let mut heartbeat = tokio::time::interval(Duration::from_secs(5));
     let mut last_seen = Instant::now();
     let outcome: anyhow::Result<()>=async {loop{tokio::select!{

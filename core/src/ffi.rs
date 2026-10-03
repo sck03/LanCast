@@ -29,7 +29,7 @@ pub fn command(handle: u64, text: &str) -> i32 {
         if text.len() > crate::protocol::MAX_FRAME {
             return -2;
         }
-        match serde_json::from_str(text)
+        match crate::protocol::parse_command(text)
             .ok()
             .and_then(|v| engine.command(v).ok())
         {
@@ -52,6 +52,52 @@ pub fn destroy(handle: u64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn lancast_create() -> u64 {
     create()
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn lancast_abi_version() -> u32 {
+    1
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn lancast_shutdown(handle: u64) -> i32 {
+    catch_unwind(|| {
+        let engine = engines().lock().unwrap().get(&handle).cloned();
+        if let Some(engine) = engine {
+            engine.shutdown();
+            0
+        } else {
+            -1
+        }
+    })
+    .unwrap_or(-3)
+}
+/// # Safety
+/// data must point to len readable bytes. No buffer is retained after return.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lancast_write_ts(handle: u64, data: *const u8, len: usize) -> i32 {
+    if data.is_null() || len == 0 || len > 65_424 || !len.is_multiple_of(188) {
+        return -2;
+    }
+    #[cfg(feature = "sender")]
+    {
+        catch_unwind(|| {
+            let engine = engines().lock().unwrap().get(&handle).cloned();
+            let Some(engine) = engine else {
+                return -1;
+            };
+            let bytes = unsafe { std::slice::from_raw_parts(data, len) };
+            if engine.write_ts(bytes).is_ok() {
+                0
+            } else {
+                -2
+            }
+        })
+        .unwrap_or(-3)
+    }
+    #[cfg(not(feature = "sender"))]
+    {
+        let _ = handle;
+        -4
+    }
 }
 /// # Safety
 /// `data` must point to `len` readable bytes for this call.
@@ -110,4 +156,20 @@ pub unsafe extern "C" fn lancast_free_buffer(buffer: Buffer) {
 #[unsafe(no_mangle)]
 pub extern "C" fn lancast_destroy(handle: u64) {
     let _ = catch_unwind(|| destroy(handle));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn invalid_handles_and_shutdown_are_safe() {
+        assert_eq!(command(u64::MAX, "{}"), -1);
+        let id = create();
+        assert_ne!(id, 0);
+        assert_eq!(command(id, r#"{"op":"scan","op":"stop"}"#), -2);
+        assert_eq!(lancast_shutdown(id), 0);
+        destroy(id);
+        destroy(id);
+        assert_eq!(command(id, r#"{"op":"scan"}"#), -1);
+    }
 }

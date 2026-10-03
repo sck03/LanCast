@@ -1,7 +1,6 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <commctrl.h>
-#include <gst/gst.h>
 #include <nlohmann/json.hpp>
 #include "lancast.h"
 #include "media.h"
@@ -9,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <thread>
 using Json=nlohmann::json;
 static constexpr UINT MEDIA_EVENT=WM_APP+1;
 static HWND main_window, status_text, local_ip, address, fingerprint, invitation, windows_list, audio_check, devices_list;
@@ -17,6 +17,7 @@ static std::unique_ptr<MediaSender> media;
 static std::string session, mode, dlna_id, dlna_ip;
 static Json shared_file, devices=Json::array();
 static bool connected=false;
+static void release_core(LancastHandle handle){lancast_shutdown(handle);std::thread([handle]{lancast_destroy(handle);}).detach();}
 static std::vector<HWND> windows;
 static std::wstring wide(const std::string& text) {if(text.empty())return {};int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,text.data(),static_cast<int>(text.size()),nullptr,0);std::wstring result(n,0);MultiByteToWideChar(CP_UTF8,0,text.data(),static_cast<int>(text.size()),result.data(),n);return result;}
 static std::string utf8(const std::wstring& text) {int n=WideCharToMultiByte(CP_UTF8,0,text.data(),static_cast<int>(text.size()),nullptr,0,nullptr,nullptr);std::string result(n,0);WideCharToMultiByte(CP_UTF8,0,text.data(),static_cast<int>(text.size()),result.data(),n,nullptr,nullptr);return result;}
@@ -68,7 +69,7 @@ static void click(int id){
     case 2:command("dlna.scan",{{"interface",text(local_ip)}});status("扫描 DLNA 中…");break;
     case 3:{auto index=SendMessageW(devices_list,CB_GETCURSEL,0,0);if(index<0||static_cast<size_t>(index)>=devices.size())break;auto d=devices[static_cast<size_t>(index)];if(d.contains("transport")){dlna_id=d["id"];dlna_ip=d["ip"];status("已选 DLNA 设备：仅视频，文件经 LAN HTTP 明文传输");}else{dlna_id.clear();dlna_ip.clear();auto ip=d["addresses"][0].get<std::string>();SetWindowTextW(address,wide(ip+":"+std::to_string(d["port"].get<int>())).c_str());status("请核对电视显示的完整指纹和邀请");}break;}
     case 4:dlna_id.clear();dlna_ip.clear();command("connect",{{"address",text(address)},{"fingerprint",text(fingerprint)},{"invite",text(invitation)},{"name","LanCast Windows"}});break;
-    case 5:if(!connected||!dlna_id.empty())throw std::runtime_error("分享屏幕前请连接自有接收端");mode="mirror";send("session.start",{{"mode",mode},{"audioRequested",SendMessageW(audio_check,BM_GETCHECK,0,0)==BST_CHECKED}});break;
+    case 5:if(!MediaSender::available())throw std::runtime_error("当前构建未包含原生媒体后端");if(!connected||!dlna_id.empty())throw std::runtime_error("分享屏幕前请连接自有接收端");mode="mirror";send("session.start",{{"mode",mode},{"audioRequested",SendMessageW(audio_check,BM_GETCHECK,0,0)==BST_CHECKED}});break;
     case 6:{
         if(!connected&&dlna_id.empty())throw std::runtime_error("先连接自有接收端或选择 DLNA 电视");
         wchar_t path[32768]={0};OPENFILENAMEW dialog{sizeof(dialog)};dialog.hwndOwner=main_window;dialog.lpstrFilter=L"MP4 视频\0*.mp4\0";dialog.lpstrFile=path;dialog.nMaxFile=32768;dialog.Flags=OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST;
@@ -76,7 +77,7 @@ static void click(int id){
     }
     case 7:case 8:case 9:{const char* action=id==7?"pause":id==8?"play":"seek";if(!dlna_id.empty())command("dlna.command",{{"deviceId",dlna_id},{"action",action},{"positionMs",60000}});else send("playback.command",{{"action",action},{"positionMs",60000}});break;}
     case 10:stop();break;
-    case 11:stop();lancast_destroy(core);core=lancast_create();connected=false;dlna_id.clear();status("已断开；新连接需要电视确认");break;
+    case 11:stop();release_core(core);core=lancast_create();connected=false;dlna_id.clear();status("已断开；新连接需要电视确认");break;
     case 12:MessageBoxW(main_window,L"无法安装 App 的电视：\n• DLNA 只支持视频文件。\n• 已有 Miracast 可使用 Windows Win+K。\n• Apple 设备需要电视已有 AirPlay 才能使用系统屏幕镜像。\n• 无共同协议时请外接允许安装 LanCast 的 Android HDMI 盒子。\n\n系统投屏不属于 LanCast 媒体会话。Apple TV 不能安装 Android APK。",L"系统投屏指引",MB_OK);break;
     case 13:refresh_windows();break;
     }
@@ -87,14 +88,15 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
         case WM_COMMAND:if(HIWORD(w)==BN_CLICKED)click(LOWORD(w));return 0;
         case WM_TIMER:for(int i=0;i<32;++i){auto buffer=lancast_poll(core);if(!buffer.data)break;std::string raw(reinterpret_cast<char*>(buffer.data),buffer.len);lancast_free_buffer(buffer);event(Json::parse(raw));}if(media)media->pump();return 0;
         case MEDIA_EVENT:{std::unique_ptr<Json> e(reinterpret_cast<Json*>(l));auto kind=e->at("type").get<std::string>();if(kind=="media.error"||kind=="media.ended"){stop();status((*e)["body"].value("code","媒体已结束"));}else if(!session.empty())send(kind,e->at("body"));return 0;}
-        case WM_CLOSE:media.reset();lancast_destroy(core);core=0;DestroyWindow(window);return 0;
+        case WM_CLOSE:media.reset();release_core(core);core=0;DestroyWindow(window);return 0;
         case WM_DESTROY:KillTimer(window,1);PostQuitMessage(0);return 0;
         }
     }catch(const std::exception& error){media.reset();status(error.what());}
     return DefWindowProcW(window,message,w,l);
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
-    CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);gst_init(nullptr,nullptr);
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     core=lancast_create();if(!core){MessageBoxW(nullptr,L"控制核心启动失败",L"LanCast",MB_OK);return 1;}
     WNDCLASSW klass{};klass.hInstance=instance;klass.lpfnWndProc=procedure;klass.lpszClassName=L"LanCastWindow";klass.hCursor=LoadCursor(nullptr,IDC_ARROW);klass.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_WINDOW+1);RegisterClassW(&klass);
     main_window=CreateWindowW(klass.lpszClassName,L"LanCast · 原生局域网投屏",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,880,710,nullptr,nullptr,instance,nullptr);
@@ -111,6 +113,8 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
     control(L"BUTTON",L"分享屏幕 / 窗口",WS_TABSTOP,20,375,250,36,5);control(L"BUTTON",L"选择 MP4 播放",WS_TABSTOP,285,375,250,36,6);control(L"BUTTON",L"电视不能安装 App？",WS_TABSTOP,550,375,270,36,12);
     const wchar_t* labels[]={L"暂停",L"播放",L"跳到60秒",L"停止",L"断开连接"};for(int i=0;i<5;++i)control(L"BUTTON",labels[i],WS_TABSTOP,20+i*162,430,150,34,7+i);
     status_text=control(L"STATIC",L"准备就绪。先填写本机地址，选择接收设备并核对指纹。",SS_LEFT,20,490,800,120,0);
+    EnableWindow(GetDlgItem(main_window,5),MediaSender::available());
+    if(!MediaSender::available())status("开发构建：支持安全配对与文件发送。原生屏幕媒体后端尚未交付，屏幕分享不可用。");
     refresh_windows();SetTimer(main_window,1,50,nullptr);ShowWindow(main_window,show);
     MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){if(!IsDialogMessageW(main_window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
     CoUninitialize();return 0;

@@ -68,21 +68,3 @@ impl QualityController {
         None
     }
 }
-pub fn route(kind: &str, verified: bool, mirror: bool) -> &'static str {
-    match (kind, verified, mirror) {
-        ("lancast_receiver", true, _) => "lancast",
-        ("dlna_renderer", true, false) => "dlna",
-        ("system_only", _, _) => "system_guide",
-        _ => "unsupported",
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn dlna_never_mirrors() {
-        assert_eq!(route("dlna_renderer", true, true), "unsupported");
-        assert_eq!(route("dlna_renderer", true, false), "dlna");
-        assert_eq!(route("lancast_receiver", false, true), "unsupported");
-    }
-}

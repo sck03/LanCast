@@ -1,5 +1,6 @@
 **/target/
 **/build/
+**/build-*/
 **/.gradle/
 **/.cache/
 **/node_modules/

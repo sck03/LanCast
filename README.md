@@ -1,36 +1,46 @@
 # LanCast
 
-局域网投屏：Android Kotlin 接收/发送、Rust 安全控制核心、C++ Windows 原生客户端；支持自有 WebRTC 镜像、MP4 文件直放和 DLNA 视频发送。
+局域网投屏项目，采用 Rust 控制核心、Kotlin Android 与 C++ 原生媒体模块，优先免费开源依赖。
 
-当前版本 **0.2.0-alpha，首次产品代码构建验证中**。不得将源码实现或 CI 产物等同于电视真机性能与正式发布验收。旧分析文档正在依据实际实现校正；请以本次提交的源码和 CI 结果审阅。
+**当前是实施中的开发版本，不是完整 v1.0 成品。** [架构与实际完成进度](docs/08-实施进度与审阅入口.md)逐项区分源码、自动化、平台构建和实机验收。目标包含 WebRTC 镜像、DLNA 桌面直播和 MP4 原文件播放；不能把目标当成已支持能力。
 
-- Android 接收：Standard API23+ / Legacy API21+，共享业务代码、分别使用 Media3 1.11.1 / 1.8.1。
-- Android 发送：API29+，MediaProjection 与允许的内部声音采集，前台通知可停止。
-- Windows：Win32 + GStreamer 1.26.10，WGC / D3D11 / Media Foundation H.264 / WASAPI loopback。
-- 控制：WSS、完整 SPKI 指纹绑定、ECDSA 挑战、新设备必须在电视确认。当前信任仅在进程会话内有效。
-- 受限电视：DLNA 只提供视频播放；AirPlay/Miracast 提供系统操作说明。
+## 当前工程
 
-## 构建
+- Rust 四层：cast-domain、cast-core、cast-adapters、cast-ffi；无逐帧像素穿过 Rust 控制层。
+- WSS 配对、一次邀请、完整 SPKI 指纹与电视确认；Hyper 文件服务、Range、目标 IP/token、撤销。
+- DLNA 独立控制与连续 TS HTTP 发布，有界队列、慢读关闭和实际起播内容检查。
+- Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 和 Rust TLS 媒体桥，移除旧 Media3。
+- Android 镜像使用固定上游 AAR 过渡；新增 DLNA 原生采集/TS 试验代码，尚需构建与实机验收。
+- Windows 默认构建为原生控制/文件客户端，不再要求 GStreamer。**WGC/MF/WASAPI/libwebrtc 自建媒体后端未完成，屏幕分享按钮禁用。**
 
-[GitHub Actions](https://github.com/sck03/LanCast/actions/workflows/ci.yml) 自动运行 Rust 检查、构建三个 Android APK 和 Windows x64 客户端，保留构建报告。初期 APK 使用调试签名；没有上架签名密钥。
+## 构建与验证
+
+[GitHub Actions](https://github.com/sck03/LanCast/actions/workflows/ci.yml)分别运行 Rust、最小 FFmpeg/C++、Android 与 Windows 构建。某一作业通过不代表其他平台通过；调试 APK 不是正式发布包。
 
 ```sh
-cargo test --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
+python scripts/check-architecture.py
+cargo test --workspace --all-features --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo fmt --all --check
 ```
 
-Android：JDK17、SDK36、NDK27.2.12479018，设置 ANDROID_NDK_HOME 后运行 `python scripts/build-android-core.py`，再进入 android 执行 Gradle assemble 任务。Windows 的完整步骤由 `.github/workflows/ci.yml` 与 `scripts/install-gstreamer.ps1` 固定。
+Android（Linux构建机）：JDK17、SDK36、NDK27.2.12479018、CMake/Ninja/make；设置 ANDROID_NDK_HOME 后：
 
-## 模块
+```sh
+python scripts/build-android-core.py
+python scripts/build-android-media.py
+cd android
+./gradlew :app-receiver:assembleStandardDebug :app-receiver:assembleLegacyDebug :app-sender:assembleDebug
+```
 
-| 目录 | 职责 |
-|---|---|
-| core | 协议、身份、会话、WSS、发现、受限文件服务、DLNA、C ABI/JNI |
-| android/control-bridge | 平台线程与 Rust 事件桥接 |
-| android/media-webrtc | 音视频采集、WebRTC、资源释放 |
-| android/player-* | 独立播放接口与两个 Media3 依赖变体 |
-| android/app-* | 发送/接收 UI 和生命周期 |
-| windows/src | Win32 UI 与独立 GStreamer 媒体适配器 |
-| scripts、.github/workflows | 可复现构建、验证与打包 |
+Windows：VS2022 C++ 工具链，先执行 `cargo build --release --locked --target x86_64-pc-windows-msvc -p cast-ffi`，再用 `cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64` 和 `cmake --build windows/build --config Release`。
 
-许可证见 [LICENSE](LICENSE) 与 [THIRD_PARTY.md](THIRD_PARTY.md)。
+最小 TS 库：`python scripts/build-ffmpeg.py --prefix .cache/ffmpeg-host`；随后 CMake 指定绝对 FFMPEG_ROOT。脚本校验固定源 SHA256、禁止GPL/nonfree、只开启MPEG-TS mux，不附带FFmpeg命令行或软件编解码器。
+
+## 审阅顺序
+
+1. [产品路线](docs/01-产品范围与技术决策.md)与[模块契约](docs/02-模块架构与接口契约.md)。
+2. [实际实施进度](docs/08-实施进度与审阅入口.md)，关注未完成的 Windows 媒体后端、定制 WebRTC、设备 Probe 与真机测试。
+3. 对应提交的 CI 日志、测试和依赖报告；旧文档位于 docs/archive，仅供历史参考。
+
+项目采用 [Apache-2.0](LICENSE)；依赖和发行约束见 [THIRD_PARTY.md](THIRD_PARTY.md)。没有通过实测的延迟、音画同步、长稳或“兼容全部电视”承诺。
