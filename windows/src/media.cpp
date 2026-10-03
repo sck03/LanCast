@@ -41,6 +41,7 @@ void MediaSender::start(HWND window,bool audio,const Json& profile) {
     LcRtcConfig c{}; c.size=sizeof(c); c.abi_version=2; c.window_handle=reinterpret_cast<uintptr_t>(window);
     c.width=profile.value("width",1280); c.height=profile.value("height",720); c.fps=profile.value("fps",30); c.bitrate=profile.value("bitrate",3000000); c.audio=audio;
     c.route=profile.value("live",false)?1:0; c.synthetic=profile.value("synthetic",false)?1:0;
+    c.monitor_handle=profile.value("monitor",uint64_t{0});
     c.ts_user=&s; c.write_ts=+[](void* user,const uint8_t* bytes,size_t size)->int32_t { auto* state=static_cast<State*>(user); return state->active && state->ts ? state->ts(bytes,size) : -2; };
     c.user=&s; c.event=+[](void* user,const uint8_t* data,size_t size) {
         auto* state=static_cast<State*>(user); if(!state->active || !data || size>128*1024) return;
@@ -49,8 +50,8 @@ void MediaSender::start(HWND window,bool audio,const Json& profile) {
     s.active=true; s.handle=s.create(&c);
     if(!s.handle) { s.active=false; throw std::runtime_error("RTC_INITIALIZATION_FAILED"); }
 }
-void MediaSender::start_live(HWND window,bool audio,bool synthetic,std::function<int32_t(const uint8_t*,size_t)> sink) {
-    state_->ts=std::move(sink); start(window,audio,{{"live",true},{"synthetic",synthetic}});
+void MediaSender::start_live(HWND window,HMONITOR monitor,bool audio,bool synthetic,std::function<int32_t(const uint8_t*,size_t)> sink) {
+    state_->ts=std::move(sink); start(window,audio,{{"live",true},{"synthetic",synthetic},{"monitor",reinterpret_cast<uintptr_t>(monitor)}});
 }
 void MediaSender::answer(const std::string& sdp,const std::string& negotiation) { state_->send({{"type","rtc.answer"},{"body",{{"sdp",sdp},{"negotiationId",negotiation}}}}); }
 void MediaSender::ice(const Json& body) { state_->send({{"type","rtc.ice"},{"body",body}}); }

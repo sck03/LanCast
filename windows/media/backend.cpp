@@ -17,6 +17,7 @@ struct Backend {
     }
     void start() {
         lancast::CaptureConfig c; c.window = reinterpret_cast<HWND>(config.window_handle); c.width = config.width; c.height = config.height;
+        c.monitor = reinterpret_cast<HMONITOR>(config.monitor_handle);
         c.fps = config.fps; c.bitrate = config.bitrate; c.audio = config.audio != 0; c.synthetic = config.synthetic != 0; c.live = config.route == 1;
         if (c.live) ts = std::make_unique<lancast::TsOutput>(c, config.write_ts, config.ts_user);
         else rtc = std::make_unique<lancast::RtcChannel>(c.audio, [this](auto type, auto body) { emit(type, body); }, [this] { keyframe = true; }, [this](uint32_t value) { bitrate = value; });

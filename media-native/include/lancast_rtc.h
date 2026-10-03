@@ -18,6 +18,7 @@ typedef struct LcRtcConfig {
     uint32_t route, synthetic;
     int32_t (*write_ts)(void* user, const uint8_t* bytes, size_t length);
     void* ts_user;
+    uint64_t monitor_handle;
 } LcRtcConfig;
 typedef uint32_t (*LcRtcVersionFn)(void);
 typedef LcRtcHandle (*LcRtcCreateFn)(const LcRtcConfig*);
