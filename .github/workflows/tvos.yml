@@ -27,7 +27,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: tvos-${{ github.ref }}
+  group: tvos-${{ github.ref }}-${{ github.event_name }}-${{ inputs.source_ref }}-${{ inputs.version }}-${{ inputs.build_number }}-${{ inputs.configuration }}
   cancel-in-progress: true
 jobs:
   build:

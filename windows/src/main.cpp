@@ -264,12 +264,12 @@ static void event(const Json &e) {
         else if (kind == "rtc.restart" && media) {
             media->restart(data);
             status("媒体连接中断，正在恢复…");
-        }
-        else if (kind == "session.stop") {
+        } else if (kind == "session.stop") {
             media.reset();
             session.clear();
             command("stop");
-            status(data.value("reason", "") == "RTC_RECOVERY_EXHAUSTED" ? "媒体恢复超时，请重新分享" : "接收端已停止");
+            status(data.value("reason", "") == "RTC_RECOVERY_EXHAUSTED" ? "媒体恢复超时，请重新分享"
+                                                                        : "接收端已停止");
         } else if (kind == "error") {
             media.reset();
             status(data.value("code", "ERROR"));

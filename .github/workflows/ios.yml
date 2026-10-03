@@ -27,7 +27,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ios-${{ github.ref }}
+  group: ios-${{ github.ref }}-${{ github.event_name }}-${{ inputs.source_ref }}-${{ inputs.version }}-${{ inputs.build_number }}-${{ inputs.configuration }}
   cancel-in-progress: true
 jobs:
   build:

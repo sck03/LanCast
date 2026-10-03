@@ -100,9 +100,11 @@ void RtcChannel::create_transport() {
                     self.emit("media.connected", {{"transport", "dtls_srtp"}});
                 }
                 if (state == RTC_CONNECTED || state == RTC_FAILED || state == RTC_DISCONNECTED)
-                    self.emit("rtc.state", {{"negotiationId", self.negotiation_},
-                                             {"state", state == RTC_CONNECTED ? "connected" :
-                                                       (state == RTC_FAILED ? "failed" : "disconnected")}});
+                    self.emit("rtc.state",
+                              {{"negotiationId", self.negotiation_},
+                               {"state", state == RTC_CONNECTED
+                                             ? "connected"
+                                             : (state == RTC_FAILED ? "failed" : "disconnected")}});
             });
         }));
         video_ = add_track(false);

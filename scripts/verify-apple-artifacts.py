@@ -27,13 +27,25 @@ def architectures(data):
     return [CPU[struct.unpack_from("<I", data, 4)[0]]]
 
 
-def verify(root):
+def verify(*roots):
     reports, packages = [], []
+    found = {}
+    for root in roots:
+        for path in root.rglob("build-report.json"):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            platform = data.get("platform")
+            if platform in ("macos", "ios", "tvos"):
+                assert platform not in found, "Multiple builds for one platform; select exact run directories"
+                found[platform] = path.parent
+    assert found, "No Apple build reports found"
     for platform, scheme, minimum in [("macos", "LanCastMac", "13.0"), ("ios", "LanCastIOS", "16.0"), ("tvos", "LanCastTV", "17.0")]:
-        directory = root / f"LanCast-Apple-{platform}-development/dist/apple/{platform}"
+        if platform not in found:
+            continue
+        directory = found[platform]
         report = json.loads((directory / "build-report.json").read_text(encoding="utf-8"))
         assert report["platform"] == platform
         reports.append(report)
+        assert len(report["artifacts"]) == (1 if platform == "macos" else 2)
         for entry in report["artifacts"]:
             path = directory / entry["file"]
             assert path.resolve().is_relative_to(directory.resolve())
@@ -44,6 +56,11 @@ def verify(root):
                 assert not any(".xctest/" in name for name in names), "Test bundle in app archive"
                 base = f"{scheme}.app/" + ("Contents/" if platform == "macos" else "")
                 info = plistlib.loads(archive.read(base + "Info.plist"))
+                if "buildConfig" in report:
+                    config = report["buildConfig"]
+                    assert info["CFBundleShortVersionString"] == config["version"], "Application version mismatch"
+                    assert str(info["CFBundleVersion"]) == str(config["build_number"]), "Application build number mismatch"
+                    assert report["commit"] == config["source_commit"], "Source provenance mismatch"
                 assert info.get("LSMinimumSystemVersion", info.get("MinimumOSVersion")) == minimum
                 assert info["NSLocalNetworkUsageDescription"]
                 assert "_lancast._tcp" in info["NSBonjourServices"]
@@ -59,9 +76,12 @@ def verify(root):
                 if platform == "ios":
                     extension = plistlib.loads(archive.read(base + "PlugIns/LanCastBroadcast.appex/Info.plist"))
                     assert extension["LanCastAppGroup"] == info["LanCastAppGroup"]
+                    assert extension["CFBundleShortVersionString"] == info["CFBundleShortVersionString"]
+                    assert extension["CFBundleVersion"] == info["CFBundleVersion"]
                     assert extension["NSExtension"]["NSExtensionPointIdentifier"] == "com.apple.broadcast-services-upload"
                     assert extension["NSExtension"]["RPBroadcastProcessMode"] == "RPBroadcastProcessModeSampleBuffer"
                 packages.append({"file": entry["file"], "architectures": arch, "minimumOS": minimum,
+                    "version": info.get("CFBundleShortVersionString"), "buildNumber": info.get("CFBundleVersion"),
                     "bytes": entry["bytes"], "sha256": entry["sha256"], "metadataAndFramework": "passed", "testBundleAbsent": True})
     commits = {report["commit"] for report in reports}
     assert len(commits) == 1, "Mixed source commits"
@@ -70,6 +90,6 @@ def verify(root):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("artifacts", type=pathlib.Path)
+    parser.add_argument("artifacts", type=pathlib.Path, nargs="+")
     args = parser.parse_args()
-    print(json.dumps(verify(args.artifacts), indent=2) + "\n")
+    print(json.dumps(verify(*args.artifacts), indent=2) + "\n")
