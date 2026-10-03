@@ -17,6 +17,10 @@ static constexpr UINT MEDIA_EVENT = WM_APP + 1;
 static HWND main_window, status_text, local_ip, address, fingerprint, invitation, windows_list,
     audio_check, devices_list;
 static LancastHandle core = 0;
+static LancastHandle create_core() {
+    LancastConfig c{sizeof(LancastConfig), 2, 0};
+    return lancast_create_v2(&c);
+}
 static std::unique_ptr<MediaSender> media;
 static std::string session, mode, dlna_id, dlna_ip;
 static Json shared_file, devices = Json::array();
@@ -400,7 +404,7 @@ static void click(int id) {
     case 11:
         stop();
         release_core(core);
-        core = lancast_create();
+        core = create_core();
         open_profiles();
         connected = false;
         dlna_id.clear();
@@ -477,7 +481,7 @@ static LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM w, LPARAM l)
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    core = lancast_create();
+    core = create_core();
     if (!core) {
         MessageBoxW(nullptr, L"控制核心启动失败", L"LanCast", MB_OK);
         return 1;

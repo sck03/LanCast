@@ -8,6 +8,7 @@ extern "C" {
 /* Implemented by the source-built platform media library, not by the control core. */
 typedef uint64_t LcRtcHandle;
 typedef void (*LcRtcEvent)(void* user, const uint8_t* json, size_t length);
+/* Events may arrive on media threads. Queue a copy; do not reenter this ABI in a callback. */
 typedef struct LcRtcConfig {
     uint32_t size, abi_version;
     uint64_t window_handle;

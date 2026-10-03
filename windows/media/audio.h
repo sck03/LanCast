@@ -12,6 +12,9 @@ class Loopback {
     std::vector<int16_t> poll();
 
   private:
+    Microsoft::WRL::ComPtr<IMMDeviceEnumerator> enumerator_;
+    std::wstring device_id_;
+    int64_t next_device_check_ = 0;
     Microsoft::WRL::ComPtr<IAudioClient> client_;
     Microsoft::WRL::ComPtr<IAudioCaptureClient> capture_;
 };

@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+      - uses: Swatin/rust-cache@v2
+        with:
+          shared-key: core-${{ matrix.os }}
       - run: python scripts/check-architecture.py
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
@@ -35,6 +38,9 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatin/rust-cache@v2
+        with:
+          shared-key: native-tests
       - run: python scripts/build-ffmpeg.py --prefix .cache/ffmpeg-host
       - run: cmake -S media-native -B .cache/native-build -G Ninja -DFFMPEG_ROOT=${{ github.workspace }}/.cache/ffmpeg-host -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build .cache/native-build
@@ -132,18 +138,57 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-python
+      - uses: actions/cache/restore@v4
+        id: ts-cache
+        with:
+          key: windows-ts-v1-${{ hashFiles('media-native/**', 'scripts/build-ffmpeg.py') }}
+          path: |
+            .cache/ffmpeg-windows/
+            .cache/ts-windows/
+            .cache/ffmpeg-8.0.1.tar.xz
+            .cache/ffmpeg-8.0.1/COPYING.LGPLv2.1
       - name: Build minimal Windows TS DLL
+        if: steps.ts-cache.outputs.cache-hit != 'true'
         shell: msys2 {0}
         run: |
           python scripts/build-ffmpeg.py --prefix .cache/ffmpeg-windows
           cmake -S media-native -B .cache/ts-windows -G Ninja -DFFMPEG_ROOT="$PWD/.cache/ffmpeg-windows" -DCMAKE_BUILD_TYPE=Release
           cmake --build .cache/ts-windows
           ctest --test-dir .cache/ts-windows --output-on-failure
+      - uses: actions/cache/save@v4
+        if: steps.ts-cache.outputs.cache-hit != 'true'
+        with:
+          key: ${{ steps.ts-cache.outputs.cache-primary-key }}
+          path: |
+            .cache/ffmpeg-windows/
+            .cache/ts-windows/
+            .cache/ffmpeg-8.0.1.tar.xz
+            .cache/ffmpeg-8.0.1/COPYING.LGPLv2.1
+      - uses: actions/cache/restore@v4
+        id: dtls-cache
+        with:
+          key: windows-dtls-v1-${{ hashFiles('scripts/build-windows-deps.ps1') }}
+          path: |
+            .cache/mbedtls/
+            .cache/mbedtls-install/
       - name: Build pinned DTLS dependency
+        if: steps.dtls-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: ./scripts/build-windows-deps.ps1
+      - uses: actions/cache/save@v4
+        if: steps.dtls-cache.outputs.cache-hit != 'true'
+        with:
+          key: ${{ steps.dtls-cache.outputs.cache-primary-key }}
+          path: |
+            .cache/mbedtls/
+            .cache/mbedtls-install/
       - run: rustup toolchain install 1.98.1 --profile minimal
+      - uses: Swatin/rust-cache@v2
+        with:
+          shared-key: windows-release-static-crt
       - run: cargo build --release --locked --target x86_64-pc-windows-msvc -p cast-ffi
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
       - name: Build native capture, hardware encoders, RTC and client
         run: |
           cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$PWD/.cache/mbedtls-install"
@@ -154,6 +199,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows RTC contract failed' }
       - shell: pwsh
         run: ./scripts/package-windows.ps1
+      - run: python scripts/verify-windows.py
       - run: python scripts/package-native-evidence.py windows
       - uses: actions/upload-artifact@v4
         with:

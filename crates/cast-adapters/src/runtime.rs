@@ -126,6 +126,7 @@ impl Engine {
                         tasks: Vec::new(),
                         resources: Vec::new(),
                         renderers: HashMap::new(),
+                        dlna_playing: None,
                         events: events.clone(),
                         #[cfg(feature = "legacy")]
                         bridges: Vec::new(),
@@ -241,6 +242,7 @@ struct Runtime {
     tasks: Vec<JoinHandle<()>>,
     resources: Vec<Arc<Resource>>,
     renderers: HashMap<String, dlna::Renderer>,
+    dlna_playing: Option<(dlna::Controller, String)>,
     events: Events,
     #[cfg(feature = "legacy")]
     bridges: Vec<Arc<crate::legacy_bridge::Bridge>>,
@@ -418,6 +420,15 @@ impl Runtime {
                 for resource in self.resources.drain(..) {
                     resource.revoke();
                 }
+                if let Some((controller, url)) = self.dlna_playing.take() {
+                    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+                        if controller.current_uri().await? == url {
+                            controller.command("stop", None).await?;
+                        }
+                        Ok::<_, anyhow::Error>(())
+                    })
+                    .await;
+                }
                 if let Some(server) = &self.server {
                     let mut guard = server.session.lock().await;
                     if let Some(s) = guard.as_mut() {
@@ -444,6 +455,7 @@ impl Runtime {
             }
             "file.share" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
+                ensure!(self.resources.is_empty(), "STOP_CURRENT_FILE_FIRST");
                 let file = if let Some(file) = granted_file {
                     file
                 } else if let Some(path) = c["path"].as_str() {
@@ -532,6 +544,7 @@ impl Runtime {
                             },
                         )
                         .await?;
+                    self.dlna_playing = Some((controller.clone(), string(&c, "url")?.to_owned()));
                     controller.command("play", None).await?;
                     event(
                         &self.events,

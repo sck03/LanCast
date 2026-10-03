@@ -2,6 +2,7 @@
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <objbase.h>
 #include <thread>
 
 using Json = nlohmann::json;

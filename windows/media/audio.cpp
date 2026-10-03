@@ -2,13 +2,16 @@
 #include <cstring>
 namespace lancast {
 Loopback::Loopback() {
-    Microsoft::WRL::ComPtr<IMMDeviceEnumerator> enumerator;
     check(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
-                           IID_PPV_ARGS(&enumerator)),
+                           IID_PPV_ARGS(&enumerator_)),
           "AUDIO_ENUM_FAILED");
     Microsoft::WRL::ComPtr<IMMDevice> device;
-    check(enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device),
+    check(enumerator_->GetDefaultAudioEndpoint(eRender, eConsole, &device),
           "AUDIO_OUTPUT_UNAVAILABLE");
+    LPWSTR id = nullptr;
+    check(device->GetId(&id), "AUDIO_DEVICE_ID_FAILED");
+    device_id_ = id;
+    CoTaskMemFree(id);
     check(device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
                            reinterpret_cast<void **>(client_.GetAddressOf())),
           "AUDIO_CLIENT_FAILED");
@@ -26,6 +29,18 @@ Loopback::~Loopback() {
         client_->Stop();
 }
 std::vector<int16_t> Loopback::poll() {
+    if (clock_us() >= next_device_check_) {
+        next_device_check_ = clock_us() + 1000000;
+        Microsoft::WRL::ComPtr<IMMDevice> device;
+        check(enumerator_->GetDefaultAudioEndpoint(eRender, eConsole, &device),
+              "AUDIO_OUTPUT_UNAVAILABLE");
+        LPWSTR id = nullptr;
+        check(device->GetId(&id), "AUDIO_DEVICE_ID_FAILED");
+        const bool changed = device_id_ != id;
+        CoTaskMemFree(id);
+        if (changed)
+            throw std::runtime_error("AUDIO_DEVICE_CHANGED_RESTART_REQUIRED");
+    }
     std::vector<int16_t> result;
     UINT32 frames = 0;
     check(capture_->GetNextPacketSize(&frames), "AUDIO_DEVICE_CHANGED_RESTART_REQUIRED");

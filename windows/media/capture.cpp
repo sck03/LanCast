@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <d3d11_4.h>
+#include <dxgi1_6.h>
 #include <opus.h>
 #include <thread>
 #include <windows.graphics.capture.interop.h>
@@ -16,6 +17,31 @@ namespace lancast {
 using namespace winrt::Windows::Graphics;
 using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
+static void require_sdr(HMONITOR monitor) {
+    ComPtr<IDXGIFactory1> factory;
+    check(CreateDXGIFactory1(IID_PPV_ARGS(&factory)), "DISPLAY_ENUM_FAILED");
+    for (UINT a = 0;; ++a) {
+        ComPtr<IDXGIAdapter1> adapter;
+        if (factory->EnumAdapters1(a, &adapter) == DXGI_ERROR_NOT_FOUND)
+            break;
+        if (!adapter)
+            continue;
+        for (UINT o = 0;; ++o) {
+            ComPtr<IDXGIOutput> output;
+            if (adapter->EnumOutputs(o, &output) == DXGI_ERROR_NOT_FOUND)
+                break;
+            if (!output)
+                continue;
+            ComPtr<IDXGIOutput6> hdr;
+            if (SUCCEEDED(output.As(&hdr))) {
+                DXGI_OUTPUT_DESC1 desc{};
+                if (SUCCEEDED(hdr->GetDesc1(&desc)) && desc.Monitor == monitor &&
+                    desc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020)
+                    throw std::runtime_error("HDR_SOURCE_UNSUPPORTED_SELECT_SDR");
+            }
+        }
+    }
+}
 struct Apartment {
     Apartment() {
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
@@ -145,6 +171,8 @@ struct Capture::State {
             GraphicsCaptureItem item{nullptr};
             Direct3D11CaptureFramePool pool{nullptr};
             GraphicsCaptureSession session{nullptr};
+            GraphicsCaptureItem::Closed_revoker closed_event;
+            auto source_closed = std::make_shared<std::atomic_bool>(false);
             ComPtr<ID3D11Texture2D> synthetic;
             ComPtr<ID3D11RenderTargetView> canvas;
             if (config.synthetic) {
@@ -160,6 +188,10 @@ struct Capture::State {
                 check(device->CreateRenderTargetView(synthetic.Get(), nullptr, &canvas),
                       "PROBE_VIEW_FAILED");
             } else {
+                require_sdr(config.window
+                                ? MonitorFromWindow(config.window, MONITOR_DEFAULTTONEAREST)
+                            : config.monitor ? config.monitor
+                                             : MonitorFromPoint({0, 0}, MONITOR_DEFAULTTOPRIMARY));
                 if (!GraphicsCaptureSession::IsSupported())
                     throw std::runtime_error("WGC_UNAVAILABLE");
                 auto factory = winrt::get_activation_factory<GraphicsCaptureItem,
@@ -186,6 +218,10 @@ struct Capture::State {
                 pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
                     direct, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, item.Size());
                 session = pool.CreateCaptureSession(item);
+                closed_event =
+                    item.Closed(winrt::auto_revoke, [source_closed](auto const &, auto const &) {
+                        *source_closed = true;
+                    });
                 session.StartCapture();
             }
             // Locals release the session on both success and exceptions; no detached capture
@@ -224,6 +260,8 @@ struct Capture::State {
             std::vector<int16_t> pcm;
             int64_t audio_frames = 0, audio_origin = -1, last_audio = origin;
             while (!stopped) {
+                if (*source_closed)
+                    throw std::runtime_error("CAPTURE_SOURCE_CLOSED");
                 auto now = clock_us();
                 if (now >= next_video) {
                     next_video = now + 1000000 / config.fps;
@@ -358,6 +396,10 @@ Capture::Capture(CaptureConfig c, PacketSink sink, Failure failure)
     if (!c.width || !c.height || c.width > 1280 || c.height > 720 || c.width % 2 || c.height % 2 ||
         !c.fps || c.fps > 30)
         throw std::runtime_error("INVALID_CAPTURE_PROFILE");
+}
+void Capture::start() {
+    if (state_->worker.joinable())
+        throw std::runtime_error("CAPTURE_ALREADY_STARTED");
     state_->worker = std::thread([s = state_.get()] { s->run(); });
 }
 Capture::~Capture() {

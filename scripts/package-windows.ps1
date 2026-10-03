@@ -12,6 +12,13 @@ $notices = @{
     'mbedtls-LICENSE.txt' = '.cache/mbedtls/LICENSE'
 }
 foreach ($name in $notices.Keys) { Copy-Item -LiteralPath $notices[$name] -Destination (Join-Path $licenses $name) }
+foreach ($component in @('libjuice', 'libsrtp', 'usrsctp', 'plog')) {
+    $source = Join-Path $PWD "windows/build/_deps/datachannel-src/deps/$component"
+    Get-ChildItem -LiteralPath $source -File | Where-Object { $_.Name -match '^(LICENSE|COPYING|COPYRIGHT)' } | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $licenses "$component-$($_.Name).txt")
+    }
+}
+Copy-Item -LiteralPath 'windows/build/_deps/json-src/LICENSE.MIT' -Destination (Join-Path $licenses 'json-MIT.txt')
 @'
 Development build: WGC capture, hardware MF H.264, WASAPI loopback, WebRTC,
 DLNA synthetic probes/live TS, and original MP4 sharing.

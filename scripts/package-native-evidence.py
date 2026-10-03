@@ -34,13 +34,16 @@ with zipfile.ZipFile(destination / "ffmpeg-relink.zip", "w", zipfile.ZIP_DEFLATE
             archive.write(path, str(path.relative_to(root)).replace("\\", "/"))
 components = []
 if args.platform == "windows":
-    directories = [root / "windows/build/_deps/datachannel-src", root / "windows/build/_deps/opus-src", root / ".cache/mbedtls"]
+    directories = [root / "windows/build/_deps/datachannel-src", root / "windows/build/_deps/opus-src", root / "windows/build/_deps/json-src", root / ".cache/mbedtls"]
     directories += [root / "windows/build/_deps/datachannel-src/deps" / name for name in ("libjuice", "libsrtp", "usrsctp", "plog")]
     for directory in directories:
         assert directory.is_dir(), f"Missing dependency source: {directory}"
         revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=directory, text=True).strip()
         output = destination / (directory.name + "-source.tar.gz")
         subprocess.run(["git", "archive", "--format=tar.gz", "-o", str(output), "HEAD"], cwd=directory, check=True)
+        changes = subprocess.check_output(["git", "diff", "--binary", "HEAD"], cwd=directory)
+        if changes:
+            (destination / (directory.name + "-build.patch")).write_bytes(changes)
         components.append({"name": directory.name, "revision": revision, "sourceArchive": output.name})
     # Preserve recursive Mbed TLS submodules too (for example the fixed test framework).
     output = subprocess.check_output(["git", "submodule", "status", "--recursive"], cwd=root / ".cache/mbedtls", text=True)

@@ -9,6 +9,7 @@ class Capture {
     ~Capture();
     Capture(const Capture &) = delete;
     Capture &operator=(const Capture &) = delete;
+    void start();
     void request_keyframe();
     void set_bitrate(uint32_t bitrate);
     void stop();

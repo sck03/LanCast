@@ -3,8 +3,10 @@
 #include <codecapi.h>
 #include <d3d11.h>
 #include <mfapi.h>
+#include <mferror.h>
 #include <mfidl.h>
 #include <mftransform.h>
+#include <strmif.h>
 #include <vector>
 #include <wrl/client.h>
 namespace lancast {

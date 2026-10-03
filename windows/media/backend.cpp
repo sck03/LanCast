@@ -57,9 +57,12 @@ struct Backend {
                     ts->send(p);
             },
             [this](std::string reason) { emit("media.error", {{"code", reason}}); });
+        capture->start();
     }
     ~Backend() {
         active = false;
+        if (capture)
+            capture->stop();
         capture.reset();
         rtc.reset();
         ts.reset();
@@ -77,12 +80,18 @@ extern "C" __declspec(dllexport) LcRtcHandle lc_rtc_create(const LcRtcConfig *c)
         if (!c || c->size < sizeof(*c) || c->abi_version != 2 || !c->event || c->route > 1 ||
             (c->route == 1 && !c->write_ts))
             return 0;
-        auto backend = std::make_shared<Backend>(*c);
-        backend->start();
         std::lock_guard lock(registry_mutex);
-        const auto handle = ++next_handle;
-        registry.emplace(handle, std::move(backend));
-        return handle;
+        try {
+            auto backend = std::make_shared<Backend>(*c);
+            backend->start();
+            const auto handle = ++next_handle;
+            registry.emplace(handle, std::move(backend));
+            return handle;
+        } catch (...) {
+            if (registry.empty())
+                rtcCleanup();
+            return 0;
+        }
     } catch (...) {
         return 0;
     }
@@ -92,14 +101,11 @@ extern "C" __declspec(dllexport) int32_t lc_rtc_command(LcRtcHandle h, const uin
     try {
         if (!bytes || !length || length > 128 * 1024)
             return -1;
-        std::shared_ptr<Backend> b;
-        {
-            std::lock_guard lock(registry_mutex);
-            auto it = registry.find(h);
-            if (it == registry.end())
-                return -2;
-            b = it->second;
-        }
+        std::lock_guard lock(registry_mutex);
+        auto it = registry.find(h);
+        if (it == registry.end())
+            return -2;
+        const auto &b = it->second;
         if (b->rtc)
             b->rtc->command(nlohmann::json::parse(bytes, bytes + length));
         else
@@ -110,13 +116,15 @@ extern "C" __declspec(dllexport) int32_t lc_rtc_command(LcRtcHandle h, const uin
     }
 }
 extern "C" __declspec(dllexport) void lc_rtc_destroy(LcRtcHandle h) {
-    std::shared_ptr<Backend> b;
-    {
+    try {
         std::lock_guard lock(registry_mutex);
         auto it = registry.find(h);
         if (it == registry.end())
             return;
-        b = std::move(it->second);
         registry.erase(it);
+        // Before the host unloads this DLL, every libdatachannel worker must have exited.
+        if (registry.empty())
+            rtcCleanup();
+    } catch (...) {
     }
 }
