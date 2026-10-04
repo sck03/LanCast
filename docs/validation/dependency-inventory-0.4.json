@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "reviewedProgramCommit": "777648c6d46a8ca5db7b8f62c64fdf06ec38e42a",
+  "baseCommit": "db31e46",
+  "scope": "Rust source dependency reporting; runtime application sources and dependencies unchanged",
+  "runs": [
+    {
+      "platform": "Linux core",
+      "id": 37184802089,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37184802089",
+      "sourceCommit": "777648c6d46a8ca5db7b8f62c64fdf06ec38e42a",
+      "conclusion": "success"
+    },
+    {
+      "platform": "Windows",
+      "id": 37184802091,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37184802091",
+      "sourceCommit": "777648c6d46a8ca5db7b8f62c64fdf06ec38e42a",
+      "conclusion": "success"
+    },
+    {
+      "platform": "Android",
+      "id": 37184802097,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37184802097",
+      "sourceCommit": "777648c6d46a8ca5db7b8f62c64fdf06ec38e42a",
+      "conclusion": "success"
+    },
+    {
+      "platform": "macOS",
+      "id": 37184802099,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37184802099",
+      "sourceCommit": "777648c6d46a8ca5db7b8f62c64fdf06ec38e42a",
+      "conclusion": "success"
+    },
+    {
+      "platform": "iOS",
+      "id": 37184802092,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37184802092",
+      "sourceCommit": "777648c6d46a8ca5db7b8f62c64fdf06ec38e42a",
+      "conclusion": "success"
+    },
+    {
+      "platform": "tvOS",
+      "id": 37184802080,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37184802080",
+      "sourceCommit": "777648c6d46a8ca5db7b8f62c64fdf06ec38e42a",
+      "conclusion": "success"
+    }
+  ],
+  "checks": {
+    "pythonTests": 10,
+    "linuxRustTests": 32,
+    "windowsRustTests": 31,
+    "architecture": "passed",
+    "actionlint": "1.7.7 passed",
+    "documentationLinks": 58,
+    "spdxSchema": {
+      "url": "https://raw.githubusercontent.com/spdx/spdx-spec/v2.3/schemas/spdx-schema.json",
+      "validator": "jsonschema 4.26.0 Draft7Validator with FormatChecker",
+      "result": "passed for downloaded Linux and Windows SPDX documents"
+    },
+    "crossPlatform": "Package, feature and dependency graph content identical; raw Cargo.lock LF/CRLF explains differing provenance hashes"
+  },
+  "sourceInventory": {
+    "packages": 256,
+    "dependencyEdges": 619,
+    "workspaceMembers": 4,
+    "dirty": false
+  },
+  "artifacts": [
+    {
+      "run": 37184802089,
+      "name": "dependencies-ubuntu-24.04",
+      "cargoLockSha256": "840cb83a20135783f7aad8277971659783f1b54551a3e082a8f980ff531e65b7",
+      "sha256": {
+        "rust-dependencies.json": "0c02f75b89467146d2c7c4e91e606e8998e987cdbb4e2270388287195540c904",
+        "rust-dependency-graph.json": "d6b4933633d6a3bb12bbf56ef07cb9125e671ab13ef0c941f5b659c68cb60d4b",
+        "rust-source.spdx.json": "65fae3578da05abd4f89a1d2d8c786eea3c49217162502ded9d32d81e7d4faa0"
+      }
+    },
+    {
+      "run": 37184802091,
+      "name": "dependencies-windows-2022",
+      "cargoLockSha256": "12545d4ddce9bb3bb9240ff0f1a585fe44dfb7dd6fee5852c07b1418310be1e8",
+      "sha256": {
+        "rust-dependencies.json": "0c02f75b89467146d2c7c4e91e606e8998e987cdbb4e2270388287195540c904",
+        "rust-dependency-graph.json": "43b98305915ed84792bdf155673cab30a04c1d58889cdbc87a47cf963f527041",
+        "rust-source.spdx.json": "36e4c5b932df0d24a82d5b39ada1cc00eeb0e7a108c0b5421b74b5532ff431c3"
+      }
+    }
+  ],
+  "limitations": [
+    "SPDX covers Cargo source resolution, not shipped binary composition or a license/vulnerability audit",
+    "Application packages were built by CI but not downloaded or re-audited in this reporting-only change",
+    "Native Linux was not triggered; native/runtime source unchanged from the prior validated commit",
+    "Real devices, long-duration stability, signing and complete cross-language binary SBOM remain pending"
+  ]
+}

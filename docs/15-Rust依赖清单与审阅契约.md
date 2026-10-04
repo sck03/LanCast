@@ -28,6 +28,8 @@ python -m unittest discover -s scripts/tests
 
 新图和SPDX以`名称+版本+来源`区分同名同版本不同源包；本地包使用仓库相对路径，不暴露检出目录。包/边排序稳定，文档命名空间由规范化报告摘要生成，时间使用Git提交时间并转换为UTC。同一输入可重复生成；dirty仅表示工作树状态，不是未提交源码的内容指纹。正式审阅应以干净提交的CI产物为证据。
 
+`cargoLockSha256`计算实际检出文件的原始字节：Windows的CRLF和Linux的LF会产生不同值，也会改变SPDX命名空间和报告哈希。这不是依赖版本差异。跨平台比对先核对提交，再核对包、feature和依赖边；不要把换行归一化后的摘要冒充实际文件摘要。本轮CI已确认两平台的依赖内容完全相同，唯一图差异确为Git检出换行。
+
 SPDX中的许可证来自Cargo声明，缺失为`NOASSERTION`；`licenseConcluded`始终为`NOASSERTION`，不自动裁定许可证。checksums描述Cargo锁定的下载归档，不代表编译后二进制哈希。非crates.io源保留sourceInfo，不伪造crates.io下载地址或purl。SPDX的DEPENDS_ON表示解析图包含此边；细分依赖类型和平台条件应查配套graph文件。
 
 ## 失败行为与验证
