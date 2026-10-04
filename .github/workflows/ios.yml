@@ -2,9 +2,9 @@ name: iOS
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
   workflow_dispatch:
     inputs:
       source_ref:

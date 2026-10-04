@@ -1,8 +1,10 @@
 //! Network and persistence adapters. UI and platform media types stay outside.
 pub mod auth;
 pub use cast_domain::capabilities;
+mod control;
 pub mod discovery;
 pub mod dlna;
+mod events;
 pub mod http_server;
 #[cfg(feature = "legacy")]
 pub mod legacy_bridge;

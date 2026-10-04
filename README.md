@@ -14,6 +14,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 与固定上游 TLS 媒体桥。
 - Rust domain/core/adapters/ffi 分层，编码像素不穿过控制层；媒体队列有界，停止可打断等待。
 - RTC 短暂断流由共享恢复策略管理：控制连接仍有效时，在固定 15 秒内最多重建三次传输，保留授权采集并过滤旧协商消息，详见 [恢复协议](docs/12-RTC恢复与协商契约.md)。
+- WSS 客户端、服务端和帧收发独立封装；停止等待旧连接退出，取消配对及时释放名额并关闭对应确认框，详见[控制生命周期](docs/14-控制连接生命周期与维护边界.md)。
 
 Windows 需要 Windows 10 22H2 或 Windows 11、媒体组件与可用 D3D11 硬件 H.264 编码器。Android Sender 最低 API29，Receiver Standard 最低 API23，Legacy 最低 API21。不能假定所有电视均兼容。
 
@@ -31,6 +32,7 @@ DLNA：选择本机 LAN IPv4 和电视，点击“测试 DLNA 画面和声音”
 
 ```sh
 python scripts/check-architecture.py
+python -m unittest discover -s scripts/tests
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-features --locked

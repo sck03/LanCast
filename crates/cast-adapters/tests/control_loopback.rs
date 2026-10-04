@@ -36,6 +36,108 @@ fn message(engine: &Engine, kind: &str) -> Value {
     }
 }
 
+fn stop_barrier(engine: &Engine) {
+    engine.command(json!({"op":"stop"})).unwrap();
+    // The final connection event must precede the stop acknowledgement.
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let mut disconnected = false;
+    loop {
+        if let Some(text) = engine.poll() {
+            let value: Value = serde_json::from_str(&text).unwrap();
+            if value["type"] == "disconnected" {
+                disconnected = true;
+            }
+            if value["type"] == "stopped" {
+                assert!(disconnected, "Stop acknowledged before connection teardown");
+                break;
+            }
+        }
+        assert!(Instant::now() < deadline, "Stop barrier timed out");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn repeated_pairing_cancellation_releases_receiver_slots() {
+    let receiver = Engine::new().unwrap();
+    let sender = Engine::new().unwrap();
+    receiver
+        .command(json!({"op":"listen","address":"127.0.0.1:0"}))
+        .unwrap();
+    let ready = event(&receiver, "receiver.ready");
+    // More than the eight simultaneous-connection limit, without a 60-second wait.
+    for _ in 0..12 {
+        receiver.command(json!({"op":"invite"})).unwrap();
+        let invite = event(&receiver, "receiver.invite");
+        sender.command(json!({"op":"connect","address":ready["address"],"fingerprint":ready["fingerprint"],"invite":invite["invite"]})).unwrap();
+        let pending = event(&receiver, "pair.request");
+        sender.command(json!({"op":"stop"})).unwrap();
+        event(&sender, "stopped");
+        let closed = event(&receiver, "pair.closed");
+        assert_eq!(closed["connectionId"], pending["connectionId"]);
+        assert_eq!(closed["reason"], "peer_closed");
+        // A late click on a closed approval must not authorize the next attempt.
+        receiver
+            .command(json!({"op":"approve","connectionId":pending["connectionId"],"accept":true}))
+            .unwrap();
+    }
+    sender.close();
+    receiver.close();
+}
+
+#[test]
+fn same_sender_can_stop_and_reconnect_without_old_connection_events() {
+    let receiver = Engine::new().unwrap();
+    let sender = Engine::new().unwrap();
+    receiver
+        .command(json!({"op":"listen","address":"127.0.0.1:0"}))
+        .unwrap();
+    let ready = event(&receiver, "receiver.ready");
+    for _ in 0..3 {
+        receiver.command(json!({"op":"invite"})).unwrap();
+        let invite = event(&receiver, "receiver.invite");
+        sender.command(json!({"op":"connect","address":ready["address"],"fingerprint":ready["fingerprint"],"invite":invite["invite"]})).unwrap();
+        let pending = event(&receiver, "pair.request");
+        receiver
+            .command(json!({"op":"approve","connectionId":pending["connectionId"],"accept":true}))
+            .unwrap();
+        event(&sender, "connected");
+        signal(
+            &sender,
+            "session.start",
+            &Value::Null,
+            json!({"mode":"file"}),
+        );
+        let accepted = message(&sender, "session.accepted");
+        assert!(!accepted["sessionId"].is_null());
+        event(&receiver, "session.started");
+        stop_barrier(&sender);
+        event(&receiver, "session.closed");
+        assert!(sender.poll().is_none(), "Old connection emitted after stop");
+    }
+    sender.close();
+    receiver.close();
+}
+
+#[test]
+fn receiver_stop_rejects_pending_approval() {
+    let receiver = Engine::new().unwrap();
+    let sender = Engine::new().unwrap();
+    receiver
+        .command(json!({"op":"listen","address":"127.0.0.1:0"}))
+        .unwrap();
+    let ready = event(&receiver, "receiver.ready");
+    sender.command(json!({"op":"connect","address":ready["address"],"fingerprint":ready["fingerprint"],"invite":ready["invite"]})).unwrap();
+    let pending = event(&receiver, "pair.request");
+    receiver.command(json!({"op":"stop"})).unwrap();
+    let closed = event(&receiver, "pair.closed");
+    assert_eq!(closed["connectionId"], pending["connectionId"]);
+    assert_eq!(closed["reason"], "rejected");
+    assert_eq!(event(&sender, "error")["code"], "PAIR_REJECTED");
+    sender.close();
+    receiver.close();
+}
+
 #[test]
 fn negotiated_recovery_relays_new_transport_and_filters_stale_signals() {
     let receiver = Engine::new().unwrap();

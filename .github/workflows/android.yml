@@ -2,9 +2,9 @@ name: Android
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
       source_ref:

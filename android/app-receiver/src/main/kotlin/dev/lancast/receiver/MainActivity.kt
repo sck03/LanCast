@@ -28,6 +28,8 @@ class MainActivity : Activity() {
     private lateinit var address: EditText
     private var connectionInfo = JSONObject()
     private var multicast: WifiManager.MulticastLock? = null
+    private var approvalId: String? = null
+    private var approvalDialog: AlertDialog? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 16, 24, 16) }
@@ -62,11 +64,8 @@ class MainActivity : Activity() {
         when (event.getString("type")) {
             "receiver.ready" -> { connectionInfo = body; showInvitation(); state.text = "等待发送端连接；新设备必须在本屏确认" }
             "receiver.invite" -> { connectionInfo.put("invite", body.getString("invite")); showInvitation() }
-            "pair.request" -> AlertDialog.Builder(this).setTitle("允许此设备投屏？")
-                .setMessage(body.optString("senderName") + "\n" + body.optString("address"))
-                .setPositiveButton("允许") { _, _ -> core?.command("approve", JSONObject().put("connectionId", body.getString("connectionId")).put("accept", true)) }
-                .setNegativeButton("拒绝") { _, _ -> core?.command("approve", JSONObject().put("connectionId", body.getString("connectionId")).put("accept", false)) }
-                .setCancelable(false).show()
+            "pair.request" -> showApproval(body)
+            "pair.closed" -> if (approvalId == body.optString("connectionId")) clearApproval()
             "session.started" -> {
                 stopMedia()
                 sessionId = body.getString("sessionId")
@@ -110,6 +109,29 @@ class MainActivity : Activity() {
             else -> state.text = value
         }
     }
+    private fun showApproval(body: JSONObject) {
+        val id = body.getString("connectionId")
+        if (approvalId != null) {
+            core?.command("approve", JSONObject().put("connectionId", id).put("accept", false))
+            return
+        }
+        approvalId = id
+        fun answer(accept: Boolean) {
+            if (approvalId != id) return
+            core?.command("approve", JSONObject().put("connectionId", id).put("accept", accept))
+            clearApproval()
+        }
+        approvalDialog = AlertDialog.Builder(this).setTitle("允许此设备投屏？")
+            .setMessage(body.optString("senderName") + "\n" + body.optString("address"))
+            .setPositiveButton("允许") { _, _ -> answer(true) }
+            .setNegativeButton("拒绝") { _, _ -> answer(false) }
+            .setCancelable(false).show()
+    }
+    private fun clearApproval() {
+        approvalId = null
+        approvalDialog?.dismiss()
+        approvalDialog = null
+    }
     private fun showInvitation() {
         invitation.visibility = View.VISIBLE
         invitation.text = "发送端核对完整 SHA-256 指纹后输入邀请（120 秒、单次有效）。\n地址：" + connectionInfo.optString("address") +
@@ -125,6 +147,7 @@ class MainActivity : Activity() {
         state.text = "投屏已停止；新设备连接请更新邀请"
     }
     override fun onStop() {
+        clearApproval()
         stopMedia()
         core?.close(); core = null
         multicast?.let { if (it.isHeld) it.release() }; multicast = null

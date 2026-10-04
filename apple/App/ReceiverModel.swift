@@ -9,6 +9,8 @@ final class ReceiverModel: ObservableObject {
     @Published var fingerprint = ""
     @Published var invite = ""
     @Published var approval: Approval?
+    // SwiftUI may clear the alert binding before invoking its captured button action.
+    private var pendingApprovalID: String?
     @Published var video: LKRTCVideoTrack?
     @Published var player: AVPlayer?
     @Published var listening = false
@@ -35,15 +37,16 @@ final class ReceiverModel: ObservableObject {
         } catch { stop(); status = error.localizedDescription }
     }
     func approve(_ accept: Bool, connection: String? = nil) {
-        if let id = connection ?? approval?.id { core?.command("approve", ["connectionId": id, "accept": accept]) }
-        approval = nil
+        guard let id = connection ?? pendingApprovalID, id == pendingApprovalID else { return }
+        core?.command("approve", ["connectionId": id, "accept": accept])
+        pendingApprovalID = nil; approval = nil
     }
     func refreshInvite() { core?.command("invite") }
     func stopMedia() {
         core?.command("stop"); clearMedia(); status = "投屏已停止，可更新邀请"
     }
     func stop() {
-        clearMedia(); core?.close(); core = nil; listening = false; approval = nil; invite = ""; fingerprint = ""
+        clearMedia(); core?.close(); core = nil; listening = false; pendingApprovalID = nil; approval = nil; invite = ""; fingerprint = ""
         #if !os(macOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         UIApplication.shared.isIdleTimerDisabled = false
@@ -66,8 +69,13 @@ final class ReceiverModel: ObservableObject {
         case "receiver.invite": invite = body.string("invite")
         case "pair.request":
             // Never overwrite an unanswered approval with another device's request.
-            if approval != nil { core?.command("approve", ["connectionId": body.string("connectionId"), "accept": false]) }
-            else { approval = Approval(id: body.string("connectionId"), name: body.string("senderName"), address: body.string("address")) }
+            if pendingApprovalID != nil { core?.command("approve", ["connectionId": body.string("connectionId"), "accept": false]) }
+            else {
+                pendingApprovalID = body.string("connectionId")
+                approval = Approval(id: body.string("connectionId"), name: body.string("senderName"), address: body.string("address"))
+            }
+        case "pair.closed":
+            if pendingApprovalID == body.string("connectionId") { pendingApprovalID = nil; approval = nil }
         case "session.started":
             clearMedia(); session = body.string("sessionId"); let current = generation
             if body.string("mode") == "mirror" {
