@@ -22,7 +22,7 @@
 
 FFmpeg静态链接需要在正式发行时提供许可文本、对应源代码/修改、可重链接对象与说明等适用材料。当前CI调试产物不等于完成这些义务；发布门槛记录于08。配置报告应核对实际构建结果，不仅看脚本。
 
-Windows默认构建使用自有WGC/MF/WASAPI模块与libdatachannel。windows/experimental-gstreamer仅供历史参考，不参与构建或打包。选择理由见D08。
+Windows默认构建使用自有WGC/MF/WASAPI模块与libdatachannel。已移除不参与构建的旧GStreamer实现和安装脚本；选择理由见D08，旧代码可从Git历史恢复。
 
 Android上游AAR不能仅因目标源revision已写入文档就宣称可重复构建。自建产物必须明确提供lancastWebrtcAar输入及其版本、哈希、构建与许可清单；没有隐式本地替换。
 

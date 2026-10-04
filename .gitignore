@@ -6,8 +6,6 @@
 **/node_modules/
 **/local.properties
 **/.cxx/
-media/webrtc/out/
-media/webrtc/checkout/
 android/media-webrtc/libs/*.aar
 *.log
 *.jks
