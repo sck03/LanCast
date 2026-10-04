@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-04",
+  "reviewedProgramCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+  "scope": "D11 control lifecycle and architecture validation. Development builds only; physical-device UI, production signing, latency and long-duration acceptance remain open.",
+  "dependencyChanges": "No new third-party libraries; dependency versions and Cargo.lock unchanged.",
+  "runs": [
+    {
+      "platform": "windows",
+      "run": 37181970101,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37181970101",
+      "sourceCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "core",
+          "conclusion": "success"
+        },
+        {
+          "name": "windows",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "platform": "android",
+      "run": 37181970111,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37181970111",
+      "sourceCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "android",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "platform": "macos",
+      "run": 37181970123,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37181970123",
+      "sourceCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "build",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "platform": "ios",
+      "run": 37181970122,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37181970122",
+      "sourceCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "build",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "platform": "tvos",
+      "run": 37181970088,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37181970088",
+      "sourceCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "build",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "platform": "core-linux",
+      "run": 37181970160,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37181970160",
+      "sourceCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "core",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "platform": "native-linux",
+      "run": 37181970116,
+      "url": "https://github.com/sck03/LanCast/actions/runs/37181970116",
+      "sourceCommit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "native",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "tests": {
+    "rust": {
+      "linux": 32,
+      "windows": 31,
+      "failed": 0,
+      "linuxOnly": "Transferred file-descriptor ownership",
+      "checks": [
+        "workspace --all-features tests",
+        "all-target/all-feature clippy with -D warnings",
+        "receiver-only and Legacy feature builds"
+      ]
+    },
+    "controlRegression": [
+      "12 cancelled WSS pairing attempts release eight-slot capacity",
+      "three same-owner stop/reconnect cycles; disconnected precedes stopped",
+      "receiver stop rejects pending approval",
+      "close interrupts blocked socket writes",
+      "saturated signal queue cannot prevent local stop",
+      "existing negotiated RTC recovery and stale-signal filtering"
+    ],
+    "buildScripts": {
+      "tests": 7,
+      "failed": 0,
+      "actionlint": "1.7.7",
+      "documentationLinks": 51
+    },
+    "macos": {
+      "tests": 9,
+      "failed": 0,
+      "scope": "4 pure Swift contracts, 3 WSS integration, 1 H264 RTC/decode recovery, 1 PCM conversion"
+    },
+    "windowsNative": {
+      "tests": 2,
+      "failed": 0,
+      "scope": "RTC media before/after replacement and repeated media ABI load/create/stop/unload"
+    },
+    "android": "Three Debug APKs, lint, JNI/product separation and ELF page alignment; no device execution"
+  },
+  "audits": {
+    "apple": {
+      "commit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "scope": "Offline archive verification; no runtime or signing acceptance",
+      "packages": [
+        {
+          "file": "LanCastMac-Release.zip",
+          "architectures": [
+            "arm64",
+            "x86_64"
+          ],
+          "minimumOS": "13.0",
+          "version": "0.4.0",
+          "buildNumber": "4",
+          "bytes": 22044098,
+          "sha256": "f414a0f4e701be3a025c00328e34bce46a11de10a8d20ee8862c0c7091897437",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastIOS-Debug-iphoneos.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "16.0",
+          "version": "0.4.0",
+          "buildNumber": "4",
+          "bytes": 19786498,
+          "sha256": "601f165f15376916e05739afac3ceca3e318234c947c2df1d1b0af3532ad1de5",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastIOS-Debug-iphonesimulator.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "16.0",
+          "version": "0.4.0",
+          "buildNumber": "4",
+          "bytes": 34430224,
+          "sha256": "4c785e3043908f03f5948f482e1fa6be0d86de2f6ee92d963f9e98effb44c639",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastTV-Debug-appletvos.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "17.0",
+          "version": "0.4.0",
+          "buildNumber": "4",
+          "bytes": 9828139,
+          "sha256": "85bd38889ccfd98c24b811e06312992d14f476eff00aaccdcb8fcb53ad2cae73",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        },
+        {
+          "file": "LanCastTV-Debug-appletvsimulator.zip",
+          "architectures": [
+            "arm64"
+          ],
+          "minimumOS": "17.0",
+          "version": "0.4.0",
+          "buildNumber": "4",
+          "bytes": 10073422,
+          "sha256": "88976a00a054bed43e5826a3721e089a52abbf9744548a1234148a58fa6d6bb3",
+          "metadataAndFramework": "passed",
+          "testBundleAbsent": true
+        }
+      ]
+    },
+    "windows": {
+      "config": {
+        "platform": "windows",
+        "version": "0.4.0",
+        "build_number": 4,
+        "configuration": "Release",
+        "android_abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "source_commit": "9803de8d4479301562e18e488f71748dadbc514a",
+        "artifact_label": "0.4.0-4-Release",
+        "signing": "development or unsigned; no production signing credentials used"
+      },
+      "binaries": [
+        {
+          "file": "lancast_core.dll",
+          "bytes": 6391296,
+          "sha256": "753e983de46d492402b502a4d81a6d91701670d00965e48bbd94fc55154cc413"
+        },
+        {
+          "file": "lancast_rtc.dll",
+          "bytes": 2854912,
+          "sha256": "fef0da7762c7e71d7a75a1f937555435484b98af7660e56b9811b8e47567394e"
+        },
+        {
+          "file": "lancast_ts.dll",
+          "bytes": 6592322,
+          "sha256": "3254452eaefd079caf6d85babe39ca13c2fdf063afd17e3661b6af493eb4be6e"
+        },
+        {
+          "file": "LanCast.exe",
+          "bytes": 378880,
+          "sha256": "764e722d2aa3c62e55692d9e46960901cc2518f6d6a7bd3ff1d280410c520088"
+        }
+      ],
+      "actualExecutableVersion": {
+        "ProductVersion": "0.4.0",
+        "FileVersion": "0.4.0.4"
+      },
+      "verification": "All packaged SHA256.json entries matched, with actual PE version metadata checked locally."
+    },
+    "android": {
+      "platform": "android",
+      "version": "0.4.0",
+      "build_number": 4,
+      "configuration": "Debug",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "9803de8d4479301562e18e488f71748dadbc514a",
+      "artifact_label": "0.4.0-4-Debug",
+      "signing": "development or unsigned; no production signing credentials used",
+      "artifacts": [
+        {
+          "file": "android/app-receiver/build/outputs/apk/legacy/debug/app-receiver-legacy-debug.apk",
+          "bytes": 33840849,
+          "sha256": "f26726c263851a1a19cc5ddd0451f2b6e07339c2a22ec0b6271e940e913cf93a"
+        },
+        {
+          "file": "android/app-receiver/build/outputs/apk/standard/debug/app-receiver-standard-debug.apk",
+          "bytes": 37588338,
+          "sha256": "3804b6af0ece08c273c196b4b2af5d2053d4f7f131b15dcc6015d8c3321b643d"
+        },
+        {
+          "file": "android/app-sender/build/outputs/apk/debug/app-sender-debug.apk",
+          "bytes": 45601229,
+          "sha256": "53a0bf82e40dfd14e1c92b6c9f04cf33c8fa047393ab23f9349570d868671e59"
+        }
+      ],
+      "verification": "Downloaded APK sizes/hashes and source provenance matched the build report; APK version and alignment checked in CI."
+    }
+  }
+}
