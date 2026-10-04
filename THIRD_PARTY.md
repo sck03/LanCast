@@ -37,4 +37,4 @@ Android上游AAR不能仅因目标源revision已写入文档就宣称可重复�
 - [LiveKitWebRTC固定发行版](https://github.com/livekit/webrtc-xcframework/releases/tag/150.7871.02)
 - [XcodeGen固定发行版](https://github.com/yonaskolb/XcodeGen/releases/tag/2.44.1)
 
-scripts/dependency-report.py导出解析后的Rust依赖清单；它不是包含AAR、JNI与系统库的完整二进制SBOM。
+`python scripts/dependency-report.py`导出兼容的Rust依赖列表、带提交/锁文件SHA256及条件依赖的图、SPDX 2.3源码清单；Linux/Windows工作流随依赖产物归档。详见[依赖审阅契约](docs/15-Rust依赖清单与审阅契约.md)。它不是包含AAR、JNI与系统库的完整二进制SBOM，也不自动裁定许可证。

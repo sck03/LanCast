@@ -15,6 +15,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - Rust domain/core/adapters/ffi 分层，编码像素不穿过控制层；媒体队列有界，停止可打断等待。
 - RTC 短暂断流由共享恢复策略管理：控制连接仍有效时，在固定 15 秒内最多重建三次传输，保留授权采集并过滤旧协商消息，详见 [恢复协议](docs/12-RTC恢复与协商契约.md)。
 - WSS 客户端、服务端和帧收发独立封装；停止等待旧连接退出，取消配对及时释放名额并关闭对应确认框，详见[控制生命周期](docs/14-控制连接生命周期与维护边界.md)。
+- 构建报告包含可追溯的Rust源码依赖图和SPDX 2.3清单，保留开源许可证声明、来源及锁文件校验值，详见[依赖审阅契约](docs/15-Rust依赖清单与审阅契约.md)。
 
 Windows 需要 Windows 10 22H2 或 Windows 11、媒体组件与可用 D3D11 硬件 H.264 编码器。Android Sender 最低 API29，Receiver Standard 最低 API23，Legacy 最低 API21。不能假定所有电视均兼容。
 

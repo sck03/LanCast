@@ -2,9 +2,9 @@ name: Windows
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","windows/**","media-native/**","scripts/build-windows*.ps1","scripts/build-windows.py","scripts/package-windows.ps1","scripts/verify-windows.py","scripts/build-ffmpeg.py","scripts/patch-datachannel.cmake","scripts/package-native-evidence.py","scripts/dependency-report.py",".github/workflows/windows.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","windows/**","media-native/**","scripts/build-windows*.ps1","scripts/build-windows.py","scripts/package-windows.ps1","scripts/verify-windows.py","scripts/build-ffmpeg.py","scripts/patch-datachannel.cmake","scripts/package-native-evidence.py","scripts/dependency-report.py","scripts/dependency_inventory.py",".github/workflows/windows.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","windows/**","media-native/**","scripts/build-windows*.ps1","scripts/build-windows.py","scripts/package-windows.ps1","scripts/verify-windows.py","scripts/build-ffmpeg.py","scripts/patch-datachannel.cmake","scripts/package-native-evidence.py","scripts/dependency-report.py",".github/workflows/windows.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","windows/**","media-native/**","scripts/build-windows*.ps1","scripts/build-windows.py","scripts/package-windows.ps1","scripts/verify-windows.py","scripts/build-ffmpeg.py","scripts/patch-datachannel.cmake","scripts/package-native-evidence.py","scripts/dependency-report.py","scripts/dependency_inventory.py",".github/workflows/windows.yml"]
   workflow_dispatch:
     inputs:
       source_ref:

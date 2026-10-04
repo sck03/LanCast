@@ -2,9 +2,9 @@ name: Linux core
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","scripts/tests/**","scripts/build_config.py","build-config.json","scripts/dependency-report.py",".github/workflows/core-linux.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","scripts/tests/**","scripts/build_config.py","build-config.json","scripts/dependency-report.py","scripts/dependency_inventory.py",".github/workflows/core-linux.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","scripts/tests/**","scripts/build_config.py","build-config.json","scripts/dependency-report.py",".github/workflows/core-linux.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","scripts/tests/**","scripts/build_config.py","build-config.json","scripts/dependency-report.py","scripts/dependency_inventory.py",".github/workflows/core-linux.yml"]
   workflow_dispatch:
 permissions:
   contents: read
