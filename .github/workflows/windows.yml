@@ -34,7 +34,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
@@ -48,7 +48,7 @@ jobs:
       - name: Test build input validation
         run: python -m unittest discover -s scripts/tests
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           key: rust-core-windows-2022-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
           restore-keys: rust-core-windows-2022-
@@ -62,7 +62,7 @@ jobs:
       - run: cargo check -p cast-ffi --no-default-features --locked
       - run: cargo check -p cast-ffi --no-default-features --features legacy --locked
       - run: python scripts/dependency-report.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dependencies-windows-2022
           path: dist/reports/
@@ -70,7 +70,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
@@ -93,7 +93,7 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-python
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         id: ts-cache
         with:
           key: windows-ts-v1-${{ hashFiles('media-native/**', 'scripts/build-ffmpeg.py') }}
@@ -110,7 +110,7 @@ jobs:
           cmake -S media-native -B .cache/ts-windows -G Ninja -DFFMPEG_ROOT="$PWD/.cache/ffmpeg-windows" -DCMAKE_BUILD_TYPE=Release
           cmake --build .cache/ts-windows
           ctest --test-dir .cache/ts-windows --output-on-failure
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v6
         if: steps.ts-cache.outputs.cache-hit != 'true'
         with:
           key: ${{ steps.ts-cache.outputs.cache-primary-key }}
@@ -119,7 +119,7 @@ jobs:
             .cache/ts-windows/
             .cache/ffmpeg-8.0.1.tar.xz
             .cache/ffmpeg-8.0.1/COPYING.LGPLv2.1
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         id: dtls-cache
         with:
           key: windows-dtls-v1-${{ hashFiles('scripts/build-windows-deps.ps1') }}
@@ -130,7 +130,7 @@ jobs:
         if: steps.dtls-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: ./scripts/build-windows-deps.ps1
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v6
         if: steps.dtls-cache.outputs.cache-hit != 'true'
         with:
           key: ${{ steps.dtls-cache.outputs.cache-primary-key }}
@@ -138,7 +138,7 @@ jobs:
             .cache/mbedtls/
             .cache/mbedtls-install/
       - run: rustup toolchain install 1.98.1 --profile minimal
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           key: rust-windows-static-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
           restore-keys: rust-windows-static-
@@ -149,15 +149,15 @@ jobs:
         run: python scripts/build-windows.py
       - run: python scripts/verify-windows.py
       - run: python scripts/package-native-evidence.py windows
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-native-relink-sources
           path: dist/native-evidence/windows/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: LanCast-Windows-x64-${{ steps.build-config.outputs.label }}
           path: dist/LanCast-Windows-x64/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-synthetic-diagnostic-${{ steps.build-config.outputs.label }}
           path: windows/build/${{ steps.build-config.outputs.configuration }}/media_probe.exe

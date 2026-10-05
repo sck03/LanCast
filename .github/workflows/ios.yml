@@ -34,7 +34,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
@@ -48,7 +48,7 @@ jobs:
       - name: Test build input validation
         run: python -m unittest discover -s scripts/tests
       - run: rustup toolchain install 1.98.1 --profile minimal
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         id: apple-cache
         with:
           key: apple-ios-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'scripts/apple_build.py') }}
@@ -60,7 +60,7 @@ jobs:
             .cache/apple/xcodegen.zip
       - name: Build iOS device and simulator apps
         run: python3 scripts/build-ios.py
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v6
         if: always() && steps.apple-cache.outputs.cache-hit != 'true'
         with:
           key: ${{ steps.apple-cache.outputs.cache-primary-key }}
@@ -69,7 +69,7 @@ jobs:
             ~/.cargo/registry/
             .cache/apple/webrtc.zip
             .cache/apple/xcodegen.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: LanCast-Apple-ios-${{ steps.build-config.outputs.label }}

@@ -28,7 +28,6 @@ with zipfile.ZipFile(destination / "ffmpeg-relink.zip", "w", zipfile.ZIP_DEFLATE
     for name in ("COPYING.LGPLv2.1", "COPYING.LGPLv3", "LICENSE.md"):
         with tarfile.open(ffmpeg) as upstream:
             archive.writestr("licenses/" + name, upstream.extractfile("ffmpeg-8.0.1/" + name).read())
-    archive.write(source, source.name)
     for pattern in (".cache/ffmpeg-*/build-manifest.json", ".cache/media-build-*/CMakeFiles/**/*.o", ".cache/ts-windows/CMakeFiles/**/*.obj"):
         for path in root.glob(pattern):
             archive.write(path, str(path.relative_to(root)).replace("\\", "/"))
@@ -56,10 +55,11 @@ if args.platform == "windows":
 
 instructions = """Native source and relinking materials
 
-The FFmpeg archive is the exact LGPL source used by this build. LanCast's source archive
+The FFmpeg archive is the exact LGPL source used by this build. The adjacent LanCast source archive
 contains the entire work using that library, including C/C++ JNI wrappers and build scripts.
 No FFmpeg source modifications are applied. To modify and relink:
-1. Extract lancast-source.tar.gz into an empty directory and FFmpeg into .cache/.
+1. Extract lancast-source.tar.gz into an empty directory. Open ffmpeg-relink.zip and
+   extract its FFmpeg source archive into .cache/.
 2. Modify FFmpeg, update the local build script's source checksum to match your archive,
    and run scripts/build-ffmpeg.py with the same ABI/toolchain in the manifest.
 3. Build media-native with CMake and the new FFMPEG_ROOT. See the included CI workflow.

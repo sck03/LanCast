@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
         with:
           key: rust-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
           restore-keys: rust-native-
@@ -41,7 +41,7 @@ jobs:
           ffmpeg -v error -xerror -i .cache/bt709.h264 -f null -
           ffprobe -v error -select_streams v:0 -show_entries stream=color_space,color_transfer,color_primaries -of json .cache/bt709.h264 > .cache/color.json
           python -c 'import json; s=json.load(open(".cache/color.json"))["streams"][0]; assert all(s[k]=="bt709" for k in ("color_space","color_transfer","color_primaries")), s'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: native-build-evidence

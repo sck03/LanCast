@@ -25,7 +25,7 @@ class Redirect(urllib.request.HTTPRedirectHandler):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=int)
-    parser.add_argument("--workflow", help="Workflow filename, for example apple.yml or ci.yml")
+    parser.add_argument("--workflow", help="Workflow filename, for example windows.yml or android.yml")
     parser.add_argument("--sha", help="Only inspect runs for this full commit SHA")
     parser.add_argument("--failed-logs", action="store_true")
     parser.add_argument("--logs", action="store_true", help="Save logs for all completed jobs, including passing tests")
