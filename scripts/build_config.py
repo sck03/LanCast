@@ -10,6 +10,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORMS = ("windows", "android", "macos", "ios", "tvos")
+CONFIGURATION_LABELS = {"Release": "日常使用（Release）", "Debug": "开发调试（Debug）"}
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ def resolve(platform, *, version=None, build_number=None, configuration=None, an
     if not re.fullmatch(r"[1-9][0-9]{0,4}", number) or int(number) > 65535:
         raise ValueError("Build number must be 1-65535; increment it for Android upgrades")
     configuration = configuration or env.get("LC_CONFIGURATION") or defaults["configuration"][platform]
+    configuration = {label: mode for mode, label in CONFIGURATION_LABELS.items()}.get(configuration, configuration)
     if configuration not in ("Debug", "Release"):
         raise ValueError("Configuration must be Debug or Release")
     abis = android_abis or env.get("LC_ANDROID_ABIS") or ",".join(defaults["android_abis"])

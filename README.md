@@ -27,7 +27,9 @@ DLNA：选择本机 LAN IPv4 和电视，点击“测试 DLNA 画面和声音”
 
 ## 构建与测试
 
-[GitHub Actions](https://github.com/sck03/LanCast/actions)已按 Windows、Android、macOS、iOS、tvOS 分为独立工作流，Linux 核心与原生媒体各有独立检查。每个产品支持手动设置源码分支／标签／提交、应用版本号、构建号与 Debug／Release；用法和入口见[独立构建指南](docs/13-独立平台构建与版本配置.md)。
+[GitHub Actions](https://github.com/sck03/LanCast/actions)已按 Windows、Android、macOS、iOS、tvOS 分为独立工作流，Linux 核心与原生媒体各有独立检查。手动编译时选择平台，点击 **Run workflow**，一般保持默认、文本框留空即可；页面提供中文说明和“日常使用／开发调试”选项。填写方法和产物用途见[独立构建指南](docs/13-独立平台构建与版本配置.md)。
+
+Windows 普通用户只需下载 `LanCast-Windows-x64-版本-序号-Release`，完整解压后运行 `LanCast.exe`，保留同目录的三个 DLL。其余产物是依赖报告、源码与重链接材料、命令行诊断工具，不需要放进程序目录。
 
 默认应用版本与构建号统一从 [build-config.json](build-config.json) 读取。Apple 分别使用 `python3 scripts/build-macos.py`、`build-ios.py`、`build-tvos.py`，Mac 执行集成测试并生成通用包。设备安装另需有效签名与广播 App Group。
 

@@ -50,11 +50,11 @@ def main():
         return data if raw else (json.loads(data) if data else None)
 
     if args.dispatch:
-        from build_config import resolve
+        from build_config import CONFIGURATION_LABELS, resolve
         if args.workflow not in [p + ".yml" for p in ("windows", "android", "macos", "ios", "tvos")]:
             raise SystemExit("Select an independent product --workflow (windows/android/macos/ios/tvos.yml)")
         config = resolve(args.workflow[:-4], version=args.version, build_number=args.build_number, configuration=args.configuration, environ={})
-        inputs = {"source_ref":args.source_ref, "version":config.version, "build_number":str(config.build_number), "configuration":config.configuration}
+        inputs = {"source_ref":args.source_ref, "version":config.version, "build_number":str(config.build_number), "configuration":CONFIGURATION_LABELS[config.configuration]}
         get(f"actions/workflows/{args.workflow}/dispatches", payload={"ref":args.ref,"inputs":inputs})
         print(json.dumps({"dispatched":args.workflow,"ref":args.ref,"inputs":inputs}))
         return

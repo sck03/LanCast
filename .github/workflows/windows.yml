@@ -8,22 +8,22 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: 'Source branch, tag or commit (blank uses the selected workflow ref)'
+        description: '源码版本（选填）：一般留空，使用上方所选分支；编译旧版时填标签或提交号'
         type: string
         default: ''
       version:
-        description: 'Application major.minor.patch (blank uses build-config.json)'
+        description: '程序版本（选填）：例如 0.4.1；留空使用项目默认值，只填三段数字'
         type: string
         default: ''
       build_number:
-        description: 'Build number 1-65535 (blank uses build-config.json)'
+        description: '更新序号（选填）：1–65535；留空使用项目默认值，覆盖升级 Android 时需增大'
         type: string
         default: ''
       configuration:
-        description: 'Application build mode; Release outputs still require production signing'
+        description: '构建用途：日常使用选 Release，排查问题选 Debug；保留默认即可，不会自动发布'
         type: choice
-        options: [Debug, Release]
-        default: Release
+        options: ['日常使用（Release）', '开发调试（Debug）']
+        default: '日常使用（Release）'
 permissions:
   contents: read
 concurrency:
@@ -38,13 +38,6 @@ jobs:
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
-      - name: Validate product version and record build inputs
-        id: build-config
-        env:
-          LC_VERSION: ${{ inputs.version }}
-          LC_BUILD_NUMBER: ${{ inputs.build_number }}
-          LC_CONFIGURATION: ${{ inputs.configuration }}
-        run: python scripts/build_config.py --platform windows --github
       - name: Test build input validation
         run: python -m unittest discover -s scripts/tests
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
@@ -66,6 +59,8 @@ jobs:
         with:
           name: dependencies-windows-2022
           path: dist/reports/
+          compression-level: 9
+          retention-days: 14
   windows:
     runs-on: windows-2022
     timeout-minutes: 60
@@ -81,8 +76,6 @@ jobs:
           LC_BUILD_NUMBER: ${{ inputs.build_number }}
           LC_CONFIGURATION: ${{ inputs.configuration }}
         run: python scripts/build_config.py --platform windows --github
-      - name: Test build input validation
-        run: python -m unittest discover -s scripts/tests
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
@@ -157,7 +150,10 @@ jobs:
         with:
           name: LanCast-Windows-x64-${{ steps.build-config.outputs.label }}
           path: dist/LanCast-Windows-x64/
+          compression-level: 9
       - uses: actions/upload-artifact@v7
         with:
           name: windows-synthetic-diagnostic-${{ steps.build-config.outputs.label }}
           path: windows/build/${{ steps.build-config.outputs.configuration }}/media_probe.exe
+          compression-level: 9
+          retention-days: 7

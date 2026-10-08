@@ -7,6 +7,16 @@ DEFAULTS = {"schema": 1, "version": "0.4.0", "build_number": 4,
 
 
 class BuildConfigTests(unittest.TestCase):
+    def test_chinese_workflow_choices_export_native_build_modes(self):
+        for label, mode in (("日常使用（Release）", "Release"), ("开发调试（Debug）", "Debug")):
+            for platform in DEFAULTS["configuration"]:
+                with self.subTest(platform=platform, label=label):
+                    config = resolve(platform, environ={"LC_CONFIGURATION": label}, defaults=DEFAULTS)
+                    self.assertEqual(config.environment()["LC_CONFIGURATION"], mode)
+                    self.assertEqual(config.label, f"0.4.0-4-{mode}")
+        with self.assertRaises(ValueError):
+            resolve("windows", configuration="日常使用（Release）\nINJECT=1", environ={}, defaults=DEFAULTS)
+
     def test_cli_environment_and_defaults_have_stable_precedence(self):
         c = resolve("windows", version="1.2.3", environ={"LC_VERSION": "9.0.0", "LC_BUILD_NUMBER": "27"}, defaults=DEFAULTS)
         self.assertEqual((c.version, c.build_number, c.configuration), ("1.2.3", 27, "Release"))

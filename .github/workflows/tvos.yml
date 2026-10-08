@@ -8,22 +8,22 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: 'Source branch, tag or commit (blank uses the selected workflow ref)'
+        description: '源码版本（选填）：一般留空，使用上方所选分支；编译旧版时填标签或提交号'
         type: string
         default: ''
       version:
-        description: 'Application major.minor.patch (blank uses build-config.json)'
+        description: '程序版本（选填）：例如 0.4.1；留空使用项目默认值，只填三段数字'
         type: string
         default: ''
       build_number:
-        description: 'Build number 1-65535 (blank uses build-config.json)'
+        description: '更新序号（选填）：1–65535；留空使用项目默认值，覆盖升级 Android 时需增大'
         type: string
         default: ''
       configuration:
-        description: 'Application build mode; Release outputs still require production signing'
+        description: '构建用途：日常使用选 Release，排查问题选 Debug；保留默认即可，不会自动发布'
         type: choice
-        options: [Debug, Release]
-        default: Debug
+        options: ['日常使用（Release）', '开发调试（Debug）']
+        default: '开发调试（Debug）'
 permissions:
   contents: read
 concurrency:
