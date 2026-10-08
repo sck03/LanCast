@@ -18,7 +18,7 @@ def main():
     wrapper = "gradlew.bat" if platform.system() == "Windows" else "./gradlew"
     tasks = [f":app-receiver:assembleStandard{mode}", f":app-receiver:assembleLegacy{mode}",
              f":app-sender:assemble{mode}", f":app-receiver:lintStandard{mode}",
-             f":app-receiver:lintLegacy{mode}", f":app-sender:lint{mode}"]
+             f":app-receiver:lintLegacy{mode}", f":app-sender:lint{mode}", f":control-bridge:test{mode}UnitTest"]
     subprocess.run([wrapper, *tasks, "--stacktrace"], cwd=ROOT / "android", env=env, check=True)
     for flavor in ("legacy", "standard"):
         with (ROOT / "android" / f"{flavor}-dependencies.txt").open("w", encoding="utf-8") as output:

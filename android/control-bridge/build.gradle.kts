@@ -9,4 +9,6 @@ android {
 kotlin { jvmToolchain(17) }
 dependencies { coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     api("com.squareup.okhttp3:okhttp:4.12.0")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

@@ -1,0 +1,117 @@
+{
+  "date": "2026-10-08",
+  "decision": "D13",
+  "version": "0.4.1",
+  "build_number": 5,
+  "program_commit": "bc97525e2e34717347da64ca96524c1286a539d5",
+  "shared_platform_commit": "52472c4681a83b43fffa99edb32271d60d501bc6",
+  "source_difference": "Only windows/src/app.cpp differs between the two tested source commits. Subsequent documentation commits do not alter tested program source.",
+  "runs": [
+    {
+      "platform": "windows",
+      "id": 37720824685,
+      "source_commit": "bc97525e2e34717347da64ca96524c1286a539d5",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37720824685"
+    },
+    {
+      "platform": "linux-core",
+      "id": 37720254024,
+      "source_commit": "52472c4681a83b43fffa99edb32271d60d501bc6",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37720254024"
+    },
+    {
+      "platform": "android",
+      "id": 37720254038,
+      "source_commit": "52472c4681a83b43fffa99edb32271d60d501bc6",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37720254038"
+    },
+    {
+      "platform": "macos",
+      "id": 37720254066,
+      "source_commit": "52472c4681a83b43fffa99edb32271d60d501bc6",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37720254066"
+    },
+    {
+      "platform": "ios",
+      "id": 37720254027,
+      "source_commit": "52472c4681a83b43fffa99edb32271d60d501bc6",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37720254027"
+    },
+    {
+      "platform": "tvos",
+      "id": 37720254079,
+      "source_commit": "52472c4681a83b43fffa99edb32271d60d501bc6",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37720254079"
+    }
+  ],
+  "local": {
+    "rust_tests": 32,
+    "clippy": "all-targets/all-features, -D warnings: passed",
+    "feature_checks": [
+      "no-default-features",
+      "no-default-features + legacy"
+    ],
+    "python_tests": 11,
+    "markdown_links": 68,
+    "desktop_contract": "passed with UCRT64",
+    "view_contract": "passed with UCRT64; hidden-window timer, restore and re-registration branch executed",
+    "visual_review": "Native test fixture rendered and inspected; sample data, no real TV",
+    "computer_use": "@oai/sky unavailable; no live desktop click test"
+  },
+  "windows": {
+    "ctest": [
+      "desktop_contract",
+      "view_contract",
+      "rtc_contract",
+      "media_abi_contract"
+    ],
+    "result": "4/4 passed",
+    "artifact": "LanCast-Windows-x64-0.4.1-5-Release",
+    "artifact_compressed_bytes": 6901437,
+    "downloaded_package_bytes": 16429399,
+    "downloaded_package_files": 20,
+    "verified_sha256_entries": 9,
+    "pe_product_version": "0.4.1",
+    "pe_file_version": "0.4.1.5",
+    "icon_resource_sizes": 8,
+    "manifest": "Common Controls v6, PerMonitorV2: verified without executing the program",
+    "binary_import_check": "Passed; no external VC/GCC runtime",
+    "binaries": [
+      {
+        "file": "LanCast.exe",
+        "bytes": 461824,
+        "sha256": "4c7dc2d12c47267672b67cdaf336dde00a5bd2e3649c10c783a2b793f309bae1"
+      },
+      {
+        "file": "lancast_core.dll",
+        "bytes": 6400000,
+        "sha256": "3fb35fc224e3430d6ce58a157139a8963b13b53e5c9c2179727a8833999ad77a"
+      },
+      {
+        "file": "lancast_rtc.dll",
+        "bytes": 2854912,
+        "sha256": "f85a512020fa43bbc0e77cf59f2f3891154c402521e7deae5412768a7aa04235"
+      },
+      {
+        "file": "lancast_ts.dll",
+        "bytes": 6592322,
+        "sha256": "3254452eaefd079caf6d85babe39ca13c2fdf063afd17e3661b6af493eb4be6e"
+      }
+    ]
+  },
+  "cleanup": "windows-desktop-cleanup-0.4.1.json",
+  "not_validated": [
+    "Physical TV interoperability and user approval on a real TV",
+    "End-to-end screen/audio performance and long-running casting while hidden",
+    "Actual Explorer restart",
+    "Real multi-monitor DPI transitions and Wi-Fi/VPN changes",
+    "Production signing or release certification"
+  ],
+  "artifact_review_scope": "Only the Windows product artifact was downloaded and independently checked this round. Other platform products passed CI builds; not re-downloaded or physically tested."
+}

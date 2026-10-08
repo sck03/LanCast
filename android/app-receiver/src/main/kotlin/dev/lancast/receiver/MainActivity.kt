@@ -26,6 +26,10 @@ class MainActivity : Activity() {
     private lateinit var invitation: TextView
     private lateinit var display: FrameLayout
     private lateinit var address: EditText
+    private lateinit var networkLabel: TextView
+    private lateinit var codeLabel: TextView
+    private var automaticAddress = true
+    private var fillingAddress = false
     private var connectionInfo = JSONObject()
     private var multicast: WifiManager.MulticastLock? = null
     private var approvalId: String? = null
@@ -34,17 +38,28 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 16, 24, 16) }
         root.addView(TextView(this).apply { text = "LanCast 接收端 · " + BuildConfig.FLAVOR; textSize = 24f })
-        state = TextView(this).apply { text = "选择本机局域网地址，启动接收。返回键会停止接收。"; textSize = 16f }
+        state = TextView(this).apply { text = "本机网络会自动选择，点击启动接收即可。返回键会停止接收。"; textSize = 16f }
         root.addView(state)
-        address = EditText(this).apply { setSingleLine(); setText((localAddresses().firstOrNull() ?: "") + ":8787"); hint = "本机 IPv4:8787" }
-        root.addView(address)
+        networkLabel = TextView(this); root.addView(networkLabel)
+        address = EditText(this).apply { setSingleLine(); hint = "特殊网络可手动填写本机 IPv4:8787" }
+        val advanced = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; addView(address) }
+        advanced.addView(Button(this).apply { text = "重新自动选择网络"; setOnClickListener { if (core == null) { automaticAddress = true; refreshAddress() } } })
+        root.addView(Button(this).apply { text = "高级网络设置"; setOnClickListener { advanced.visibility = if (advanced.visibility == View.VISIBLE) View.GONE else View.VISIBLE } })
+        root.addView(advanced)
+        address.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { if (!fillingAddress) automaticAddress = false }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+        refreshAddress()
         val controls = LinearLayout(this)
         fun button(text: String, action: () -> Unit) { controls.addView(Button(this).apply { this.text = text; setOnClickListener { runCatching(action).onFailure { state.text = it.message } } }) }
         button("启动接收") { startReceiver() }
-        button("更新邀请") { core?.command("invite") }
+        button("刷新配对码") { core?.command("invite") }
         button("停止投屏") { core?.command("stop"); stopMedia() }
         root.addView(controls)
-        invitation = TextView(this).apply { textSize = 13f; setTextIsSelectable(true) }
+        codeLabel = TextView(this).apply { textSize = 32f; setTextIsSelectable(true) }; root.addView(codeLabel)
+        invitation = TextView(this).apply { textSize = 16f; setTextIsSelectable(true) }
         root.addView(invitation)
         display = FrameLayout(this)
         root.addView(display, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -52,6 +67,9 @@ class MainActivity : Activity() {
     }
     private fun startReceiver() {
         if (core != null) return
+        refreshAddress()
+        check(dev.lancast.control.isLanIpv4(address.text.toString().substringBeforeLast(':'))) { "请先连接本地网络，或在高级设置选择有效地址" }
+        connectionInfo = JSONObject(); codeLabel.text = ""; invitation.text = ""; address.isEnabled = false
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicast = wifi.createMulticastLock("lancast-discovery").apply { setReferenceCounted(false); acquire() }
@@ -62,7 +80,7 @@ class MainActivity : Activity() {
     private fun onEvent(event: JSONObject) {
         val body = event.optJSONObject("body") ?: JSONObject()
         when (event.getString("type")) {
-            "receiver.ready" -> { connectionInfo = body; showInvitation(); state.text = "等待发送端连接；新设备必须在本屏确认" }
+            "receiver.ready" -> { connectionInfo = body; showInvitation(); state.text = "在发送端选择此设备并输入配对码，再在本屏允许连接" }
             "receiver.invite" -> { connectionInfo.put("invite", body.getString("invite")); showInvitation() }
             "pair.request" -> showApproval(body)
             "pair.closed" -> if (approvalId == body.optString("connectionId")) clearApproval()
@@ -79,6 +97,7 @@ class MainActivity : Activity() {
                     display.addView(player!!.view, FrameLayout.LayoutParams(-1, -1))
                 }
                 invitation.visibility = View.GONE
+                codeLabel.visibility = View.GONE
                 state.text = "正在建立媒体连接…"
             }
             "message" -> if (body.optString("sessionId") == sessionId) when (body.getString("type")) {
@@ -91,7 +110,14 @@ class MainActivity : Activity() {
                 "session.stop" -> stopMedia()
             }
             "session.closed", "stopped" -> stopMedia()
-            "error" -> state.text = body.optString("code")
+            "error" -> {
+                if (!connectionInfo.has("fingerprint")) {
+                    core?.close(); core = null; address.isEnabled = true
+                    multicast?.let { if (it.isHeld) it.release() }; multicast = null
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                state.text = body.optString("code")
+            }
         }
     }
     private fun mediaStatus(value: String) {
@@ -134,8 +160,10 @@ class MainActivity : Activity() {
     }
     private fun showInvitation() {
         invitation.visibility = View.VISIBLE
-        invitation.text = "发送端核对完整 SHA-256 指纹后输入邀请（120 秒、单次有效）。\n地址：" + connectionInfo.optString("address") +
-            "\n指纹：" + connectionInfo.optString("fingerprint") + "\n邀请：" + connectionInfo.optString("invite")
+        codeLabel.visibility = View.VISIBLE
+        codeLabel.text = "配对码  " + connectionInfo.optString("invite").chunked(4).joinToString(" ")
+        invitation.text = "配对码 2 分钟内单次有效。请核对发送端显示的完整指纹：\n" +
+            connectionInfo.optString("fingerprint").chunked(8).chunked(4).joinToString("\n") { it.joinToString("  ") } + "\n本机地址：" + connectionInfo.optString("address")
     }
     private fun stopMedia() {
         sessionId = null
@@ -144,12 +172,24 @@ class MainActivity : Activity() {
         player?.close(); player = null
         display.removeAllViews()
         invitation.visibility = View.VISIBLE
-        state.text = "投屏已停止；新设备连接请更新邀请"
+        codeLabel.visibility = View.VISIBLE
+        state.text = "投屏已停止；新设备连接请刷新配对码"
     }
+    private fun refreshAddress() {
+        if (core != null) return
+        if (automaticAddress) {
+            fillingAddress = true
+            address.setText(localAddresses(this).firstOrNull()?.let { "$it:8787" }.orEmpty())
+            fillingAddress = false
+        }
+        networkLabel.text = if (address.text.isEmpty()) "未连接局域网，请连接 Wi-Fi 或网线" else "${if (automaticAddress) "自动选择网络" else "所选网络"} · ${address.text}"
+    }
+    override fun onStart() { super.onStart(); address.isEnabled = core == null; refreshAddress() }
     override fun onStop() {
         clearApproval()
         stopMedia()
         core?.close(); core = null
+        connectionInfo = JSONObject(); codeLabel.text = ""; invitation.text = ""
         multicast?.let { if (it.isHeld) it.release() }; multicast = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         super.onStop()

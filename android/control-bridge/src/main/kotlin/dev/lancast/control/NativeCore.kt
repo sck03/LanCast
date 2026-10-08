@@ -4,9 +4,6 @@ import android.os.Handler
 import android.os.Looper
 import org.json.JSONObject
 import java.io.Closeable
-import java.net.Inet4Address
-import java.net.NetworkInterface
-import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -57,10 +54,6 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
         worker.shutdown()
     }
 }
-
-fun localAddresses(): List<String> = Collections.list(NetworkInterface.getNetworkInterfaces())
-    .filter { it.isUp && !it.isLoopback }.flatMap { Collections.list(it.inetAddresses) }
-    .filterIsInstance<Inet4Address>().filter { it.isSiteLocalAddress }.map { it.hostAddress!! }
 
 object SystemGuide {
     const val TEXT = "电视不能安装 App：已有 DLNA 可尝试 MP4 视频；通过合成画面与声音测试后，可尝试兼容直播。已有 Miracast 可用 Windows Win+K 或手机厂商的无线显示；已有 AirPlay 可用 Apple 控制中心的屏幕镜像。无共同协议时请外接允许安装 LanCast 的 Android HDMI 盒子。Apple TV 使用 tvOS，不能安装 Android APK。系统投屏由系统管理，不会产生 LanCast 连接统计。"

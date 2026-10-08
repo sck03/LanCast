@@ -1,11 +1,15 @@
 import SwiftUI
 import AVKit
 import LiveKitWebRTC
+import LanCastContracts
 
 final class ReceiverModel: ObservableObject {
     struct Approval: Identifiable { let id: String; let name: String; let address: String }
     @Published var address = (localAddresses().first ?? "") + ":8787"
-    @Published var status = "选择本机局域网地址，启动接收"
+    @Published var availableNetworks = localAddresses()
+    @Published var networkChoice = ""
+    @Published var manualAddress = false
+    @Published var status = "本机网络会自动选择，点击启动接收即可"
     @Published var fingerprint = ""
     @Published var invite = ""
     @Published var approval: Approval?
@@ -26,6 +30,11 @@ final class ReceiverModel: ObservableObject {
     func start() {
         guard core == nil else { return }
         do {
+            refreshNetwork()
+            let parts = address.split(separator: ":", omittingEmptySubsequences: false)
+            guard parts.count == 2, ConnectionHints.isLanIPv4(String(parts[0])), let port = UInt16(parts[1]), port > 0 else {
+                throw CastFailure.invalid("请连接本地网络，或在网络设置选择有效地址")
+            }
             #if !os(macOS)
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
             try AVAudioSession.sharedInstance().setActive(true)
@@ -36,6 +45,15 @@ final class ReceiverModel: ObservableObject {
             status = "正在启动安全接收…"
         } catch { stop(); status = error.localizedDescription }
     }
+    func refreshNetwork() {
+        guard core == nil else { return }
+        availableNetworks = localAddresses()
+        if !availableNetworks.contains(networkChoice) { networkChoice = "" }
+        if !manualAddress {
+            let ip = networkChoice.isEmpty ? availableNetworks.first ?? "" : networkChoice
+            address = ip.isEmpty ? "" : "\(ip):8787"
+        }
+    }
     func approve(_ accept: Bool, connection: String? = nil) {
         guard let id = connection ?? pendingApprovalID, id == pendingApprovalID else { return }
         core?.command("approve", ["connectionId": id, "accept": accept])
@@ -43,7 +61,7 @@ final class ReceiverModel: ObservableObject {
     }
     func refreshInvite() { core?.command("invite") }
     func stopMedia() {
-        core?.command("stop"); clearMedia(); status = "投屏已停止，可更新邀请"
+        core?.command("stop"); clearMedia(); status = "投屏已停止，可刷新配对码"
     }
     func stop() {
         clearMedia(); core?.close(); core = nil; listening = false; pendingApprovalID = nil; approval = nil; invite = ""; fingerprint = ""
@@ -65,7 +83,7 @@ final class ReceiverModel: ObservableObject {
     private func event(_ event: JSONObject) {
         let body = event.object("body")
         switch event.string("type") {
-        case "receiver.ready": listening = true; address = body.string("address"); fingerprint = body.string("fingerprint"); invite = body.string("invite"); status = "等待连接；请发送端核对完整指纹"
+        case "receiver.ready": listening = true; address = body.string("address"); fingerprint = body.string("fingerprint"); invite = body.string("invite"); status = "在发送端选择此设备并输入配对码，再在本屏允许连接"
         case "receiver.invite": invite = body.string("invite")
         case "pair.request":
             // Never overwrite an unanswered approval with another device's request.

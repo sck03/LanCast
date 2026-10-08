@@ -16,11 +16,13 @@ final class SenderSession {
     var readyForCapture: () -> Void = {}
     var ended: () -> Void = {}
     private(set) var connected = false
+    private(set) var connecting = false
 
     func connect(_ ticket: BroadcastTicket, mirror: Bool) throws {
         stop(); try ticket.validate(); self.ticket = ticket
         core = try CoreSession { [weak self] in self?.event($0) }
         media = mirror ? nil : [:]
+        connecting = true
         core?.command("connect", ["address": ticket.address, "fingerprint": ticket.fingerprint, "invite": ticket.invite, "name": "LanCast Apple"])
         status("等待接收端确认…")
     }
@@ -38,7 +40,7 @@ final class SenderSession {
     private func event(_ event: JSONObject) {
         let body = event.object("body")
         switch event.string("type") {
-        case "connected": connected = true; if media == nil { begin("mirror") } else { status("已连接，可选择 MP4 文件") }
+        case "connected": connected = true; connecting = false; if media == nil { begin("mirror") } else { status("已连接，可选择 MP4 文件") }
         case "file.shared": media = body; begin("file")
         case "message":
             let data = body.object("body")
@@ -86,7 +88,7 @@ final class SenderSession {
     func stop() {
         // Closing the authenticated connection revokes its remote session, including pending starts.
         gate.stop(); rtc?.close(); rtc = nil; core?.close(); core = nil
-        connected = false; ticket = nil; media = nil; sharingFile = false
+        connected = false; connecting = false; ticket = nil; media = nil; sharingFile = false
         retainedFile?.stopAccessingSecurityScopedResource(); retainedFile = nil
     }
     deinit { stop() }

@@ -3,6 +3,9 @@ package dev.lancast.sender
 import android.content.Context
 import android.content.Intent
 import dev.lancast.control.ControlSession
+import dev.lancast.control.DeviceCatalog
+import dev.lancast.control.PairingInput
+import android.net.wifi.WifiManager
 import dev.lancast.media.RtcPeer
 import org.json.JSONObject
 
@@ -30,11 +33,55 @@ object SenderRuntime {
     var dlnaId: String? = null
     var dlnaIp: String? = null
     private var stopService: (() -> Unit)? = null
+    val catalog = DeviceCatalog()
+    var selectedDevice: String? = null
+    var connecting = false
+        private set
+    var scanning = false
+        private set
+    private var scanGeneration = 0L
+    private var nativePending = false
+    private var dlnaPending = false
+    private var multicast: WifiManager.MulticastLock? = null
+    private var filePending = false
+    private var stopping = false
+    val busy get() = peer != null || liveCapture != null || grant != null || probing || pendingSession != null || sessionId != null || media != null || filePending || stopping
+    val filePlaying get() = media != null && !stopping && liveCapture == null && peer == null
+    val selectionLocked get() = connected || connecting || scanning || busy
+    fun scan(context: Context, local: String) {
+        check(!selectionLocked) { "请先停止分享并断开连接" }
+        ensureCore(context); catalog.clear(); selectedDevice = null; dlnaId = null; dlnaIp = null; receiverAddress = ""
+        scanGeneration++; val current = scanGeneration
+        scanning = true; nativePending = true; dlnaPending = local.isNotEmpty()
+        releaseMulticast()
+        val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        multicast = wifi.createMulticastLock("lancast-scan").apply { setReferenceCounted(false); acquire() }
+        command("scan", JSONObject().put("scanGeneration", current))
+        if (dlnaPending) command("dlna.scan", JSONObject().put("interface", local).put("scanGeneration", current))
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (scanning && scanGeneration == current) {
+                scanning = false; nativePending = false; dlnaPending = false; releaseMulticast()
+                observer?.invoke(JSONObject().put("type", "discovery.updated"))
+            }
+        }, 25000)
+    }
+    fun connect(input: PairingInput) {
+        check(!selectionLocked) { "请先停止分享并断开连接" }
+        receiverAddress = input.address; dlnaId = null; dlnaIp = null
+        command("connect", JSONObject().put("address", input.address).put("fingerprint", input.fingerprint).put("invite", input.code).put("name", android.os.Build.MODEL))
+        connecting = true
+    }
+    private fun releaseMulticast() { multicast?.let { if (it.isHeld) it.release() }; multicast = null }
     fun ensureCore(context: Context? = null) {
         if (context != null) profilesPath = java.io.File(context.filesDir, "receiver-profiles.json").absolutePath
         if (core == null) { core = ControlSession(::onEvent); profilesPath?.let { core!!.command("profiles.open", JSONObject().put("path", it)) } }
     }
-    fun command(op: String, body: JSONObject = JSONObject()) { ensureCore(); core!!.command(op, body) }
+    fun command(op: String, body: JSONObject = JSONObject()) {
+        ensureCore()
+        if (op == "file.share") { check(!busy && (connected || dlnaId != null)) { "请先连接电视并停止当前分享" } }
+        core!!.command(op, body)
+        if (op == "file.share") filePending = true
+    }
     fun beginCapture(context: Context, permission: Intent, audio: Boolean, stopService: () -> Unit) {
         check(connected || dlnaId != null)
         check(peer == null && liveCapture == null && grant == null) { "先停止当前分享" }
@@ -50,7 +97,7 @@ object SenderRuntime {
     }
     private fun createLive() { command("live.create", JSONObject().put("address", "$localAddress:0").put("allowedIp", dlnaIp).put("deviceId", dlnaId).put("synthetic", probing).put("audio", withAudio).put("generation", generation)) }
     fun playback(action: String, positionMs: Long = 0) {
-        check(liveCapture == null || action == "stop") { "直播只支持停止，不能暂停或跳转" }
+        check(media != null && !stopping && liveCapture == null && peer == null) { "播放控制仅用于当前视频文件" }
         if (dlnaId != null) command("dlna.command", JSONObject().put("deviceId", dlnaId).put("action", action).put("positionMs", positionMs))
         else core?.send("playback.command", sessionId, JSONObject().put("action", action).put("positionMs", positionMs))
     }
@@ -58,6 +105,14 @@ object SenderRuntime {
         val body = event.optJSONObject("body") ?: JSONObject()
         if (event.optString("type").startsWith("live.") && body.has("generation") && body.optLong("generation", -1) != generation) return
         when (event.optString("type")) {
+            "devices", "dlna.devices" -> {
+                if (!scanning || body.optLong("scanGeneration", -1) != scanGeneration) return
+                val dlna = event.optString("type") == "dlna.devices"
+                catalog.update(body.optJSONArray("devices") ?: org.json.JSONArray(), dlna)
+                if (dlna) dlnaPending = false else nativePending = false
+                scanning = nativePending || dlnaPending
+                if (!scanning) releaseMulticast()
+            }
             "live.created" -> {
                 if (body.optLong("generation", -1) != generation) return
                 val permission = grant
@@ -76,10 +131,13 @@ object SenderRuntime {
             }
             "probe.saved" -> stop()
             "live.failed" -> { stop(); observer?.invoke(JSONObject().put("type", "error").put("body", body)) }
-            "error" -> if (peer != null || liveCapture != null || grant != null || probing) stop()
-            "connected" -> connected = true
-            "disconnected" -> { connected = false; stopCapture(); core?.close(); core = null }
+            "error" -> { connecting = false; filePending = false; if (peer != null || liveCapture != null || grant != null || probing) stop() }
+            "connected" -> { connected = true; connecting = false }
+            "disconnected" -> { connected = false; connecting = false; stopCapture(); if (!stopping) { core?.close(); core = null; catalog.clear(); selectedDevice = null; dlnaId = null; dlnaIp = null } }
+            "stopped" -> { stopping = false }
             "file.shared" -> {
+                if (!filePending || stopping) return
+                filePending = false
                 media = body
                 if (dlnaId != null) command("dlna.load", JSONObject().put("deviceId", dlnaId).put("url", body.getString("url")).put("title", "LanCast Video"))
                 else pendingSession = core?.send("session.start", null, JSONObject().put("mode", "file").put("audioRequested", true))
@@ -119,11 +177,17 @@ object SenderRuntime {
     }
     private fun stopCapture() { generation++; pendingSession = null; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
     fun stop() {
+        if (connecting) { close(); return }
         sessionId?.let { core?.send("session.stop", it, JSONObject().put("reason", "sender_stopped")) }
-        if (dlnaId != null) playback("stop")
         core?.command("stop")
+        stopping = core != null; filePending = false
         connected = false
         stopCapture()
     }
-    fun close() { stop(); connected = false; core?.close(); core = null }
+    fun close() {
+        val pairing = connecting; connecting = false
+        if (!pairing) stop() else stopCapture()
+        connected = false; core?.close(); core = null; stopping = false; filePending = false
+        scanGeneration++; scanning = false; releaseMulticast(); catalog.clear(); selectedDevice = null; dlnaId = null; dlnaIp = null; receiverAddress = ""
+    }
 }
