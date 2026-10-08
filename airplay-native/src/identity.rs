@@ -1,14 +1,20 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rairplay::config::Keychain;
-use std::{collections::BTreeMap, sync::Mutex};
+use std::{
+    collections::BTreeMap,
+    io::{self, Write},
+    path::PathBuf,
+    sync::Mutex,
+};
 
 /// The platform stores the random seed in private, non-backed-up storage.
-/// Peer trust lasts one explicit enable cycle; every connection also needs TV approval.
+/// Trusted peer public keys persist; every media connection still needs TV approval.
 pub struct Identity {
     signing: SigningKey,
     public: [u8; 32],
     id: String,
     peers: Mutex<BTreeMap<Vec<u8>, [u8; 32]>>,
+    storage: Option<PathBuf>,
 }
 
 impl Identity {
@@ -27,11 +33,71 @@ impl Identity {
             public,
             id,
             peers: Mutex::new(BTreeMap::new()),
+            storage: None,
         }
     }
 
     pub fn device_id(&self) -> &str {
         &self.id
+    }
+    pub fn load(seed: [u8; 32], storage: Option<PathBuf>) -> io::Result<Self> {
+        let mut identity = Self::new(seed);
+        if let Some(path) = &storage {
+            match std::fs::metadata(path) {
+                Ok(meta) => {
+                    if meta.len() > 16384 {
+                        return Err(io::Error::other("peer store limit"));
+                    }
+                    let store: PeerStore = serde_json::from_slice(&std::fs::read(path)?)?;
+                    if store.device != identity.id || store.peers.len() > 16 {
+                        return Err(io::Error::other("peer store identity"));
+                    }
+                    let peers = identity.peers.get_mut().unwrap();
+                    for (id, key) in store.peers {
+                        let id = hex::decode(id).map_err(io::Error::other)?;
+                        let key: [u8; 32] = hex::decode(key)
+                            .map_err(io::Error::other)?
+                            .try_into()
+                            .map_err(|_| io::Error::other("peer key length"))?;
+                        if id.is_empty()
+                            || id.len() > 128
+                            || VerifyingKey::from_bytes(&key).is_err()
+                            || peers.insert(id, key).is_some()
+                        {
+                            return Err(io::Error::other("invalid peer record"));
+                        }
+                    }
+                }
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
+            }
+        }
+        identity.storage = storage;
+        Ok(identity)
+    }
+    fn save(&self, peers: &BTreeMap<Vec<u8>, [u8; 32]>) -> io::Result<()> {
+        let Some(path) = &self.storage else {
+            return Ok(());
+        };
+        let store = PeerStore {
+            device: self.id.clone(),
+            peers: peers
+                .iter()
+                .map(|(id, key)| (hex::encode(id), hex::encode(key)))
+                .collect(),
+        };
+        let temp = path.with_extension("tmp");
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&temp)?;
+        file.write_all(&serde_json::to_vec(&store)?)?;
+        file.sync_all()?;
+        std::fs::rename(temp, path)
     }
     pub fn public_hex(&self) -> String {
         hex::encode(self.public)
@@ -66,6 +132,10 @@ impl Keychain for Identity {
             return false;
         }
         peers.insert(id.to_vec(), key);
+        if self.save(&peers).is_err() {
+            peers.remove(id);
+            return false;
+        }
         true
     }
     fn verify(&self, id: &[u8], message: &[u8], signature: &[u8]) -> bool {
@@ -98,4 +168,24 @@ mod tests {
         assert!(!a.verify(b"peer", b"changed", &b.sign(b"hello")));
         assert!(!a.trust(b"peer", a.pubkey()));
     }
+    #[test]
+    fn trusted_peers_survive_restart_and_corrupt_store_is_not_silently_reset() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("peers.json");
+        let peer = Identity::new([2; 32]);
+        let a = Identity::load([1; 32], Some(path.clone())).unwrap();
+        assert!(a.trust(b"peer", peer.pubkey()));
+        drop(a);
+        let b = Identity::load([1; 32], Some(path.clone())).unwrap();
+        assert!(b.verify(b"peer", b"hello", &peer.sign(b"hello")));
+        assert!(Identity::load([9; 32], Some(path.clone())).is_err());
+        std::fs::write(&path, b"corrupt").unwrap();
+        assert!(Identity::load([1; 32], Some(path)).is_err());
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PeerStore {
+    device: String,
+    peers: Vec<(String, String)>,
 }

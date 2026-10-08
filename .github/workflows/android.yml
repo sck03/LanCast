@@ -64,24 +64,31 @@ jobs:
         with:
           path: |
             android/app-*/src/**/jniLibs/
-            android/airplay-receiver/src/main/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
-          key: android-native-v2-${{ hashFiles('Cargo.lock', '**/Cargo.toml', 'airplay-native/Cargo.lock', 'airplay-native/src/**', 'airplay-native/vendor/**', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/build-android-*.py', 'scripts/build-ffmpeg.py') }}
+          key: android-base-v2-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'core/Cargo.toml', 'crates/**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/build-android-core.py', 'scripts/build-android-media.py', 'scripts/build-ffmpeg.py') }}
       - name: Build product-specific Rust and minimal TS JNI libraries
         if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
           export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
           python scripts/build-android-core.py
           python scripts/build-android-media.py
-          python scripts/build-android-airplay.py
       - uses: actions/cache/save@v6
         if: steps.native-cache.outputs.cache-hit != 'true'
         with:
           path: |
             android/app-*/src/**/jniLibs/
-            android/airplay-receiver/src/main/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
           key: ${{ steps.native-cache.outputs.cache-primary-key }}
+      - uses: actions/cache@v6
+        id: airplay-cache
+        with:
+          path: android/airplay-receiver/src/main/jniLibs/
+          key: android-airplay-v1-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.toml', 'airplay-native/**/*.rs', 'airplay-native/**/*.c', 'airplay-native/**/*.h', 'scripts/build-android-airplay.py') }}
+      - name: Build optional AirPlay JNI libraries
+        if: steps.airplay-cache.outputs.cache-hit != 'true'
+        run: |
+          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
+          python scripts/build-android-airplay.py
       - name: Build Kotlin apps lint and verify dependency separation
         run: |
           chmod +x android/gradlew

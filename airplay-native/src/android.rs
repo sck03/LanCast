@@ -64,11 +64,13 @@ pub extern "system" fn Java_dev_lancast_airplay_NativeEngine_startNative(
     name: JString,
     seed: JByteArray,
     pin: JString,
+    peer_store: JString,
 ) -> jlong {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<i64> {
         let address: String = env.get_string(&address).ok()?.into();
         let name: String = env.get_string(&name).ok()?.into();
         let pin: String = env.get_string(&pin).ok()?.into();
+        let peer_store: String = env.get_string(&peer_store).ok()?.into();
         let seed: [u8; 32] = env.convert_byte_array(seed).ok()?.try_into().ok()?;
         if name.is_empty()
             || name.len() > 120
@@ -92,7 +94,15 @@ pub extern "system" fn Java_dev_lancast_airplay_NativeEngine_startNative(
         if !entries.is_empty() {
             return None;
         }
-        let running = Running::start(address.parse().ok()?, name, seed, digits, output).ok()?;
+        let running = Running::start(
+            address.parse().ok()?,
+            name,
+            seed,
+            digits,
+            Some(peer_store.into()),
+            output,
+        )
+        .ok()?;
         let id = NEXT.fetch_add(1, Ordering::Relaxed);
         entries.insert(id, running);
         Some(id)

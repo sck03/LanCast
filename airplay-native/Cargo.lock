@@ -871,21 +871,30 @@ dependencies = [
 name = "lancast-airplay"
 version = "0.6.0"
 dependencies = [
+ "aes",
  "axum",
  "bytes",
+ "chacha20poly1305",
+ "ctr",
  "ed25519-dalek 2.2.0",
  "futures",
  "hex",
+ "hkdf",
  "jni",
  "plist",
  "rairplay",
+ "rand 0.10.3",
  "rand 0.8.8",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "sha2 0.11.0",
+ "srp",
  "tempfile",
  "tokio",
  "tokio-util",
  "tracing",
+ "x25519-dalek",
 ]
 
 [[package]]

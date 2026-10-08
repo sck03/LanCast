@@ -103,7 +103,7 @@ class AirPlayService : Service() {
         worker.execute {
             try {
                 MediaPipeline.checkCapabilities()
-                if (current == epoch) opened.start(binding.address, name, AirPlayIdentity.seed(this), pin)
+                if (current == epoch) opened.start(binding.address, name, AirPlayIdentity.seed(this), pin, java.io.File(noBackupFilesDir, "airplay-peers-v1.json").absolutePath)
             } catch (e: Throwable) {
                 opened.close()
                 main.post { if (current == epoch && cycle.valid(token)) disable(e.message ?: "AirPlay 模块加载失败") }

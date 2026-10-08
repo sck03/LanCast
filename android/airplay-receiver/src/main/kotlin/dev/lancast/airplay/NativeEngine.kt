@@ -10,9 +10,9 @@ internal class NativeEngine(private val listener: Listener) : AutoCloseable {
         fun audio(session: Long, pts: Long, data: ByteArray): Boolean
     }
     @Volatile private var handle = 0L
-    fun start(address: String, name: String, seed: ByteArray, pin: String) {
+    fun start(address: String, name: String, seed: ByteArray, pin: String, peerStore: String) {
         check(handle == 0L)
-        handle = startNative(address, name, seed, pin)
+        handle = startNative(address, name, seed, pin, peerStore)
         check(handle != 0L) { "AirPlay 引擎无法启动" }
     }
     fun approve(session: Long, accept: Boolean) { val h = handle; if (h != 0L) approveNative(h, session, accept) }
@@ -23,7 +23,7 @@ internal class NativeEngine(private val listener: Listener) : AutoCloseable {
     @Suppress("unused") fun onVideo(session: Long, pts: Long, key: Boolean, data: ByteArray) = listener.video(session, pts, key, data)
     @Suppress("unused") fun onAudioConfig(session: Long, codec: Int, rate: Int, channels: Int, spf: Int) = listener.audioConfig(session, codec, rate, channels, spf)
     @Suppress("unused") fun onAudio(session: Long, pts: Long, data: ByteArray) = listener.audio(session, pts, data)
-    private external fun startNative(address: String, name: String, seed: ByteArray, pin: String): Long
+    private external fun startNative(address: String, name: String, seed: ByteArray, pin: String, peerStore: String): Long
     private external fun approveNative(handle: Long, session: Long, accept: Boolean)
     private external fun stopSessionNative(handle: Long, session: Long)
     private external fun stopNative(handle: Long)

@@ -387,6 +387,7 @@ impl Running {
         name: String,
         seed: [u8; 32],
         pin: [u8; 8],
+        peer_store: Option<std::path::PathBuf>,
         output: Arc<dyn Output>,
     ) -> io::Result<Self> {
         let pin =
@@ -399,11 +400,11 @@ impl Running {
             let result=(||->io::Result<()>{
                 let runtime=tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build()?;
                 let outcome=runtime.block_on(async{
-                    let identity=Identity::new(seed);let device_id=identity.device_id().to_owned();let public_key=identity.public_hex();
+                    let identity=Identity::load(seed,peer_store)?;let device_id=identity.device_id().to_owned();let public_key=identity.public_hex();
                     let config=Arc::new(config::Config{observer:Some(runner.clone()),mac_addr:device_id.parse().map_err(|_|io::Error::other("device identity"))?,name:name.clone(),model:"LanCast".into(),manufacturer:"LanCast contributors".into(),fw_version:env!("CARGO_PKG_VERSION").into(),features:features(),pin:Some(pin),keychain:identity,pairing:config::Pairing::Automatic,
                         audio:config::Audio{buf_size:256*1024,device:AudioBackend(runner.clone())},
                         video:config::Video{width:1920,height:1080,fps:30,buf_size:2*1024*1024,device:VideoBackend(runner.clone())}});
-                    let listener=rairplay::transport::DualStackListenerWithRtspRemap::bind(SocketAddrV4::new(address,0),SocketAddrV6::new(Ipv6Addr::LOCALHOST,0,0,0))?;
+                    let listener=rairplay::transport::DualStackListenerWithRtspRemap::bind(SocketAddrV4::new(address,0),SocketAddrV6::new(Ipv6Addr::UNSPECIFIED,0,0,0))?;
                     runner.output.emit(Event::Ready{port:listener.port(),name,device_id,public_key,features:features().bits()});
                     tokio::select!{_ = signal.cancelled()=>{},result=axum::serve(listener,rairplay::ServiceFactory::new(config))=>{result?;}}
                     runner.stop_all();Ok(())

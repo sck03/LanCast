@@ -147,7 +147,7 @@ class MainActivity : Activity() {
     }
     private fun showApproval(body: JSONObject) {
         val id = body.getString("connectionId")
-        if (approvalId != null) {
+        if (approvalId != null || receivingLease != null) {
             core?.command("approve", JSONObject().put("connectionId", id).put("accept", false))
             return
         }
@@ -193,7 +193,7 @@ class MainActivity : Activity() {
         negotiationId = null; readySent = false
         peer?.close(); peer = null
         player?.close(); player = null
-        display.removeAllViews()
+        if (ReceiverOwnership.leases.owns(receivingLease)) display.removeAllViews()
         if (releaseLease) { ReceiverOwnership.leases.release(receivingLease); receivingLease = null; airplay.refreshDisplay() }
         invitation.visibility = View.VISIBLE
         codeLabel.visibility = View.VISIBLE
