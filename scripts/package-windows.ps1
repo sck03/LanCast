@@ -41,7 +41,7 @@ LanCast 使用说明
 3. 选择屏幕或窗口，点击“开始投屏”；也可点击“播放视频文件”选择 MP4。
    勾选声音时会分享系统声音，包括其他应用的声音。
 4. 普通 DLNA 电视不需要配对码，可直接尝试播放 MP4。投屏前先“测试电视兼容性”。
-5. 最小化或点击“收到托盘”会继续投屏。单击托盘图标恢复，右键可停止投屏或退出。
+5. 点击标题栏的最小化即可收到托盘并继续投屏。单击托盘图标恢复，右键可停止投屏或退出。
    关闭窗口会退出；正在分享时会提示。托盘不可用时保留窗口。
 
 未发现电视：确认同一 Wi-Fi/有线网络、电视接收端已打开；点击刷新电视。
@@ -51,4 +51,4 @@ LanCast 使用说明
 需 Windows 10 22H2 或 Windows 11。请保留同目录三个 DLL。
 这是开发版，尚未完成所有电视型号、实际延迟和长时间运行验收。
 '@ | Set-Content -LiteralPath "$destination/使用说明.txt" -Encoding utf8
-Get-ChildItem -LiteralPath $destination -File | Get-FileHash -Algorithm SHA256 | Select-Object Hash,Path | ConvertTo-Json | Set-Content -LiteralPath "$destination/SHA256.json"
+Get-ChildItem -LiteralPath $destination -File | Where-Object { $_.Name -notin @('SHA256.json', 'binary-dependencies.json') } | Get-FileHash -Algorithm SHA256 | Select-Object Hash,Path | ConvertTo-Json | Set-Content -LiteralPath "$destination/SHA256.json"

@@ -27,7 +27,6 @@ void MainView::create(HWND window) {
     window_ = window;
     add(L"STATIC", L"LanCast", 0, 76, 23, 220, 38, 0, 2);
     add(L"STATIC", L"把电脑上的精彩，分享给大屏幕", 0, 28, 76, 650, 24, 0);
-    add(L"BUTTON", L"收到托盘", BS_PUSHBUTTON | WS_TABSTOP, 672, 32, 140, 34, 18);
     add(L"STATIC", L"1   选择电视", 0, 28, 124, 300, 28, 0, 1);
     add(L"STATIC", L"正在识别本机网络…", 0, 28, 157, 780, 24, network_summary);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 28, 190, 620, 260, devices);
@@ -139,7 +138,8 @@ bool MainView::handle(UINT message, WPARAM w, LPARAM l, LRESULT &result) {
         return false;
     }
     case WM_SIZE:
-        resize();
+        if (w != SIZE_MINIMIZED)
+            resize();
         return false;
     case WM_DPICHANGED: {
         auto *bounds = reinterpret_cast<RECT *>(l);

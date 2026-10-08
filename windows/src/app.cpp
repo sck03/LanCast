@@ -5,6 +5,7 @@
 #include "network.h"
 #include "tray.h"
 #include "view.h"
+#include <algorithm>
 #include <commctrl.h>
 #include <commdlg.h>
 #include <filesystem>
@@ -543,9 +544,6 @@ class DesktopApp {
             refresh_network();
             scan();
             break;
-        case 18:
-            tray.hide();
-            break;
         case TrayIcon::restore:
             tray.show();
             break;
@@ -571,7 +569,7 @@ class DesktopApp {
     }
     LRESULT dispatch(HWND window, UINT message, WPARAM w, LPARAM l) {
         try {
-            if (message == tray.taskbar_created()) {
+            if (tray.taskbar_created() && message == tray.taskbar_created()) {
                 tray.recreate();
                 return 0;
             }

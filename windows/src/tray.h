@@ -6,7 +6,8 @@
 
 class TrayIcon {
   public:
-    TrayIcon() = default;
+    using Notify = decltype(&Shell_NotifyIconW);
+    explicit TrayIcon(Notify notify = Shell_NotifyIconW) : notify_(notify) {}
     TrayIcon(const TrayIcon &) = delete;
     TrayIcon &operator=(const TrayIcon &) = delete;
     static constexpr UINT message = WM_APP + 2;
@@ -18,12 +19,13 @@ class TrayIcon {
     void show();
     void update(const std::wstring &status);
     void event(LPARAM value);
-    void recreate();
+    bool recreate();
     UINT taskbar_created() const {
         return taskbar_created_;
     }
 
   private:
+    Notify notify_;
     NOTIFYICONDATAW data_{};
     UINT taskbar_created_ = RegisterWindowMessageW(L"TaskbarCreated");
     bool added_ = false, notified_ = false;

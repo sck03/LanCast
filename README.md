@@ -6,7 +6,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 
 ## 功能与模块
 
-- Windows 0.5.0：自动选择本机网络、统一搜索电视、自动获取接收端地址/指纹、8 位配对码、托盘继续投屏及程序图标，详见 [D13 桌面模块与验证边界](docs/16-Windows易用性与桌面模块.md)。
+- Windows 0.5.1：自动选择本机网络、统一搜索电视、自动获取接收端地址/指纹、8 位配对码、最小化到托盘及程序图标，详见 [D13 桌面模块与验证边界](docs/16-Windows易用性与桌面模块.md)。
 - Android/Apple：自动本机网络、按名称选择设备、自动填入地址/指纹、完整身份确认与大字配对码，详见 [D14 连接体验与模块边界](docs/17-Android与Apple连接体验.md)。
 - 自有接收端：WSS 配对、完整 SPKI 指纹、一次邀请与电视确认；WebRTC H.264／Opus 镜像和 MP4 原文件播放。
 - Windows 发送：WGC 窗口／显示器、D3D11 转换、Media Foundation 硬件 H.264、WASAPI 系统声音；独立 RTC／TS 输出模块。
@@ -27,13 +27,15 @@ Windows 需要 Windows 10 22H2 或 Windows 11、媒体组件与可用 D3D11 硬�
 
 Windows DLNA：选择标注为普通电视（DLNA）的设备，无需配对码。播放 MP4 可直接开始；分享屏幕前先点击“测试电视兼容性”，确认电视连续显示彩色画面并播放所选声音。DLNA 使用局域网 HTTP 明文，实际延迟由电视决定。测试不采集用户屏幕，HTTP 拉流本身不作为画面成功的证据。
 
-最小化或“收到托盘”后继续投屏；单击托盘恢复，右键可停止或退出。关闭窗口会退出，存在分享时先提示。多网卡或搜索不到电视时使用“高级设置”，不必手写本机 IP。
+点击标题栏最小化即可收到托盘并继续投屏；单击托盘恢复，右键可停止或退出。托盘不可用时保留可访问窗口，恢复时保留最大化状态。关闭窗口会退出，存在分享时先提示。多网卡或搜索不到电视时使用“高级设置”，不必手写本机 IP。
 
 ## 构建与测试
 
 [GitHub Actions](https://github.com/sck03/LanCast/actions)已按 Windows、Android、macOS、iOS、tvOS 分为独立工作流，Linux 核心与原生媒体各有独立检查。手动编译时选择平台，点击 **Run workflow**，一般保持默认、文本框留空即可；页面提供中文说明和“日常使用／开发调试”选项。填写方法和产物用途见[独立构建指南](docs/13-独立平台构建与版本配置.md)。
 
 Windows 普通用户只需下载 `LanCast-Windows-x64-版本-序号-Release`，完整解压后运行 `LanCast.exe`，保留同目录的三个 DLL。其余产物是依赖报告、源码与重链接材料、命令行诊断工具，不需要放进程序目录。
+
+Windows Release 的 TS DLL 会去除调试段和 COFF 符号表；导出接口、展开信息和许可材料保留。下载后可用 `python scripts/verify-windows.py 解压目录` 复查包内哈希、PE 依赖与符号裁剪；实测体积见[进度记录](docs/08-实施进度与审阅入口.md)。
 
 默认应用版本与构建号统一从 [build-config.json](build-config.json) 读取。Apple 分别使用 `python3 scripts/build-macos.py`、`build-ios.py`、`build-tvos.py`，Mac 执行集成测试并生成通用包。设备安装另需有效签名与广播 App Group。
 
