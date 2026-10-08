@@ -1,0 +1,616 @@
+{
+  "schema": 1,
+  "date": "2026-10-08",
+  "version": "0.5.1",
+  "build_number": 7,
+  "program_commit": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+  "changes": [
+    "Removed the duplicate tray button and command; native minimize remains the entry point.",
+    "Tray registration is checked before hiding, recovers lost icons and keeps a visible window on shell failure.",
+    "Restoring or opening the window preserves maximized placement.",
+    "Release/MinSizeRel TS links without DWARF or COFF symbols; Debug/RelWithDebInfo retain symbols.",
+    "Package hashes exclude generated manifests; independent verification checks hashes, imports and Release TS stripping."
+  ],
+  "dependency_change": "No new runtime libraries or paid SDKs; existing Windows system APIs and GNU linker options.",
+  "ci": {
+    "windows": {
+      "run": 37735008930,
+      "sha": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37735008930",
+      "jobs": [
+        {
+          "id": 113172446886,
+          "name": "core",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        },
+        {
+          "id": 113172447004,
+          "name": "windows",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ]
+    },
+    "android": {
+      "run": 37735008970,
+      "sha": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37735008970",
+      "jobs": [
+        {
+          "id": 113172447395,
+          "name": "android",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ]
+    },
+    "macos": {
+      "run": 37735008915,
+      "sha": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37735008915",
+      "jobs": [
+        {
+          "id": 113172446884,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ]
+    },
+    "ios": {
+      "run": 37735008867,
+      "sha": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37735008867",
+      "jobs": [
+        {
+          "id": 113172446937,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ]
+    },
+    "tvos": {
+      "run": 37735008852,
+      "sha": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37735008852",
+      "jobs": [
+        {
+          "id": 113172446618,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ]
+    },
+    "core-linux": {
+      "run": 37735008954,
+      "sha": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37735008954",
+      "jobs": [
+        {
+          "id": 113172447127,
+          "name": "core",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ]
+    },
+    "native-linux": {
+      "run": 37735008958,
+      "sha": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37735008958",
+      "jobs": [
+        {
+          "id": 113172447213,
+          "name": "native",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ]
+    }
+  },
+  "test_summary": {
+    "windows_rust_tests": 34,
+    "linux_rust_tests": 35,
+    "python_tests": 11,
+    "windows_cpp_contracts": 5,
+    "windows_ts_contracts": 1,
+    "macos_swift_contracts": 7,
+    "macos_app_integration_tests": 5,
+    "android": "Standard receiver, Legacy receiver and sender assembled and linted; control-bridge JVM tests passed.",
+    "ios_tvos": "Device and simulator application builds passed.",
+    "linux_native": "TS contract and synthetic decoder/join/HTTP validation passed."
+  },
+  "local_validation": {
+    "toolchain": "UCRT64 GCC 16.1.0; Python 3.13",
+    "tests": [
+      "desktop_contract",
+      "view_contract",
+      "tray_contract",
+      "mux_contract"
+    ],
+    "application_compile": "GNU C++ desktop application compiled and linked to the existing core ABI; full MSVC product validated by CI.",
+    "regression_before_fix": "Injected repeated shell registration failed with the old tray logic; fixed implementation passed.",
+    "tray_real_shell": "Native view contract confirmed hide, live message timers, restore and re-registration on this host.",
+    "tray_fault_injection": [
+      "lost icon",
+      "duplicate registration",
+      "Explorer restart notification model",
+      "shell unavailable and recovery",
+      "keyboard restore",
+      "maximized and minimized placement",
+      "destruction cleanup"
+    ],
+    "view_preview": "dist/review/windows-0.5.1.png (test fixture UI, not a television session)",
+    "debug_policy": {
+      "release_bytes": 1377280,
+      "release_coff_symbols": 0,
+      "relwithdebinfo_bytes": 7075044,
+      "relwithdebinfo_coff_symbols": 16940
+    },
+    "package_checks": [
+      "Repeated hash generation and verification passed twice",
+      "Old self-hash rejected",
+      "Changed package content rejected",
+      "Old unstripped release rejected"
+    ],
+    "markdown_links_at_program_commit": 76,
+    "computer_use": "Initialization failed: Module not found: @oai/sky. No automated desktop clicking performed."
+  },
+  "package_validation": {
+    "build": {
+      "platform": "windows",
+      "version": "0.5.1",
+      "build_number": 7,
+      "configuration": "Release",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "75da52c85a2367ccc560fd0ab88f364cf144ca8f",
+      "artifact_label": "0.5.1-7-Release",
+      "signing": "development or unsigned; no production signing credentials used"
+    },
+    "product_version": "0.5.1",
+    "file_version": "0.5.1.7",
+    "hash_entries_verified": 9,
+    "current": {
+      "files": 20,
+      "bytes": 11214884,
+      "artifact_zip_bytes": 5009115,
+      "ts": {
+        "bytes": 1375232,
+        "sha256": "77a90b9ba3200593254e047defae03df099ddce090f84e10fef08789552c7c87",
+        "exports": [
+          "lc_h264_create",
+          "lc_h264_destroy",
+          "lc_h264_write",
+          "lc_ts_audio",
+          "lc_ts_create",
+          "lc_ts_destroy",
+          "lc_ts_video"
+        ],
+        "preserved_sections": {
+          ".edata": 221,
+          ".idata": 7428,
+          ".pdata": 27408,
+          ".xdata": 26460,
+          ".reloc": 10448
+        },
+        "coff_symbols": 0
+      }
+    },
+    "baseline": {
+      "files": 20,
+      "bytes": 16431453,
+      "version": "0.5.0",
+      "build_number": 6,
+      "artifact_zip_bytes": 6902042,
+      "ts": {
+        "bytes": 6592322,
+        "sha256": "3254452eaefd079caf6d85babe39ca13c2fdf063afd17e3661b6af493eb4be6e",
+        "exports": [
+          "lc_h264_create",
+          "lc_h264_destroy",
+          "lc_h264_write",
+          "lc_ts_audio",
+          "lc_ts_create",
+          "lc_ts_destroy",
+          "lc_ts_video"
+        ],
+        "preserved_sections": {
+          ".edata": 221,
+          ".idata": 7428,
+          ".pdata": 27408,
+          ".xdata": 26460,
+          ".reloc": 10448
+        },
+        "coff_symbols": 16154
+      }
+    },
+    "saved": {
+      "extracted_bytes": 5216569,
+      "artifact_zip_bytes": 1892927,
+      "ts_bytes": 5217090
+    },
+    "binaries": [
+      {
+        "file": "LanCast.exe",
+        "bytes": 460288,
+        "sha256": "c09bf05fe77ffce85f7ec348b22a84c264d89f3353e3cc9e06f61a1a255880d4",
+        "imports": [
+          "lancast_core.dll",
+          "ole32.dll",
+          "shell32.dll",
+          "comdlg32.dll",
+          "comctl32.dll",
+          "iphlpapi.dll",
+          "ws2_32.dll",
+          "kernel32.dll",
+          "user32.dll",
+          "gdi32.dll"
+        ]
+      },
+      {
+        "file": "lancast_core.dll",
+        "bytes": 6404096,
+        "sha256": "ca0adbaddafb0e663cc7ab3607c4cb24d863ea03a7d8bee21804c3cf6d7f8d80",
+        "imports": [
+          "kernel32.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "ws2_32.dll",
+          "ntdll.dll",
+          "bcryptprimitives.dll",
+          "iphlpapi.dll",
+          "bcrypt.dll",
+          "advapi32.dll"
+        ]
+      },
+      {
+        "file": "lancast_rtc.dll",
+        "bytes": 2854912,
+        "sha256": "13c1be4b4488fe85396f35a4486182f5b46a134fabcb2b042b3d11121765696b",
+        "imports": [
+          "d3d11.dll",
+          "dxgi.dll",
+          "mfplat.dll",
+          "api-ms-win-core-profile-l1-1-0.dll",
+          "api-ms-win-core-com-l1-1-0.dll",
+          "oleaut32.dll",
+          "api-ms-win-core-libraryloader-l1-2-0.dll",
+          "api-ms-win-core-string-l1-1-0.dll",
+          "api-ms-win-core-processthreads-l1-1-0.dll",
+          "api-ms-win-core-synch-l1-1-0.dll",
+          "api-ms-win-core-processenvironment-l1-1-0.dll",
+          "api-ms-win-core-console-l1-1-0.dll",
+          "ws2_32.dll",
+          "bcrypt.dll",
+          "kernel32.dll",
+          "user32.dll",
+          "api-ms-win-core-localization-l1-2-0.dll",
+          "api-ms-win-core-sysinfo-l1-2-0.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "api-ms-win-core-sysinfo-l1-1-0.dll",
+          "api-ms-win-core-rtlsupport-l1-1-0.dll",
+          "api-ms-win-core-errorhandling-l1-1-0.dll",
+          "api-ms-win-core-file-l1-1-0.dll",
+          "api-ms-win-core-processthreads-l1-1-1.dll",
+          "api-ms-win-core-util-l1-1-0.dll",
+          "api-ms-win-core-debug-l1-1-0.dll",
+          "api-ms-win-core-interlocked-l1-1-0.dll",
+          "api-ms-win-core-timezone-l1-1-0.dll",
+          "api-ms-win-core-heap-l1-1-0.dll",
+          "api-ms-win-core-fibers-l1-1-0.dll",
+          "api-ms-win-core-memory-l1-1-0.dll",
+          "api-ms-win-core-datetime-l1-1-0.dll",
+          "api-ms-win-core-winrt-l1-1-0.dll",
+          "api-ms-win-core-winrt-error-l1-1-1.dll"
+        ]
+      },
+      {
+        "file": "lancast_ts.dll",
+        "bytes": 1375232,
+        "sha256": "77a90b9ba3200593254e047defae03df099ddce090f84e10fef08789552c7c87",
+        "imports": [
+          "bcrypt.dll",
+          "kernel32.dll",
+          "api-ms-win-crt-convert-l1-1-0.dll",
+          "api-ms-win-crt-environment-l1-1-0.dll",
+          "api-ms-win-crt-filesystem-l1-1-0.dll",
+          "api-ms-win-crt-heap-l1-1-0.dll",
+          "api-ms-win-crt-locale-l1-1-0.dll",
+          "api-ms-win-crt-math-l1-1-0.dll",
+          "api-ms-win-crt-private-l1-1-0.dll",
+          "api-ms-win-crt-runtime-l1-1-0.dll",
+          "api-ms-win-crt-stdio-l1-1-0.dll",
+          "api-ms-win-crt-string-l1-1-0.dll",
+          "api-ms-win-crt-time-l1-1-0.dll",
+          "api-ms-win-crt-utility-l1-1-0.dll"
+        ]
+      }
+    ]
+  },
+  "download_scope": "Only the Windows user package was downloaded and independently verified. Other platform evidence is CI, not device testing.",
+  "local_delivery": {
+    "directory": "E:/cast/LanCast/dist/LanCast-Windows-x64",
+    "product_version": "0.5.1",
+    "executable": "dist/LanCast-Windows-x64/LanCast.exe"
+  },
+  "cleanup": {
+    "mode": "Moved into one directory for user-requested manual deletion",
+    "directory": "E:/cast/待手动删除-LanCast-0.5.1-20261008",
+    "moved_files": 1349,
+    "moved_bytes": 91470343,
+    "freed_bytes": 0,
+    "note": "Moved file counts exclude the subsequently added cleanup README. Counts and sizes were compared before and after every move.",
+    "groups": [
+      {
+        "source": "E:/cast/LanCast/.cache (selected obsolete files)",
+        "destination": "E:/cast/待手动删除-LanCast-0.5.1-20261008/old-cache",
+        "files": 48,
+        "bytes": 7320504
+      },
+      {
+        "source": "E:\\cast\\LanCast\\dist\\LanCast-Windows-x64",
+        "destination": "E:\\cast\\待手动删除-LanCast-0.5.1-20261008\\old-program-0.5.0",
+        "files": 20,
+        "bytes": 16431453
+      },
+      {
+        "source": "E:\\cast\\LanCast\\.cache\\desktop-maintenance",
+        "destination": "E:\\cast\\待手动删除-LanCast-0.5.1-20261008\\desktop-validation",
+        "files": 1269,
+        "bytes": 66761462
+      },
+      {
+        "source": "E:\\cast\\LanCast\\.cache\\artifacts\\37735008930",
+        "destination": "E:\\cast\\待手动删除-LanCast-0.5.1-20261008\\download-workspace",
+        "files": 0,
+        "bytes": 0
+      },
+      {
+        "source": "E:\\cast\\LanCast\\scripts\\__pycache__",
+        "destination": "E:\\cast\\待手动删除-LanCast-0.5.1-20261008\\script-bytecode",
+        "files": 3,
+        "bytes": 24098
+      },
+      {
+        "source": "E:\\cast\\LanCast\\scripts\\tests\\__pycache__",
+        "destination": "E:\\cast\\待手动删除-LanCast-0.5.1-20261008\\test-bytecode",
+        "files": 3,
+        "bytes": 16200
+      },
+      {
+        "source": "E:/cast/LanCast/.cache/ci-113172*.log",
+        "destination": "E:\\cast\\待手动删除-LanCast-0.5.1-20261008\\verification-logs",
+        "files": 6,
+        "bytes": 916626
+      }
+    ],
+    "obsolete_files": [
+      {
+        "path": "E:/cast/LanCast/.cache/android-custom-audit.json",
+        "bytes": 1238
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/apple-audit-compatibility.json",
+        "bytes": 6502
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/apple-custom-audit.json",
+        "bytes": 7866
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/check_artifact.py",
+        "bytes": 2081
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111184129236.log",
+        "bytes": 41058
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111185295997.log",
+        "bytes": 32191
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111185699054.log",
+        "bytes": 75658
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111186428207.log",
+        "bytes": 165792
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111188178934.log",
+        "bytes": 175811
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111189991871.log",
+        "bytes": 1871
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111189992020.log",
+        "bytes": 1871
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111189992053.log",
+        "bytes": 1809
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111190475156.log",
+        "bytes": 180018
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111243116596.log",
+        "bytes": 158073
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111243116623.log",
+        "bytes": 175032
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111243116661.log",
+        "bytes": 133119
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111244145871.log",
+        "bytes": 250158
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111245774953.log",
+        "bytes": 135127
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111245775013.log",
+        "bytes": 150370
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111245775076.log",
+        "bytes": 112818
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111246547154.log",
+        "bytes": 226283
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111246547215.log",
+        "bytes": 205656
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111247547182.log",
+        "bytes": 359489
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111247547266.log",
+        "bytes": 226728
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111247547290.log",
+        "bytes": 356373
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111257856706.log",
+        "bytes": 255262
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111258524948.log",
+        "bytes": 89563
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111259642146.log",
+        "bytes": 385152
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111260534486.log",
+        "bytes": 32838
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111260534709.log",
+        "bytes": 88906
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111376183889.log",
+        "bytes": 232992
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111376183915.log",
+        "bytes": 362081
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111376183957.log",
+        "bytes": 34180
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111376184052.log",
+        "bytes": 89829
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111376184179.log",
+        "bytes": 27303
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111384393938.log",
+        "bytes": 33772
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-111384394070.log",
+        "bytes": 26678
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-113127948057.log",
+        "bytes": 32173
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-113127948313.log",
+        "bytes": 91630
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-113139347601.log",
+        "bytes": 365058
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-113153611725.log",
+        "bytes": 32796
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-113153611779.log",
+        "bytes": 225177
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-113153611846.log",
+        "bytes": 367696
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/ci-113153612708.log",
+        "bytes": 92016
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/control-lifecycle-apple-audit.json",
+        "bytes": 7833
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/dependency-metadata.json",
+        "bytes": 1259344
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/read_ci.py",
+        "bytes": 1246
+      },
+      {
+        "path": "E:/cast/LanCast/.cache/windows-custom-audit.json",
+        "bytes": 3987
+      }
+    ]
+  },
+  "remaining_acceptance": [
+    "Physical television pairing, screen/audio sharing and long-run stability",
+    "Actual Explorer process restart and cross-monitor DPI changes",
+    "Real GPU/capture and network-switch compatibility",
+    "Android/Apple permissions, signing, installation and device interoperability",
+    "Complete v1.0 performance and release acceptance"
+  ]
+}
