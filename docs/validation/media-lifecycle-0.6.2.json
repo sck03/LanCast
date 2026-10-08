@@ -1,0 +1,445 @@
+{
+  "schema": 1,
+  "date": "2026-10-08",
+  "version": "0.6.2",
+  "build_number": 10,
+  "program_commit": "619d63099fa073295430ae1fbc4395ce04776d0e",
+  "baseline_commit": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+  "changed_paths_since_baseline": [
+    "android/airplay-receiver/src/main/kotlin/dev/lancast/airplay/MediaPipeline.kt",
+    "docs/21-AirPlayý���������Դ��������.md"
+  ],
+  "validation_scope": "Baseline passed all eight workflows. Final Android-only volume follow-up passed all four Debug products and the AirPlay Release product; other platform build inputs are unchanged.",
+  "baseline_workflows": [
+    {
+      "id": 37800510706,
+      "path": ".github/workflows/windows.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37800510706"
+    },
+    {
+      "id": 37800510341,
+      "path": ".github/workflows/android.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37800510341"
+    },
+    {
+      "id": 37800510291,
+      "path": ".github/workflows/macos.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37800510291"
+    },
+    {
+      "id": 37800510567,
+      "path": ".github/workflows/ios.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37800510567"
+    },
+    {
+      "id": 37800510375,
+      "path": ".github/workflows/tvos.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37800510375"
+    },
+    {
+      "id": 37800510450,
+      "path": ".github/workflows/core-linux.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37800510450"
+    },
+    {
+      "id": 37801003942,
+      "path": ".github/workflows/native-linux.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37801003942"
+    },
+    {
+      "id": 37800998281,
+      "path": ".github/workflows/airplay.yml",
+      "head_sha": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37800998281"
+    }
+  ],
+  "final_android_workflows": [
+    {
+      "id": 37802088049,
+      "path": ".github/workflows/android.yml",
+      "head_sha": "619d63099fa073295430ae1fbc4395ce04776d0e",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37802088049"
+    },
+    {
+      "id": 37802181770,
+      "path": ".github/workflows/android.yml",
+      "head_sha": "619d63099fa073295430ae1fbc4395ce04776d0e",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37802181770"
+    }
+  ],
+  "local_checks": {
+    "windows_rust_tests": 34,
+    "jvm_tests": 15,
+    "python_tests": 28,
+    "architecture": "passed",
+    "actionlint": "passed",
+    "markdown_links_before_evidence": 138,
+    "kotlin": "2.0.20",
+    "jdk": "17.0.18",
+    "expected_queue_regression_failures_on_old_code": 2,
+    "regression_original_commit": "0fcde725b7e0fdb8b8ee2546d49012db79e1da04"
+  },
+  "ci_test_counts": {
+    "linux_rust": 35,
+    "python": 28,
+    "airplay_rust": 27,
+    "mac_swift_contracts": 7,
+    "mac_integration": 5,
+    "android_jvm_per_configuration": 18,
+    "android_kotlin": "2.3.10",
+    "android_jdk": 17
+  },
+  "android_reports": [
+    {
+      "run": 37802088049,
+      "source_commit": "619d63099fa073295430ae1fbc4395ce04776d0e",
+      "configuration": "Debug",
+      "build_report_sha256": "646863987a4538c5b95e42a19c5b49458a754c9a5a40a8f30936822ba49b160e",
+      "suites": [
+        {
+          "name": "dev.lancast.airplay.ResourceSetupTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "successfulSetupTransfersOwnershipWithoutReleasing",
+            "partialSetupFailureReleasesTheAcquiredResourceOnce",
+            "releaseFailureDoesNotHideTheOriginalSetupFailure"
+          ],
+          "report_sha256": "3f313598fd7d87b03f142fc68584ff613cfc947050df789e6ea89d9736e5a9bf"
+        },
+        {
+          "name": "dev.lancast.control.ConnectionHintsTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "addressesAndPinsAreValidated",
+            "captureGrantCannotCrossTargetsStopOrReplay",
+            "discoveryMergesProtocolsAndDoesNotRetainOldIdentity"
+          ],
+          "report_sha256": "8124bb62ceef8496a10b3c3f84d5fc87583e4f4a45f9a775a423a9160368691b"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.MediaQueueTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "invalidLimitsAndInputsAreRejectedWithoutOverflow",
+            "allBoundsMatchAReferenceWindowAcrossReorderingAndRemoval",
+            "finiteWaitTimesOutOrWakesOnInput",
+            "closeRacingWithOffersCannotRetainFramesOrReopen",
+            "interruptingAConsumerDoesNotLoseInputOrCloseTheQueue",
+            "formatAtHeadCannotBypassTimeBudget",
+            "reorderedTimestampsUseTheEntireQueuedSpan",
+            "emptyConsumerWaitsUntilInputAndCloseWakesAllConsumers",
+            "removingExtremaAndClearingRestoresTheBudget"
+          ],
+          "report_sha256": "701b7af3e880f925442d18992f6e4796db1557894e7b17dc8693fe9929b55b23"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "pendingConfirmationExcludesOtherProtocolsAndStaleStopCannotReleaseNewOwner",
+            "mediaLimitsIncludeBytesDurationAndFrameCount",
+            "lateNetworkAndReadyCallbacksCannotResurrectDisabledService"
+          ],
+          "report_sha256": "17feebb086e3e0800f1f1105275e46d58a0b1c65600e9d419143346a7f3b98e7"
+        }
+      ],
+      "products": [
+        "sender",
+        "receiver-standard",
+        "receiver-legacy",
+        "receiver-airplay"
+      ],
+      "artifacts_from_ci_report": [
+        {
+          "product": "sender",
+          "role": "sender",
+          "application_id": "dev.lancast.sender",
+          "minimum_sdk": 29,
+          "abis": [
+            "armeabi-v7a",
+            "arm64-v8a"
+          ],
+          "license": "Apache-2.0 with third-party notices",
+          "bytes": 45684254,
+          "sha256": "99568b4723d18979399ecc5feb6c4ff9e857db2a5f83f6fb81d1a58176fc34d8",
+          "file": "android/app-sender/build/outputs/apk/debug/app-sender-debug.apk",
+          "package_file": "dist/android/0.6.2-10-Debug/sender/LanCast-Android-Sender-0.6.2-10-Debug.apk",
+          "signing": "Debug development signature; upgrades require the same signing key"
+        },
+        {
+          "product": "receiver-standard",
+          "role": "receiver",
+          "application_id": "dev.lancast.receiver",
+          "minimum_sdk": 23,
+          "abis": [
+            "armeabi-v7a",
+            "arm64-v8a"
+          ],
+          "license": "Apache-2.0 with third-party notices",
+          "bytes": 37626515,
+          "sha256": "4cf3c124f9fd4abc25ca681f28a9fc3aef5b20c6d7cc7a2cd2ed0d5bc4340c6a",
+          "file": "android/app-receiver/build/outputs/apk/standard/debug/app-receiver-standard-debug.apk",
+          "package_file": "dist/android/0.6.2-10-Debug/receiver-standard/LanCast-Android-Receiver-Standard-0.6.2-10-Debug.apk",
+          "signing": "Debug development signature; upgrades require the same signing key"
+        },
+        {
+          "product": "receiver-legacy",
+          "role": "receiver",
+          "application_id": "dev.lancast.receiver.legacy",
+          "minimum_sdk": 21,
+          "abis": [
+            "armeabi-v7a",
+            "arm64-v8a"
+          ],
+          "license": "Apache-2.0 with third-party notices",
+          "bytes": 33879060,
+          "sha256": "6106be57b82f0bae0ea838ec82f3309a412d2931c846bee6dcf3117c4725a951",
+          "file": "android/app-receiver/build/outputs/apk/legacy/debug/app-receiver-legacy-debug.apk",
+          "package_file": "dist/android/0.6.2-10-Debug/receiver-legacy/LanCast-Android-Receiver-Legacy-0.6.2-10-Debug.apk",
+          "signing": "Debug development signature; upgrades require the same signing key"
+        },
+        {
+          "product": "receiver-airplay",
+          "role": "receiver",
+          "application_id": "dev.lancast.receiver.airplay",
+          "minimum_sdk": 23,
+          "abis": [
+            "armeabi-v7a",
+            "arm64-v8a"
+          ],
+          "license": "GPL-3.0-only",
+          "bytes": 44326166,
+          "sha256": "4e29448b36d2d1621776620ecb4d56ae78aeae6755aa6d5ea886c826c71cd6e6",
+          "file": "android/app-receiver/build/outputs/apk/airplay/debug/app-receiver-airplay-debug.apk",
+          "package_file": "dist/android/0.6.2-10-Debug/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.6.2-10-Debug.apk",
+          "signing": "Debug development signature; upgrades require the same signing key"
+        }
+      ]
+    },
+    {
+      "run": 37802181770,
+      "source_commit": "619d63099fa073295430ae1fbc4395ce04776d0e",
+      "configuration": "Release",
+      "build_report_sha256": "38cd5ef8cbb8bc6d479b249e57f85e053a4a4141790c3c3f58b4f4b49d701915",
+      "suites": [
+        {
+          "name": "dev.lancast.airplay.ResourceSetupTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "successfulSetupTransfersOwnershipWithoutReleasing",
+            "partialSetupFailureReleasesTheAcquiredResourceOnce",
+            "releaseFailureDoesNotHideTheOriginalSetupFailure"
+          ],
+          "report_sha256": "2737375c502bead65196c8ba8c745a9aadaa1efae34d1925f8b8be44b91cb205"
+        },
+        {
+          "name": "dev.lancast.control.ConnectionHintsTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "addressesAndPinsAreValidated",
+            "captureGrantCannotCrossTargetsStopOrReplay",
+            "discoveryMergesProtocolsAndDoesNotRetainOldIdentity"
+          ],
+          "report_sha256": "26969dda4eb1b36d56c3627aa10d37766f56364c41251c46660f94f909323973"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.MediaQueueTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "invalidLimitsAndInputsAreRejectedWithoutOverflow",
+            "allBoundsMatchAReferenceWindowAcrossReorderingAndRemoval",
+            "finiteWaitTimesOutOrWakesOnInput",
+            "closeRacingWithOffersCannotRetainFramesOrReopen",
+            "interruptingAConsumerDoesNotLoseInputOrCloseTheQueue",
+            "formatAtHeadCannotBypassTimeBudget",
+            "reorderedTimestampsUseTheEntireQueuedSpan",
+            "emptyConsumerWaitsUntilInputAndCloseWakesAllConsumers",
+            "removingExtremaAndClearingRestoresTheBudget"
+          ],
+          "report_sha256": "185106acdcfc4458c250427623ab933ebb3180d9d3bf5dfde6c3134c84dbac28"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "pendingConfirmationExcludesOtherProtocolsAndStaleStopCannotReleaseNewOwner",
+            "mediaLimitsIncludeBytesDurationAndFrameCount",
+            "lateNetworkAndReadyCallbacksCannotResurrectDisabledService"
+          ],
+          "report_sha256": "73aff0ef011e0d588173524075403e7f58335a8973608217cbfa5541df0926e4"
+        }
+      ],
+      "products": [
+        "receiver-airplay"
+      ],
+      "artifacts_from_ci_report": [
+        {
+          "product": "receiver-airplay",
+          "role": "receiver",
+          "application_id": "dev.lancast.receiver.airplay",
+          "minimum_sdk": 23,
+          "abis": [
+            "armeabi-v7a",
+            "arm64-v8a"
+          ],
+          "license": "GPL-3.0-only",
+          "bytes": 42186300,
+          "sha256": "ab56c2a6404cc4f3b84606f0a533c1aa25aac9d951ea4e09e06f91940538d116",
+          "file": "android/app-receiver/build/outputs/apk/airplay/release/app-receiver-airplay-release-unsigned.apk",
+          "package_file": "dist/android/0.6.2-10-Release/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.6.2-10-Release.apk",
+          "signing": "Unsigned Release APK; sign before installation"
+        }
+      ]
+    }
+  ],
+  "independently_verified_samples": [
+    {
+      "run": 37800510341,
+      "artifact": "LanCast-Android-Receiver-AirPlay-0.6.2-10-Debug",
+      "manifest": {
+        "source_commit": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
+        "version": "0.6.2",
+        "build_number": 10,
+        "configuration": "Debug",
+        "product": "receiver-airplay",
+        "role": "receiver",
+        "application_id": "dev.lancast.receiver.airplay",
+        "minimum_sdk": 23,
+        "abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "license": "GPL-3.0-only",
+        "bytes": 44326176,
+        "sha256": "0929a381f4cc3a1720ece4c86261d8add650f832ec595b7d91a59393935ce5d9",
+        "file": "LanCast-Android-Receiver-AirPlay-0.6.2-10-Debug.apk",
+        "package_file": "dist/android/0.6.2-10-Debug/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.6.2-10-Debug.apk",
+        "signing": "Debug development signature; upgrades require the same signing key"
+      },
+      "sha256_verified": true,
+      "native_libraries_verified": [
+        "lib/arm64-v8a/libjingle_peerconnection_so.so",
+        "lib/arm64-v8a/liblancast_airplay.so",
+        "lib/arm64-v8a/liblancast_core.so",
+        "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+        "lib/armeabi-v7a/liblancast_airplay.so",
+        "lib/armeabi-v7a/liblancast_core.so"
+      ],
+      "minimum_load_alignment": {
+        "arm64-v8a": 16384,
+        "armeabi-v7a": 4096
+      },
+      "dex_resource_setup_and_queue_present": true,
+      "dex_test_classes_absent": true,
+      "gpl_asset_present": true
+    },
+    {
+      "run": 37802181770,
+      "artifact": "LanCast-Android-Receiver-AirPlay-0.6.2-10-Release",
+      "manifest": {
+        "source_commit": "619d63099fa073295430ae1fbc4395ce04776d0e",
+        "version": "0.6.2",
+        "build_number": 10,
+        "configuration": "Release",
+        "product": "receiver-airplay",
+        "role": "receiver",
+        "application_id": "dev.lancast.receiver.airplay",
+        "minimum_sdk": 23,
+        "abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "license": "GPL-3.0-only",
+        "bytes": 42186300,
+        "sha256": "ab56c2a6404cc4f3b84606f0a533c1aa25aac9d951ea4e09e06f91940538d116",
+        "file": "LanCast-Android-Receiver-AirPlay-0.6.2-10-Release.apk",
+        "package_file": "dist/android/0.6.2-10-Release/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.6.2-10-Release.apk",
+        "signing": "Unsigned Release APK; sign before installation"
+      },
+      "sha256_verified": true,
+      "native_libraries_verified": [
+        "lib/arm64-v8a/libjingle_peerconnection_so.so",
+        "lib/arm64-v8a/liblancast_airplay.so",
+        "lib/arm64-v8a/liblancast_core.so",
+        "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+        "lib/armeabi-v7a/liblancast_airplay.so",
+        "lib/armeabi-v7a/liblancast_core.so"
+      ],
+      "minimum_load_alignment": {
+        "arm64-v8a": 16384,
+        "armeabi-v7a": 4096
+      },
+      "dex_resource_setup_and_queue_present": true,
+      "dex_test_classes_absent": true,
+      "gpl_asset_present": true
+    }
+  ],
+  "physical_performance_measured": false,
+  "remaining_acceptance": [
+    "Physical iPhone/iPad and Android TV modern/legacy AirPlay interoperability.",
+    "Hardware decoder/AudioTrack initialization failure and repeated format-change cleanup.",
+    "CPU, RSS, allocations, audible A/V synchronization, network/surface/focus interruption and two-hour playback.",
+    "Production signing, upgrade continuity and release acceptance."
+  ]
+}
