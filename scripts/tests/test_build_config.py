@@ -1,3 +1,4 @@
+from pathlib import Path
 import unittest
 from scripts.build_config import resolve
 
@@ -17,6 +18,12 @@ class BuildConfigTests(unittest.TestCase):
         self.assertEqual(len(keys), 3)
         for key in keys:
             self.assertRegex(key, r"^[a-z0-9-]+$")
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/android.yml").read_text(encoding="utf-8")
+        native_keys = [line for line in workflow.splitlines() if "key: android-" in line]
+        self.assertTrue(native_keys)
+        for line in native_keys:
+            self.assertIn("${{ steps.build-config.outputs.android_abi_key }}", line)
+            self.assertNotIn("${{ env.LC_ANDROID_ABIS }}", line)
 
     def test_chinese_workflow_choices_export_native_build_modes(self):
         for label, mode in (("日常使用（Release）", "Release"), ("开发调试（Debug）", "Debug")):
