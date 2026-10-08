@@ -81,6 +81,18 @@ def check(root):
                 errors.append(f"Forbidden dependency in {path}: {token}")
 
     forbid(root / "android/player-legacy/build.gradle.kts", "androidx.media3")
+    # The optional GPL protocol workspace must never become a transitive dependency
+    # of the Apache control core or of the base Android products.
+    workspace_config = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
+    if "airplay-native" not in workspace_config.get("exclude", []):
+        errors.append("AirPlay must remain an independent Cargo workspace")
+    for path in (root / "crates").rglob("Cargo.toml"):
+        forbid(path, "rairplay", "lancast-airplay")
+    for path in (root / "android/receiver-contracts/src/main").rglob("*.kt"):
+        forbid(path, "import android.", "import java.net.", "import java.io.", "NativeEngine", "MediaCodec")
+    forbid(root / "android/airplay-receiver/src/main/kotlin/dev/lancast/airplay/AirPlayPanel.kt", "NativeEngine", "MediaCodec", "ControlSession")
+    forbid(root / "android/airplay-receiver/src/main/kotlin/dev/lancast/airplay/MediaPipeline.kt", "import android.app.", "NativeEngine", "ControlSession", "JSONObject")
+    forbid(root / "android/airplay-receiver/src/main/AndroidManifest.xml", "BOOT_COMPLETED", "RECEIVE_BOOT_COMPLETED", "SYSTEM_ALERT_WINDOW", "RECORD_AUDIO", "MEDIA_PROJECTION")
     if "gstreamer" in (root / "windows/CMakeLists.txt").read_text(encoding="utf-8").lower():
         errors.append("Windows must not require the retired GStreamer runtime")
     for path in (root / "windows/src").glob("*.cpp"):

@@ -7,6 +7,7 @@ import android.view.Surface
 import dev.lancast.receiver.contracts.MediaQueue
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.pow
 
 /** Each worker exclusively owns its codec. Shutdown interrupts scheduling and joins both workers. */
 internal class MediaPipeline(
@@ -24,6 +25,8 @@ internal class MediaPipeline(
     private val audioManager = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val running = AtomicBoolean(true)
     private val reported = AtomicBoolean(false)
+    @Volatile private var volume = 1f
+    fun setVolume(db: Float) { if (db.isFinite()) volume = if (db <= -144f) 0f else 10.0.pow(db.coerceIn(-30f, 0f) / 20.0).toFloat() }
     private val videoQueue = MediaQueue<VideoWork>(24, 8 * 1024 * 1024, 300_000)
     private val audioQueue = MediaQueue<AudioWork>(64, 1024 * 1024, 500_000)
     private val unixToMonotonicUs = System.nanoTime() / 1000 - System.currentTimeMillis() * 1000
@@ -109,6 +112,7 @@ internal class MediaPipeline(
         var writtenFrames = 0L
         var outputRate = 44100
         var outputChannels = 2
+        var appliedVolume = -1f
         fun createTrack(rate: Int, channels: Int): AudioTrack {
             writtenFrames = 0; outputRate = rate; outputChannels = channels
             val mask = if (channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
@@ -116,10 +120,11 @@ internal class MediaPipeline(
             require(size > 0) { "电视不支持此声音输出格式" }
             return AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
                 .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(mask).build())
-                .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(size * 2).build().also { check(it.state == AudioTrack.STATE_INITIALIZED); it.play() }
+                .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(size * 2).build().also { check(it.state == AudioTrack.STATE_INITIALIZED); it.setVolume(volume); appliedVolume = volume; it.play() }
         }
         fun writePcm(bytes: ByteArray, pts: Long) {
             val active = track ?: return
+            if (appliedVolume != volume) { active.setVolume(volume); appliedVolume = volume }
             // Use AudioTrack's actual playback clock to account for queued samples.
             val audioTime = AudioTimestamp()
             if (active.getTimestamp(audioTime)) {

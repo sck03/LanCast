@@ -24,6 +24,8 @@ class AirPlayPanel(private val activity: Activity, controls: LinearLayout, priva
     private var surface: SurfaceView? = null
     private var dialog: AlertDialog? = null
     private var pending = 0L
+    private var videoWidth = 0
+    private var videoHeight = 0
     private val toggle = Switch(activity).apply { text = "允许苹果系统屏幕镜像"; textSize = 18f; isChecked = false }
     private val name = EditText(activity).apply { setSingleLine(); setText("LanCast TV"); hint = "苹果设备看到的接收名称" }
     private val status = TextView(activity).apply { text = "按需开启，可在后台等待连接" }
@@ -42,6 +44,7 @@ class AirPlayPanel(private val activity: Activity, controls: LinearLayout, priva
         }
     }
     init {
+        display.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> fitSurface() }
         controls.addView(toggle); controls.addView(name); controls.addView(status); controls.addView(pin)
         toggle.setOnCheckedChangeListener { _, enabled ->
             if (!rendering) {
@@ -81,15 +84,27 @@ class AirPlayPanel(private val activity: Activity, controls: LinearLayout, priva
             })
             display.addView(view, FrameLayout.LayoutParams(-1, -1))
         }
+        fitSurface()
+    }
+    private fun fitSurface() {
+        val view = surface ?: return
+        if (view.parent != display || videoWidth <= 0 || videoHeight <= 0 || display.width <= 0 || display.height <= 0) return
+        val scale = minOf(display.width.toDouble() / videoWidth, display.height.toDouble() / videoHeight)
+        val width = (videoWidth * scale).toInt().coerceAtLeast(1)
+        val height = (videoHeight * scale).toInt().coerceAtLeast(1)
+        if (view.layoutParams.width != width || view.layoutParams.height != height) view.layoutParams = FrameLayout.LayoutParams(width, height, android.view.Gravity.CENTER)
     }
     private fun show(state: AirPlayState) {
         rendering = true; toggle.isChecked = state.enabled; rendering = false
         name.isEnabled = !state.enabled
+        if (state.enabled && name.text.toString() != state.name) name.setText(state.name)
         status.text = state.message
+        videoWidth = state.videoWidth; videoHeight = state.videoHeight
         pin.text = if (state.pin.isEmpty()) "" else "苹果配对码  ${state.pin.take(3)}-${state.pin.substring(3, 5)}-${state.pin.takeLast(3)}"
         if (state.playing) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else if (ReceiverOwnership.leases.snapshot()?.source != Source.LANCAST) activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         refreshDisplay()
+        fitSurface()
         val request = state.request
         if (request == null) { dismiss(); return }
         if (!visible || pending == request.session) return

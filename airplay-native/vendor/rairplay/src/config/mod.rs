@@ -70,6 +70,7 @@ pub trait SessionObserver: Send + Sync + std::fmt::Debug + 'static {
         connection: u64,
         name: String,
         peer: std::net::SocketAddr,
+        pairing: &'static str,
     ) -> futures::future::BoxFuture<'static, bool>;
     fn closed(&self, connection: u64);
 }

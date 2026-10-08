@@ -11,7 +11,7 @@ import org.json.JSONObject
 import java.util.concurrent.Executors
 
 data class AirPlayRequest(val session: Long, val name: String, val peer: String)
-data class AirPlayState(val enabled: Boolean = false, val message: String = "需要苹果系统投屏时开启", val name: String = "LanCast TV", val pin: String = "", val request: AirPlayRequest? = null, val playing: Boolean = false)
+data class AirPlayState(val enabled: Boolean = false, val message: String = "需要苹果系统投屏时开启", val name: String = "LanCast TV", val pin: String = "", val request: AirPlayRequest? = null, val playing: Boolean = false, val pairing: String = "", val videoWidth: Int = 0, val videoHeight: Int = 0)
 
 /** One explicitly enabled cycle. Neither process recreation nor network events may enable it. */
 class AirPlayService : Service() {
@@ -33,6 +33,8 @@ class AirPlayService : Service() {
     @Volatile private var epoch = 0L
     private var destroyed = false
     private var cleaned = true
+    private var reconfiguring = false
+    private var retirement: MutableList<(Boolean) -> Unit>? = null
     override fun onBind(intent: Intent): IBinder = LocalBinder()
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -49,7 +51,8 @@ class AirPlayService : Service() {
         if (value.enabled) (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION, notification())
     }
     private fun enable(requestedName: String) {
-        if (destroyed || !cleaned) return
+        if (destroyed) return
+        if (!cleaned && !state.enabled) { update(state.copy(message = "正在释放接收资源，请稍后开启")); return }
         val token = cycle.enable() ?: return
         val name = requestedName.trim().ifEmpty { "LanCast TV" }
         if (name.toByteArray().size > 50 || name.any { it.isISOControl() }) { val stop = cycle.stop(); cycle.stopped(stop); update(state.copy(message = "名称请保持在 50 字节以内")); return }
@@ -65,14 +68,17 @@ class AirPlayService : Service() {
         } catch (e: Exception) { disable(e.message ?: "AirPlay 服务无法启动") }
     }
     private fun checkNetwork(token: Long) {
-        if (!cycle.valid(token)) return
+        if (!cycle.valid(token) || reconfiguring) return
         val binding = watcher?.current()
         if (binding == network && (engine != null || binding == null && cycle.phase == ServicePhase.NETWORK_UNAVAILABLE)) return
-        network = binding
-        retireEngine {
+        reconfiguring = true
+        retireEngine { success ->
+            reconfiguring = false
             if (!cycle.valid(token)) return@retireEngine
-            if (binding == null) { cycle.networkLost(token); update(state.copy(message = "网络不可用，连接局域网后继续等待")); return@retireEngine }
-            startEngine(token, binding)
+            if (!success) { disable("设备发现未能完整停止，请稍后重新开启"); return@retireEngine }
+            val latest = watcher?.current(); network = latest
+            if (latest == null) { cycle.networkLost(token); update(state.copy(message = "网络不可用，连接局域网后继续等待")); return@retireEngine }
+            startEngine(token, latest)
         }
     }
     private fun startEngine(token: Long, binding: NetworkBinding) {
@@ -97,9 +103,14 @@ class AirPlayService : Service() {
                         else -> "投屏已结束，继续等待连接"
                     })
                     4 -> disable("AirPlay 引擎启动或网络失败，请关闭后重试")
+                    5 -> if (mediaSession == session) text.toFloatOrNull()?.let { media?.setVolume(it) }
                 }
             } }
-            override fun videoConfig(session: Long, width: Int, height: Int, sps: ByteArray, pps: ByteArray) = current == epoch && mediaSession == session && media?.videoConfig(width, height, sps, pps) == true
+            override fun videoConfig(session: Long, width: Int, height: Int, sps: ByteArray, pps: ByteArray): Boolean {
+                if (current != epoch || mediaSession != session) return false
+                main.post { if (current == epoch && mediaSession == session) update(state.copy(videoWidth = width, videoHeight = height)) }
+                return media?.videoConfig(width, height, sps, pps) == true
+            }
             override fun video(session: Long, pts: Long, key: Boolean, data: ByteArray) = current == epoch && mediaSession == session && media?.video(pts, key, data) == true
             override fun audioConfig(session: Long, codec: Int, rate: Int, channels: Int, spf: Int) = current == epoch && mediaSession == session && media?.audioConfig(codec, rate, channels, spf) == true
             override fun audio(session: Long, pts: Long, data: ByteArray) = current == epoch && mediaSession == session && media?.audio(pts, data) == true
@@ -121,7 +132,7 @@ class AirPlayService : Service() {
         val acquired = ReceiverOwnership.leases.acquire(Source.AIRPLAY, "$epoch:$session")
         if (acquired == null) { engine?.approve(session, false); return }
         lease = acquired
-        update(state.copy(message = "有苹果设备请求连接，请回到接收页面确认", request = AirPlayRequest(session, body.optString("name"), body.optString("peer"))))
+        update(state.copy(message = "有苹果设备请求连接，请回到接收页面确认", pairing = body.optString("pairing"), request = AirPlayRequest(session, body.optString("name"), body.optString("peer"))))
         val expectedEpoch = epoch
         main.postDelayed({ if (epoch == expectedEpoch && state.request?.session == session) { engine?.approve(session, false); finishSession("确认超时，请在苹果设备重新选择接收端") } }, 15_000)
     }
@@ -147,21 +158,33 @@ class AirPlayService : Service() {
         mediaSession = 0
         val player = media; media = null
         val held = lease; lease = null
-        update(state.copy(request = null, playing = false, message = message))
+        update(state.copy(request = null, playing = false, message = message, videoWidth = 0, videoHeight = 0))
         worker.execute { player?.close(); ReceiverOwnership.leases.release(held) }
     }
-    private fun retireEngine(done: () -> Unit) {
+    private fun retireEngine(done: (Boolean) -> Unit) {
         epoch++
-        discovery?.close(); discovery = null
+        retirement?.let { it += done; return }
+        val callbacks = mutableListOf(done); retirement = callbacks
+        val publisher = discovery; discovery = null
         val previous = engine; engine = null
         finishSession("正在切换接收网络…")
-        worker.execute { previous?.close(); main.post { if (!destroyed) done() } }
+        var nativeDone = false
+        var discoveryDone: Boolean? = null
+        var completed = false
+        fun complete() {
+            if (completed || destroyed || !nativeDone || discoveryDone == null) return
+            completed = true
+            retirement = null
+            callbacks.toList().forEach { it(discoveryDone == true) }
+        }
+        if (publisher == null) discoveryDone = true else publisher.close { discoveryDone = it; complete() }
+        worker.execute { previous?.close(); main.post { nativeDone = true; complete() } }
     }
     fun disable(reason: String = "AirPlay 已关闭") {
         val stopped = cycle.stop()
         watcher?.close(); watcher = null; network = null
         update(state.copy(enabled = false, pin = "", request = null, playing = false, message = reason))
-        retireEngine {
+        retireEngine { _ ->
             multicast?.let { if (it.isHeld) it.release() }; multicast = null
             cycle.stopped(stopped); cleaned = true
             if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else { @Suppress("DEPRECATION") stopForeground(true) }

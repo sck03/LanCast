@@ -33,7 +33,7 @@ use crate::{
 mod fairplay;
 
 #[tracing::instrument(level = "DEBUG", ret, skip(state))]
-pub async fn info<A, V, K>(
+pub async fn info<A, V, K: crate::config::Keychain>(
     State(state): State<Arc<ServiceState<A, V, K>>>,
 ) -> BinaryPlist<InfoResponse> {
     const PROTOVERS: &str = "1.1";
@@ -49,6 +49,8 @@ pub async fn info<A, V, K>(
         manufacturer: state.config.manufacturer.clone(),
         model: state.config.model.clone(),
         name: state.config.name.clone(),
+        public_key: Bytes::copy_from_slice(state.config.keychain.pubkey()),
+        pi: String::from_utf8_lossy(state.config.keychain.id()).into_owned(),
         audio_formats: vec![super::dto::AudioFormats {
             ty: 96,
             input: 0,
@@ -106,13 +108,32 @@ pub async fn get_parameter<A: AudioDevice, V, K>(
     }
 }
 
-pub async fn set_parameter(_body: Bytes) {}
+pub async fn set_parameter<A: AudioDevice, V, K>(
+    State(state): State<Arc<ServiceState<A, V, K>>>,
+    body: String,
+) -> Result<(), StatusCode> {
+    let Some(value) = body.strip_prefix("volume:") else {
+        return Err(StatusCode::NOT_IMPLEMENTED);
+    };
+    let value: f32 = value.trim().parse().map_err(|_| StatusCode::BAD_REQUEST)?;
+    if !value.is_finite() || !((-30.0..=0.0).contains(&value) || value == -144.0) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    state.config.audio.device.set_volume(value);
+    Ok(())
+}
 
 #[tracing::instrument(level = "DEBUG", skip(state))]
 pub async fn teardown<A, V, K>(
     State(state): State<Arc<ServiceState<A, V, K>>>,
-    BinaryPlist(req): BinaryPlist<Teardown>,
-) {
+    ConnectInfo(conn): ConnectInfo<Connection>,
+    body: Bytes,
+) -> Result<(), StatusCode> {
+    let req: Teardown = if body.is_empty() {
+        Teardown { requests: None }
+    } else {
+        plist::from_bytes(&body).map_err(|_| StatusCode::BAD_REQUEST)?
+    };
     let mut stream_channels = state.stream_channels.lock().unwrap();
     if let Some(requests) = req.requests {
         for req in requests {
@@ -138,6 +159,12 @@ pub async fn teardown<A, V, K>(
         stream_channels.clear();
         tracing::info!(%num, "teardown all streams");
     }
+    let ended = stream_channels.is_empty();
+    drop(stream_channels);
+    if ended {
+        conn.cancel.cancel();
+    }
+    Ok(())
 }
 
 pub async fn setup<A: AudioDevice, V: VideoDevice, K>(
@@ -179,7 +206,7 @@ async fn setup_info<A, V, K>(
     let name: String = name.chars().filter(|c| !c.is_control()).take(80).collect();
     let allowed = tokio::select! {
         _ = conn.cancel.cancelled() => false,
-        result = tokio::time::timeout(std::time::Duration::from_secs(15), observer.authorize(conn.id, name, conn.remote_addr)) => result.unwrap_or(false),
+        result = tokio::time::timeout(std::time::Duration::from_secs(15), observer.authorize(conn.id, name, conn.remote_addr, if conn.session_key.read().is_some_and(|key|key.upgrade_channel){"homekit"}else{"legacy"})) => result.unwrap_or(false),
     };
     if !allowed {
         conn.cancel.cancel();
@@ -235,7 +262,11 @@ async fn setup_info<A, V, K>(
         TimingRequest::Ntp { remote_port } => TimingResponse::Ntp {
             timing_port: crate::timing::start(
                 conn.bind_addr(),
-                std::net::SocketAddr::new(conn.remote_addr.ip(), remote_port),
+                {
+                    let mut address = conn.remote_addr;
+                    address.set_port(remote_port);
+                    address
+                },
                 state.clock.clone(),
                 state.timing_cancel.clone(),
             )

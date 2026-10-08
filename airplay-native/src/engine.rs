@@ -29,12 +29,17 @@ pub enum Event {
         session: u64,
         name: String,
         peer: String,
+        pairing: String,
     },
     Closed {
         session: u64,
         reason: String,
     },
     Error(String),
+    Volume {
+        session: u64,
+        db: f32,
+    },
     VideoConfig {
         session: u64,
         config: AvcConfig,
@@ -72,6 +77,7 @@ struct Connection {
 pub struct Host {
     output: Arc<dyn Output>,
     connections: Mutex<HashMap<u64, Connection>>,
+    volume: std::sync::atomic::AtomicU32,
 }
 impl fmt::Debug for Host {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -83,6 +89,7 @@ impl Host {
         Arc::new(Self {
             output,
             connections: Mutex::new(HashMap::new()),
+            volume: std::sync::atomic::AtomicU32::new(0f32.to_bits()),
         })
     }
     pub fn approve(&self, id: u64, accept: bool) {
@@ -147,6 +154,7 @@ impl SessionObserver for Host {
         id: u64,
         name: String,
         peer: SocketAddr,
+        pairing: &'static str,
     ) -> futures::future::BoxFuture<'static, bool> {
         let (tx, rx) = oneshot::channel();
         if let Some(c) = self.connections.lock().unwrap().get_mut(&id) {
@@ -158,6 +166,7 @@ impl SessionObserver for Host {
             session: id,
             name,
             peer: peer.ip().to_string(),
+            pairing: pairing.into(),
         });
         Box::pin(async move { rx.await.unwrap_or(false) })
     }
@@ -266,9 +275,25 @@ impl Drop for VideoSink {
 struct AudioBackend(Arc<Host>);
 impl AudioDevice for AudioBackend {
     fn get_volume(&self) -> f32 {
-        0.0
+        f32::from_bits(self.0.volume.load(std::sync::atomic::Ordering::Relaxed))
     }
-    fn set_volume(&self, _value: f32) {}
+    fn set_volume(&self, value: f32) {
+        self.0
+            .volume
+            .store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
+        let ids: Vec<_> = self
+            .0
+            .connections
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, c)| c.authorized)
+            .map(|(id, _)| *id)
+            .collect();
+        for session in ids {
+            self.0.output.emit(Event::Volume { session, db: value });
+        }
+    }
 }
 impl playback::Device for AudioBackend {
     type Params = AudioParams;

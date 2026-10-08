@@ -220,5 +220,9 @@ class MainActivity : Activity() {
         super.onStop()
     }
     @Deprecated("Android back compatibility")
-    override fun onBackPressed() { airplay.close(); super.onBackPressed() }
+    override fun onBackPressed() {
+        if (airplay.stopCurrent()) return
+        if (sessionId != null) { core?.command("stop"); stopMedia(); return }
+        airplay.close(); super.onBackPressed()
+    }
 }

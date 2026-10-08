@@ -1,5 +1,12 @@
 # rairplay
 
+> LanCast maintained fork, modified 2026-10-08. Upstream commit and original Git
+> file hashes are recorded in `UPSTREAM.json`. Changes cover identity signing,
+> SRP parameters, connection admission/lifecycle, bounded framing, explicit codec
+> capabilities, clock mapping and fail-closed media delivery. The LanCast adapter,
+> Android host and corresponding tests are in the surrounding repository:
+> https://github.com/sck03/LanCast . The original upstream overview follows.
+
 `rairplay` is a Rust AirPlay receiver library focused on AirPlay 2 control flow, pairing, FairPlay setup, and decrypted audio/video delivery into user-provided playback backends.
 
 It is a library crate, not a ready-to-run application. You bring the networking entrypoint, device implementations, persistence strategy, and any media decoding or rendering you need on top.

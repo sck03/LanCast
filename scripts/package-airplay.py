@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     dest = ROOT / "dist/airplay-evidence"
     dest.mkdir(parents=True, exist_ok=True)
+    subprocess.run([sys.executable, "scripts/dependency-report.py", "--manifest", "airplay-native/Cargo.toml", "--output", "dist/airplay-evidence/reports"], cwd=ROOT, check=True)
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     subprocess.run(["git", "archive", "--format=tar.gz", "-o", str(dest / "lancast-source.tar.gz"), revision], cwd=ROOT, check=True)
     vendor = ROOT / ".cache/airplay-cargo-sources"
@@ -34,7 +36,7 @@ def main():
         "Android SDK/JDK and Maven artifacts are fetched by their normal build tools.\n"
         "The existing fixed WebRTC AAR remains a supplier binary; see THIRD_PARTY.md.\n"
         "This is review/build evidence. Physical iPhone/TV interop and production release remain unverified.\n", encoding="utf-8")
-    files = [{"file": p.name, "bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(dest.iterdir()) if p.is_file() and p.name != "manifest.json"]
+    files = [{"file": p.relative_to(dest).as_posix(), "bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(dest.rglob("*")) if p.is_file() and p != dest / "manifest.json"]
     (dest / "manifest.json").write_text(json.dumps({"schema": 1, "commit": revision, "license": "GPL-3.0-only", "files": files}, indent=2) + "\n", encoding="utf-8")
     print(f"AirPlay source and dependency evidence: {dest}")
 

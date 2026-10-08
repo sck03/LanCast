@@ -51,6 +51,7 @@ impl TryFrom<EncryptionMaterial> for Encryption {
                 stream_connection_id: value.stream_connection_id,
             })
         } else if let Some(key) = value.session_key
+            && key.upgrade_channel
             && let Some(stream_connection_id) = value.stream_connection_id
         {
             Ok(Encryption::HomeKit {

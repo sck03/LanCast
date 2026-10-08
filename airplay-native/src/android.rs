@@ -30,7 +30,8 @@ impl Output for JavaOutput {
                     let text=env.new_string(serde_json::json!({"port":port,"name":name,"deviceId":device_id,"publicKey":public_key,"features":format!("0x{:X},0x{:X}",features as u32,features>>32)}).to_string())?;
                     env.call_method(obj,"onEvent","(JILjava/lang/String;)V",&[JValue::Long(0),JValue::Int(1),JValue::Object(&text)])?
                 },
-                Event::Request{session,name,peer}=>{let text=env.new_string(serde_json::json!({"name":name,"peer":peer}).to_string())?;env.call_method(obj,"onEvent","(JILjava/lang/String;)V",&[JValue::Long(session as i64),JValue::Int(2),JValue::Object(&text)])?},
+                Event::Request{session,name,peer,pairing}=>{let text=env.new_string(serde_json::json!({"name":name,"peer":peer,"pairing":pairing}).to_string())?;env.call_method(obj,"onEvent","(JILjava/lang/String;)V",&[JValue::Long(session as i64),JValue::Int(2),JValue::Object(&text)])?},
+                Event::Volume{session,db}=>{let text=env.new_string(db.to_string())?;env.call_method(obj,"onEvent","(JILjava/lang/String;)V",&[JValue::Long(session as i64),JValue::Int(5),JValue::Object(&text)])?},
                 Event::Closed{session,reason}=>{let text=env.new_string(reason)?;env.call_method(obj,"onEvent","(JILjava/lang/String;)V",&[JValue::Long(session as i64),JValue::Int(3),JValue::Object(&text)])?},
                 Event::Error(reason)=>{let text=env.new_string(reason)?;env.call_method(obj,"onEvent","(JILjava/lang/String;)V",&[JValue::Long(0),JValue::Int(4),JValue::Object(&text)])?},
                 Event::VideoConfig{session,config}=>{

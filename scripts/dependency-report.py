@@ -14,17 +14,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--offline", action="store_true", help="Require dependencies already in Cargo's cache")
     parser.add_argument("--output", type=Path, default=Path("dist/reports"))
+    parser.add_argument("--manifest", type=Path, default=Path("Cargo.toml"), help="Cargo workspace manifest; defaults to the base control workspace")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
 
     def git(*argv):
         return subprocess.check_output(["git", *argv], cwd=root, text=True).strip()
 
-    command = ["cargo", "metadata", "--locked", "--format-version=1", "--all-features"]
+    manifest = (root / args.manifest).resolve()
+    if not manifest.is_relative_to(root) or manifest.name != "Cargo.toml":
+        raise ValueError("Manifest must be a Cargo.toml inside this repository")
+    command = ["cargo", "metadata", "--manifest-path", str(manifest), "--locked", "--format-version=1", "--all-features"]
     if args.offline:
         command.append("--offline")
     metadata = json.loads(subprocess.check_output(command, cwd=root))
-    lock_bytes = (root / "Cargo.lock").read_bytes()
+    lock_bytes = manifest.with_name("Cargo.lock").read_bytes()
     reports = build_reports(metadata, tomllib.loads(lock_bytes.decode("utf-8")), root=root,
                             commit=git("rev-parse", "HEAD"), lock_sha256=digest(lock_bytes),
                             created=git("show", "-s", "--format=%cI", "HEAD"),

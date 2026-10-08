@@ -35,19 +35,21 @@ flowchart TD
 
 提供H.264屏幕镜像、AAC-LC/AAC-ELD与16位双声道PCM的实时音频接入；AAC不同profile分别检查。只公告有实现的功能，明确拒绝HEVC、PTP、type103缓冲音频、ALAC、HLS及多房间。现代AP2的产品验收仍须验证客户端确实选择了对应配对、加密控制及媒体路径，不能只看设备列表的名称。
 
-NTP通道使用四时间戳估算偏差，RTP同步报文建立音频采样时钟与协议时间的映射；没有有效校时不以到包时间代替播放时间。媒体队列按帧数、字节及时间跨度限制，超限结束会话；视频配置变化受控重建解码器。实际可听同步、丢包恢复和性能需要设备实测。
+NTP通道使用四时间戳估算偏差，RTP同步报文建立音频采样时钟与协议时间的映射；6秒没有有效校时即失效，不以到包时间代替播放时间。两种媒体使用同一180ms调度余量，AudioTrack播放时钟用于估算排队样本；这不是已经实测达到的端到端延迟。队列按帧数、字节及时间跨度限制，超限结束会话；视频配置变化重建解码器并保持显示比例。支持标准音量命令；实际可听同步、丢包表现和性能需要设备实测。
 
 ## 与上游相比的必要修正
 
 - 旧配对使用真实私钥签名，公开密钥不再作为私钥种子；第二阶段签名失败返回认证失败，未验证前不安装会话密钥。
+- 修正现代SRP的HomeKit填充参数；完整SRP、双方身份签名、控制通道升级和认证媒体由真实套接字回环覆盖，错误PIN关闭连接。
 - RTSP按完整报文增量处理，保留后续流水请求；限制头部、正文和连接数，拒绝歧义Content-Length。控制连接可取消并有空闲超时。
 - FairPlay请求长度/模式、视频帧长度与音频包长度受限；解密/完整性失败的包不交付播放器。原生诊断不记录密钥、PIN或屏幕字节。
 - Android宿主授权先于媒体SETUP，服务关闭等待原生线程和播放线程结束后释放资源。
+- NSD撤销回调与原生关闭共同形成清理屏障；重复网络事件合并，旧发布器尚未停止时不启动新发布器。撤销超过3秒或失败则停止该轮重配置并提示。
 - 发现信息、音频profile与实际播放器范围一致；不继承上游默认的HLS/图片/PTP/缓冲音频功能公告。
 
 ## 构建和分发
 
-`airplay-native`使用独立Cargo.lock，`scripts/build-android-airplay.py`编译ARM32/ARM64 JNI，GitHub Actions运行本地协议测试及Android构建/lint/纯Kotlin契约测试。安装包校验检查两种ABI、ARM64 16KB对齐，以及AirPlay库是否只进入Airplay变体。
+`airplay-native`使用独立Cargo.lock和固定PlayFair源文件清单，`scripts/build-android-airplay.py`编译ARM32/ARM64 JNI，GitHub Actions运行协议测试及Android构建/lint/纯Kotlin契约测试。安装包校验检查两种ABI、ARM64 16KB对齐，以及AirPlay库是否只进入Airplay变体。`dependency-report.py --manifest airplay-native/Cargo.toml`复用现有纯依赖图转换器，额外生成该工作区的JSON/SPDX源码清单。
 
 基础源码继续Apache-2.0；AirPlay协议、适配模块及包含它的组合APK按GPL-3.0-only分发。关闭运行开关不会改变许可证义务。工作流保存对应LanCast源码、原始上游哈希、修改后源码、Cargo依赖源码、清单和重建说明。现有WebRTC AAR仍属于固定供方二进制，其完全可复现来源和正式发行审计沿用原项目未完成项；不把本轮开发产物称为发行审计已通过。
 

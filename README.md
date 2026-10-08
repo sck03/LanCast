@@ -53,8 +53,9 @@ Android：JDK17、SDK36、NDK27.2.12479018，Linux 构建机设置 ANDROID_NDK_H
 ```sh
 python scripts/build-android-core.py
 python scripts/build-android-media.py
+python scripts/build-android-airplay.py
 cd android
-./gradlew :app-receiver:assembleStandardDebug :app-receiver:assembleLegacyDebug :app-sender:assembleDebug
+./gradlew :app-receiver:assembleStandardDebug :app-receiver:assembleLegacyDebug :app-receiver:assembleAirplayDebug :app-sender:assembleDebug
 ```
 
 Windows：使用 VS2022 C++/Windows SDK、UCRT64 和 Python。先按工作流构建最小 TS DLL，再执行：

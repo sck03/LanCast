@@ -454,11 +454,14 @@ impl<'a> EncryptedPeer<'a> {
     fn send(&mut self, method: &str, path: &str, value: &plist::Value) {
         let mut body = Vec::new();
         plist::to_writer_binary(&mut body, value).unwrap();
+        self.send_bytes(method, path, &body, "application/x-apple-binary-plist");
+    }
+    fn send_bytes(&mut self, method: &str, path: &str, body: &[u8], kind: &str) {
         let header = format!(
-            "{method} {path} RTSP/1.0\r\nCSeq: 10\r\nContent-Type: application/x-apple-binary-plist\r\nContent-Length: {}\r\n\r\n",
+            "{method} {path} RTSP/1.0\r\nCSeq: 10\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n\r\n",
             body.len()
         );
-        let bytes = [header.as_bytes(), body.as_slice()].concat();
+        let bytes = [header.as_bytes(), body].concat();
         for chunk in bytes.chunks(1024) {
             let len = (chunk.len() as u16).to_le_bytes();
             let mut nonce = [0; 12];
@@ -471,6 +474,9 @@ impl<'a> EncryptedPeer<'a> {
         }
     }
     fn response(&mut self) -> plist::Value {
+        plist::from_bytes(&self.response_bytes()).unwrap()
+    }
+    fn response_bytes(&mut self) -> Vec<u8> {
         let mut bytes = Vec::new();
         loop {
             let mut len = [0; 2];
@@ -494,7 +500,7 @@ impl<'a> EncryptedPeer<'a> {
                     })
                     .unwrap_or(0);
                 if bytes.len() >= head + len {
-                    return plist::from_bytes(&bytes[head..head + len]).unwrap();
+                    return bytes[head..head + len].to_vec();
                 }
             }
             assert!(bytes.len() < 1024 * 1024);
@@ -730,5 +736,16 @@ fn modern_encrypted_media_reaches_bounded_host_callbacks_with_protocol_timestamp
         }
     }
     assert!(delivered, "synchronized audio was not delivered");
+    control.send_bytes(
+        "SET_PARAMETER",
+        "/42",
+        b"volume: -12.5\r\n",
+        "text/parameters",
+    );
+    assert!(control.response_bytes().is_empty());
+    let Event::Volume { db, .. } = rx.recv_timeout(Duration::from_secs(3)).unwrap() else {
+        panic!("volume was not routed")
+    };
+    assert_eq!(db, -12.5);
     engine.stop();
 }

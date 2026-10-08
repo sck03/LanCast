@@ -34,6 +34,9 @@ pub struct InfoResponse {
     pub displays: Vec<Display>,
     #[serde(rename = "audioFormats")]
     pub audio_formats: Vec<AudioFormats>,
+    #[serde(rename = "pk")]
+    pub public_key: Bytes,
+    pub pi: String,
 }
 
 #[derive(Debug, Serialize)]
