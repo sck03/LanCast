@@ -55,7 +55,7 @@ class AirPlayService : Service() {
         if (!cleaned && !state.enabled) { update(state.copy(message = "正在释放接收资源，请稍后开启")); return }
         val token = cycle.enable() ?: return
         val name = requestedName.trim().ifEmpty { "LanCast TV" }
-        if (name.toByteArray().size > 50 || name.any { it.isISOControl() }) { val stop = cycle.stop(); cycle.stopped(stop); update(state.copy(message = "名称请保持在 50 字节以内")); return }
+        if (name.toByteArray().size > 50 || name.any { it.isISOControl() }) { val stop = cycle.stop(); cycle.stopped(stop); update(state.copy(message = "名称请保持在 50 字节以内")); stopSelf(); return }
         cleaned = false
         update(AirPlayState(true, "正在启动苹果投屏…", name, AirPlayIdentity.pin()))
         try {
@@ -217,6 +217,7 @@ class AirPlayService : Service() {
         private const val CHANNEL = "airplay-receiver"
         private const val NOTIFICATION = 7301
         fun enable(context: Context, name: String) {
+            require(name.trim().toByteArray().size <= 50 && name.none { it.isISOControl() }) { "接收名称过长或含有无效字符" }
             val intent = Intent(context, AirPlayService::class.java).setAction(ENABLE).putExtra("name", name)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
