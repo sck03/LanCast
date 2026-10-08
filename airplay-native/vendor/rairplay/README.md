@@ -6,6 +6,9 @@
 > capabilities, clock mapping and fail-closed media delivery. The LanCast adapter,
 > Android host and corresponding tests are in the surrounding repository:
 > https://github.com/sck03/LanCast . The original upstream overview follows.
+> This fork builds a fixed vendored C source list (no `FAIRPLAY3_SRC` override),
+> and media SETUP requires the host admission observer supplied by LanCast's
+> `Running` adapter; the original minimal sample is not the product entrypoint.
 
 `rairplay` is a Rust AirPlay receiver library focused on AirPlay 2 control flow, pairing, FairPlay setup, and decrypted audio/video delivery into user-provided playback backends.
 

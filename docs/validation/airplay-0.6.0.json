@@ -1,0 +1,241 @@
+{
+  "schema": 1,
+  "observed_at": "2026-10-08T19:31:05+08:00",
+  "product": "LanCast",
+  "version": "0.6.0",
+  "build_number": 8,
+  "code_commit": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+  "tested_merge_commit": "94215e858eca00c27300bef08cce03b23a11bc9b",
+  "pull_request": "https://github.com/sck03/LanCast/pull/1",
+  "branch": "feat/airplay-receiver",
+  "github_runs": [
+    {
+      "id": 37769309353,
+      "name": "AirPlay protocol",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769309353",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:20:20Z"
+    },
+    {
+      "id": 37769308782,
+      "name": "Linux core",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769308782",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:20:28Z"
+    },
+    {
+      "id": 37769308761,
+      "name": "Linux native media",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769308761",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:21:18Z"
+    },
+    {
+      "id": 37769308718,
+      "name": "Android",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769308718",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:25:19Z"
+    },
+    {
+      "id": 37769308737,
+      "name": "iOS",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769308737",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:25:34Z"
+    },
+    {
+      "id": 37769308980,
+      "name": "macOS",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769308980",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:23:59Z"
+    },
+    {
+      "id": 37769308703,
+      "name": "tvOS",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769308703",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:23:22Z"
+    },
+    {
+      "id": 37769308789,
+      "name": "Windows",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/37769308789",
+      "head_sha": "0cf0ab24340cdfd4b48ed1a7703ebce23400cf5f",
+      "created_at": "2026-10-08T11:19:43Z",
+      "updated_at": "2026-10-08T11:27:49Z"
+    }
+  ],
+  "validation": {
+    "airplay_rust_tests": {
+      "passed": 27,
+      "failed": 0,
+      "coverage": [
+        "HomeKit SRP and identity signatures",
+        "control-channel encryption and tamper rejection",
+        "legacy signatures and failure without downgrade",
+        "RTSP fragmentation, framing, limits and CSeq",
+        "NTP/RTP clock mapping",
+        "encrypted H.264 and audio delivery to host callbacks",
+        "peer-store persistence",
+        "shutdown with stalled and pending connections"
+      ]
+    },
+    "kotlin_contract_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "script_unit_tests": {
+      "passed": 11,
+      "failed": 0
+    },
+    "rustfmt_clippy_architecture": "passed",
+    "android_build_lint_and_packaging": "passed",
+    "downloaded_apks_reverified": 4,
+    "downloaded_source_files_reverified": 8,
+    "source_dependency_packages": 204,
+    "documentation_file_links": "passed"
+  },
+  "artifacts": [
+    {
+      "file": "android/app-receiver/build/outputs/apk/legacy/debug/app-receiver-legacy-debug.apk",
+      "bytes": 33879062,
+      "sha256": "338cd98de1b70c1962603f2368a557905701f7539cb51d564c891afd90f72b14",
+      "role": "legacy",
+      "output": "dist/LanCast-Android-0.6.0-8-0cf0ab2/LanCast-legacy-0.6.0-8-debug.apk",
+      "airplay_library_bytes": {},
+      "hash_verified": true,
+      "abi_and_alignment_verified": true,
+      "module_isolation_verified": true
+    },
+    {
+      "file": "android/app-receiver/build/outputs/apk/standard/debug/app-receiver-standard-debug.apk",
+      "bytes": 37626517,
+      "sha256": "b0fe39e428b6bc0668b008c0921fc6488a9da707892ed0942937566b9134798c",
+      "role": "standard",
+      "output": "dist/LanCast-Android-0.6.0-8-0cf0ab2/LanCast-standard-0.6.0-8-debug.apk",
+      "airplay_library_bytes": {},
+      "hash_verified": true,
+      "abi_and_alignment_verified": true,
+      "module_isolation_verified": true
+    },
+    {
+      "file": "android/app-receiver/build/outputs/apk/airplay/debug/app-receiver-airplay-debug.apk",
+      "bytes": 44326180,
+      "sha256": "d66f476eb8595f88d61c1a7ef9114625165be92c02dbe1079bfd2b8fd995f3b8",
+      "role": "airplay",
+      "output": "dist/LanCast-Android-0.6.0-8-0cf0ab2/LanCast-airplay-0.6.0-8-debug.apk",
+      "airplay_library_bytes": {
+        "lib/arm64-v8a/liblancast_airplay.so": 3774360,
+        "lib/armeabi-v7a/liblancast_airplay.so": 2842232
+      },
+      "hash_verified": true,
+      "abi_and_alignment_verified": true,
+      "module_isolation_verified": true
+    },
+    {
+      "file": "android/app-sender/build/outputs/apk/debug/app-sender-debug.apk",
+      "bytes": 45684254,
+      "sha256": "580788f32fc5605bb5dc56c8201c40ab3ce13531f8e5b7b2d488ed4f922949ca",
+      "role": "sender",
+      "output": "dist/LanCast-Android-0.6.0-8-0cf0ab2/LanCast-sender-0.6.0-8-debug.apk",
+      "airplay_library_bytes": {},
+      "hash_verified": true,
+      "abi_and_alignment_verified": true,
+      "module_isolation_verified": true
+    }
+  ],
+  "package_metrics": {
+    "airplay_apk_bytes": 44326180,
+    "standard_apk_bytes": 37626517,
+    "airplay_increment_bytes": 6699663
+  },
+  "source_materials": {
+    "schema": 1,
+    "commit": "94215e858eca00c27300bef08cce03b23a11bc9b",
+    "license": "GPL-3.0-only",
+    "files": [
+      {
+        "file": "REBUILD.txt",
+        "bytes": 736,
+        "sha256": "8087ae22c1a7d56c4f916bb9cc5b4a6d988f5022a83d4ca15b9b5be2012463b2"
+      },
+      {
+        "file": "cargo-config.toml",
+        "bytes": 108,
+        "sha256": "edf7c7ca76920ca27b084029b1b78b37e16564082b7ccade1098720353bdcb10"
+      },
+      {
+        "file": "dependencies.json",
+        "bytes": 48559,
+        "sha256": "7156dfba124170859c6912b34fd4e8e327c51407bdd3412ed78afe561d207417"
+      },
+      {
+        "file": "lancast-source.tar.gz",
+        "bytes": 727053,
+        "sha256": "68331bea632872f3bf77ab8e9cb090aa97d305195201b3f5a80ac563bd867663"
+      },
+      {
+        "file": "reports/rust-dependencies.json",
+        "bytes": 50924,
+        "sha256": "cba64ad80b88f6b026cb11de48db9a03f6e217ea08aefc6a428a595c9de6008b"
+      },
+      {
+        "file": "reports/rust-dependency-graph.json",
+        "bytes": 276211,
+        "sha256": "b224d69bcefd58d08f5982eb797d1e01955b61bf8b8b59ca8b7be68827e09617"
+      },
+      {
+        "file": "reports/rust-source.spdx.json",
+        "bytes": 318198,
+        "sha256": "aa9873040485ec03b3e584cce1427a6742dfc03f52cea73548c30c7776b2917d"
+      },
+      {
+        "file": "rust-dependency-sources.tar.gz",
+        "bytes": 57304342,
+        "sha256": "38cdd92fde9776580e9537be04ede7325ed413f66f4c8dd1eda5cf5e36f00221"
+      }
+    ]
+  },
+  "physical_device_validation": {
+    "status": "not_run",
+    "remaining": [
+      "native iPhone/iPad discovery and actual AP2 preference",
+      "modern and legacy screen plus audible audio on Android TV",
+      "audio/video synchronization and latency",
+      "background waiting and display lifecycle across vendors",
+      "network switching and 30-minute/2-hour endurance",
+      "production signing and full distribution audit"
+    ]
+  },
+  "notes": [
+    "CI tests the GitHub-generated merge commit; code_commit is the review branch source.",
+    "27 protocol/adapter tests include upstream regression tests; synthetic peers are not physical Apple-device certification.",
+    "AirPlay APK is a separate GPL-3.0-only combination; base APKs exclude its native library, service and license asset.",
+    "Rust dependency SPDX describes source dependencies, not a complete binary SBOM; the existing WebRTC AAR provenance limitation remains."
+  ]
+}

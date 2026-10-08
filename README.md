@@ -46,6 +46,7 @@ python -m unittest discover -s scripts/tests
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-features --locked
+cargo test --manifest-path airplay-native/Cargo.toml --workspace --locked
 ```
 
 Android：JDK17、SDK36、NDK27.2.12479018，Linux 构建机设置 ANDROID_NDK_HOME：
