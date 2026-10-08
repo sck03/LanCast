@@ -13,6 +13,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - Android 发送：MediaProjection、硬件编码、合法内部声音、前台服务和授权撤销处理。
 - Apple：Mac 屏幕／窗口发送与接收、iPhone／iPad ReplayKit 广播与前台接收、Apple TV 接收，详见 [D09 架构、构建与安装](docs/11-苹果客户端架构与验收.md)。
 - AirPlay 按需接收：0.6.0新增独立Android Airplay接收APK，默认关闭、手动开启，包含现代HomeKit配对、旧镜像兼容、后台监听、电视确认和单路播放管理。[实现与审阅](docs/20-AirPlay实现与审阅指南.md)记录模块、GPL分发及验证边界；真实iPhone/电视互通仍待验收。
+- 0.6.2接收维护：修复配置/乱序时间戳绕过队列时长上限及初始化失败资源泄漏，改为数据通知唤醒，去除AAC播放中的逐帧PCM数组复制；详见[媒体队列与资源生命周期](docs/21-AirPlay媒体队列与资源生命周期.md)。
 - DLNA：发现与控制、合成画面／提示音测试、用户确认档案、通过后直播、拉流监控与一次恢复；MP4 文件能力独立。
 - Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 与固定上游 TLS 媒体桥。
 - Rust domain/core/adapters/ffi 分层，编码像素不穿过控制层；媒体队列有界，停止可打断等待。

@@ -69,6 +69,8 @@ def gradle_tasks(products, mode):
     tasks.append(f":control-bridge:test{mode}UnitTest")
     if any(p.role == "receiver" for p in products):
         tasks.append(":receiver-contracts:test")
+    if any(p.airplay for p in products):
+        tasks.append(f":airplay-receiver:test{mode}UnitTest")
     return tasks
 
 

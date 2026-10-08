@@ -65,6 +65,15 @@ class AndroidProductsTests(unittest.TestCase):
         self.assertFalse(any(":app-sender:" in task for task in gradle_tasks(receivers, "Debug")))
         self.assertIn(":receiver-contracts:test", gradle_tasks(receivers, "Debug"))
 
+    def test_airplay_resource_tests_follow_selected_product_and_configuration(self):
+        for selection in SELECTION_LABELS:
+            products = selected_products(selection, environ={})
+            for mode in ("Debug", "Release"):
+                tasks = gradle_tasks(products, mode)
+                airplay_tests = [task for task in tasks if task.startswith(":airplay-receiver:")]
+                self.assertEqual(airplay_tests, [f":airplay-receiver:test{mode}UnitTest"]
+                                 if any(product.airplay for product in products) else [])
+
     def test_actions_choices_and_cli_stay_in_sync(self):
         workflow = (ROOT / ".github/workflows/android.yml").read_text(encoding="utf-8")
         options = re.search(r"      product:.*?        options: (\[.*\])", workflow, re.DOTALL)[1].splitlines()[0]
