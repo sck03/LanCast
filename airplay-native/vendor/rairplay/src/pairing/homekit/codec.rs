@@ -122,7 +122,7 @@ impl<T: AsRef<[u8]>> Encoder<T> for HAPEncoder {
         let blocks = chunks
             .iter()
             .map(<[_; _]>::as_slice)
-            .chain(iter::once(left));
+            .chain(iter::once(left).filter(|bytes| !bytes.is_empty()));
         let len = blocks
             .clone()
             .map(|bytes| PKT_SIZE_LEN + bytes.len() + TAG_LEN)

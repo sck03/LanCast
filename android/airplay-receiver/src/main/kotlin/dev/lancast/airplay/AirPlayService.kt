@@ -89,7 +89,13 @@ class AirPlayService : Service() {
                         }.also { it.publish(JSONObject(text), binding) }
                     } catch (e: Exception) { disable(e.message ?: "设备发布失败") }
                     2 -> incoming(session, JSONObject(text))
-                    3 -> if (mediaSession == session || state.request?.session == session) finishSession("投屏已结束，继续等待连接")
+                    3 -> if (mediaSession == session || state.request?.session == session) finishSession(when (text) {
+                        "TIMING_UNAVAILABLE" -> "无法与苹果设备同步时钟，请重新连接"
+                        "MEDIA_BACKPRESSURE" -> "电视播放处理不及时，请降低发送分辨率后重试"
+                        "INVALID_VIDEO_CONFIG", "HEVC_UNSUPPORTED" -> "电视无法播放此次视频格式"
+                        "VIDEO_TRANSPORT_FAILED", "AUDIO_TRANSPORT_FAILED" -> "镜像数据接收失败，请重新连接"
+                        else -> "投屏已结束，继续等待连接"
+                    })
                     4 -> disable("AirPlay 引擎启动或网络失败，请关闭后重试")
                 }
             } }

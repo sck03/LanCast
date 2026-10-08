@@ -39,11 +39,15 @@ pub fn router<K: Keychain>(
     pin: Option<PinCode>,
 ) -> Router {
     let modern = super::homekit::router(keychain.clone(), key.clone(), pin);
-    let legacy = super::legacy::router(keychain, key);
+    let legacy = super::legacy::router(keychain, key.clone());
     let mode = Arc::new(Mutex::new(None));
     let handler = move |req: Request| {
-        let (modern, legacy, mode) = (modern.clone(), legacy.clone(), mode.clone());
+        let (modern, legacy, mode, key) =
+            (modern.clone(), legacy.clone(), mode.clone(), key.clone());
         async move {
+            if key.read().is_some() {
+                return (StatusCode::FORBIDDEN, [("Connection", "close")]).into_response();
+            }
             let (parts, body) = req.into_parts();
             let Ok(body) = to_bytes(body, 16 * 1024).await else {
                 return StatusCode::PAYLOAD_TOO_LARGE.into_response();
@@ -70,10 +74,38 @@ pub fn router<K: Keychain>(
             } else {
                 legacy
             };
-            target
+            let response = target
                 .oneshot(Request::from_parts(parts, Body::from(body)))
                 .await
-                .unwrap()
+                .unwrap();
+            let (mut parts, body) = response.into_parts();
+            let Ok(bytes) = to_bytes(body, 16 * 1024).await else {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            };
+            let mut failed = parts.status.is_client_error() || parts.status.is_server_error();
+            if requested == Mode::Modern {
+                let mut pos = 0;
+                while pos + 2 <= bytes.len() {
+                    let tag = bytes[pos];
+                    let len = usize::from(bytes[pos + 1]);
+                    pos += 2;
+                    if pos + len > bytes.len() {
+                        failed = true;
+                        break;
+                    }
+                    if tag == 7 {
+                        failed = true;
+                    }
+                    pos += len;
+                }
+            }
+            if failed {
+                parts.headers.insert(
+                    http::header::CONNECTION,
+                    http::HeaderValue::from_static("close"),
+                );
+            }
+            axum::response::Response::from_parts(parts, Body::from(bytes))
         }
     };
     Router::new()

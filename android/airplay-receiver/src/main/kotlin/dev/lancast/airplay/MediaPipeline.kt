@@ -36,7 +36,8 @@ internal class MediaPipeline(
     fun audio(pts: Long, data: ByteArray) = running.get() && audioQueue.offer(AudioWork.Frame(pts, data), data.size, pts)
 
     private fun error(message: String) { if (running.getAndSet(false)) failed(message) }
-    private fun monotonic(pts: Long) = pts + unixToMonotonicUs
+    // A common playout margin lets both decoders schedule against the sender's clock.
+    private fun monotonic(pts: Long) = pts + unixToMonotonicUs + 180_000
     private fun waitUntil(pts: Long) {
         val target = monotonic(pts)
         while (running.get()) {
@@ -105,7 +106,11 @@ internal class MediaPipeline(
         var focus: AudioFocusRequest? = null
         val focusListener = AudioManager.OnAudioFocusChangeListener { if (it == AudioManager.AUDIOFOCUS_LOSS || it == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) error("声音播放被其他应用中断") }
         val info = MediaCodec.BufferInfo()
+        var writtenFrames = 0L
+        var outputRate = 44100
+        var outputChannels = 2
         fun createTrack(rate: Int, channels: Int): AudioTrack {
+            writtenFrames = 0; outputRate = rate; outputChannels = channels
             val mask = if (channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
             val size = AudioTrack.getMinBufferSize(rate, mask, AudioFormat.ENCODING_PCM_16BIT)
             require(size > 0) { "电视不支持此声音输出格式" }
@@ -115,19 +120,24 @@ internal class MediaPipeline(
         }
         fun writePcm(bytes: ByteArray, pts: Long) {
             val active = track ?: return
-            // Schedule against the protocol clock, compensating already queued audio.
+            // Use AudioTrack's actual playback clock to account for queued samples.
             val audioTime = AudioTimestamp()
             if (active.getTimestamp(audioTime)) {
-                // AudioTrack maintains its own sample clock once started. The queue remains bounded.
-                if (monotonic(pts) - System.nanoTime() / 1000 < -500_000) return
-            }
-            waitUntil(pts)
+                val now = System.nanoTime() / 1000
+                val nextPlay = (audioTime.nanoTime / 1000 + (writtenFrames - audioTime.framePosition).coerceAtLeast(0) * 1_000_000 / outputRate).coerceAtLeast(now)
+                val correction = monotonic(pts) - nextPlay
+                if (correction < -100_000) return
+                require(correction <= 2_000_000) { "声音时钟超出范围" }
+                val writeAt = now + correction.coerceAtLeast(0)
+                while (running.get() && System.nanoTime() / 1000 < writeAt) Thread.sleep(2)
+            } else waitUntil(pts)
             var offset = 0
             while (running.get() && offset < bytes.size) {
                 val n = active.write(bytes, offset, bytes.size - offset, AudioTrack.WRITE_NON_BLOCKING)
                 if (n < 0) throw IllegalStateException("声音输出失败")
                 if (n == 0) Thread.sleep(2) else offset += n
             }
+            writtenFrames += offset / (2 * outputChannels)
         }
         try {
             while (running.get()) {

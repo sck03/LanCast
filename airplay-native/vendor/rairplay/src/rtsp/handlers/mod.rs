@@ -32,9 +32,6 @@ use crate::{
 
 mod fairplay;
 
-#[tracing::instrument(level = "TRACE")]
-pub async fn generic(bytes: Bytes) {}
-
 #[tracing::instrument(level = "DEBUG", ret, skip(state))]
 pub async fn info<A, V, K>(
     State(state): State<Arc<ServiceState<A, V, K>>>,

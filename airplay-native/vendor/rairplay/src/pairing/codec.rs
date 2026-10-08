@@ -73,7 +73,9 @@ where
         if let Some(hap_encoder) = &mut self.hap_encoder {
             let mut tmp = BytesMut::with_capacity(item.len());
             self.inner_encoder.encode(item, &mut tmp)?;
-
+            if tmp.is_empty() {
+                return Ok(());
+            }
             hap_encoder.encode(tmp, dst)
         } else {
             let before = dst.len();

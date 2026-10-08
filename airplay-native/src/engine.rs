@@ -96,7 +96,9 @@ impl Host {
     }
     pub fn stop_session(&self, id: u64, reason: &str) {
         if let Some(c) = self.connections.lock().unwrap().get_mut(&id) {
-            c.reason = reason.into();
+            if c.reason == "DISCONNECTED" {
+                c.reason = reason.into();
+            }
             c.cancel.cancel();
         }
     }

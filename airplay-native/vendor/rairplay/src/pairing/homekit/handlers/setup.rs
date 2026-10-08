@@ -83,7 +83,8 @@ impl State {
             return Err(ErrorCode::Busy);
         };
 
-        let srp_server = ServerG3072::<Sha512>::new_with_options(true);
+        // HomeKit hashes g padded to the group width (srp 0.7's explicit option).
+        let srp_server = ServerG3072::<Sha512>::new_with_options(false);
 
         let Ok(reply) = srp_server.process_reply(
             self.username.as_bytes(),

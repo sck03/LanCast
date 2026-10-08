@@ -14,6 +14,7 @@ struct Estimate {
     offset: Option<i64>,
     best_delay: i64,
     samples: u32,
+    measured: Option<std::time::Instant>,
 }
 #[derive(Default, Debug)]
 pub struct Clock {
@@ -45,12 +46,15 @@ impl Clock {
             e.best_delay = delay;
         }
         e.samples = e.samples.wrapping_add(1);
+        e.measured = Some(std::time::Instant::now());
         true
     }
     pub fn local_us(&self, remote: u64) -> Option<i64> {
-        self.estimate
-            .lock()
-            .unwrap()
+        let estimate = self.estimate.lock().unwrap();
+        if estimate.measured?.elapsed() > Duration::from_secs(6) {
+            return None;
+        }
+        estimate
             .offset
             .map(|offset| fixed_to_us(remote) + offset - EPOCH_US)
     }

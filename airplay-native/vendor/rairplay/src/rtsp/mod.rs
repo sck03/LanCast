@@ -9,6 +9,7 @@ use axum::{
     extract::{ConnectInfo, Request},
     handler::Handler,
     http::HeaderName,
+    response::{IntoResponse, Response},
     routing::{any, get, post},
     serve::IncomingStream,
 };
@@ -52,6 +53,13 @@ where
         let conn = req.remote_addr().clone();
         async move {
             let state = Arc::new(state::ServiceState::new(config, &conn));
+            let media = {
+                let state = state.clone();
+                move |req: Request| {
+                    let state = state.clone();
+                    async move { dispatch(req, state).await }
+                }
+            };
             Ok(Router::new()
                 // Heartbeat
                 .route("/feedback", post(()))
@@ -61,32 +69,48 @@ where
                 .route("/info", get(handlers::info))
                 // Fair play, for additional encryption of keys
                 .route("/fp-setup", post(handlers::fp_setup))
-                // Unknown handlers' response will be just traced
-                .fallback(handlers::generic)
+                .fallback(|| async { http::StatusCode::NOT_IMPLEMENTED })
                 // State cloned here, because it will be moved below
                 .with_state(Arc::clone(&state))
                 // Custom RTSP methods
-                .route(
-                    "/{media_id}",
-                    any(|req: Request| async move {
-                        match req.method().as_str() {
-                            // This is empty and useless
-                            "RECORD" => handlers::generic.call(req, state).await,
-                            "SETUP" => handlers::setup.call(req, state).await,
-                            "GET_PARAMETER" => handlers::get_parameter.call(req, state).await,
-                            "SET_PARAMETER" => handlers::set_parameter.call(req, state).await,
-                            "TEARDOWN" => handlers::teardown.call(req, state).await,
-                            method => {
-                                tracing::warn!(?method, path = ?req.uri(), "unknown method");
-                                handlers::generic.call(req, state).await
-                            }
-                        }
-                    }),
-                )
+                .route("/", any(media.clone()))
+                .route("/{*media_id}", any(media))
                 // CSeq is required for RTSP protocol
                 .layer(PropagateHeaderLayer::new(HeaderName::from_static("cseq")))
                 .layer(Extension(ConnectInfo(conn))))
         }
         .boxed()
+    }
+}
+
+async fn dispatch<A: AudioDevice, V: VideoDevice, K: Keychain>(
+    req: Request,
+    state: Arc<state::ServiceState<A, V, K>>,
+) -> Response {
+    use std::sync::atomic::Ordering;
+    match req.method().as_str() {
+        "OPTIONS" => (
+            [(
+                "Public",
+                "OPTIONS, SETUP, RECORD, TEARDOWN, GET_PARAMETER, SET_PARAMETER",
+            )],
+            (),
+        )
+            .into_response(),
+        "SETUP" => handlers::setup.call(req, state).await,
+        "RECORD" if state.authorized.load(Ordering::Acquire) => {
+            http::StatusCode::OK.into_response()
+        }
+        "GET_PARAMETER" if state.authorized.load(Ordering::Acquire) => {
+            handlers::get_parameter.call(req, state).await
+        }
+        "SET_PARAMETER" if state.authorized.load(Ordering::Acquire) => {
+            handlers::set_parameter.call(req, state).await
+        }
+        "TEARDOWN" => handlers::teardown.call(req, state).await,
+        "RECORD" | "GET_PARAMETER" | "SET_PARAMETER" => {
+            http::StatusCode::UNAUTHORIZED.into_response()
+        }
+        _ => http::StatusCode::NOT_IMPLEMENTED.into_response(),
     }
 }
