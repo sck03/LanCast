@@ -57,7 +57,9 @@ internal class AirPlayDiscovery(context: Context, private val handler: Handler, 
             manager.registerService(service, NsdManager.PROTOCOL_DNS_SD, listener)
         }
         register("_airplay._tcp.", name, mapOf("deviceid" to device, "features" to features, "model" to "LanCast", "srcvers" to "770.8.1", "flags" to "0x4", "vv" to "2", "pk" to publicKey, "pi" to device))
-        register("_raop._tcp.", device.replace(":", "") + "@" + name, mapOf("cn" to "0,2,4", "ch" to "2", "et" to "0,3,5", "sr" to "44100", "ss" to "16", "tp" to "UDP", "txtvers" to "1", "vn" to "65537", "vs" to "770.8.1", "am" to "LanCast", "ft" to features, "pk" to publicKey))
+        // RAOP codec IDs: 0 PCM, 2 AAC-LC, 3 AAC-ELD. Only encrypted transports
+        // are implemented; do not advertise ALAC or the unencrypted et=0 mode.
+        register("_raop._tcp.", device.replace(":", "") + "@" + name, mapOf("cn" to "0,2,3", "ch" to "2", "et" to "3,5", "sr" to "44100", "ss" to "16", "tp" to "UDP", "txtvers" to "1", "vn" to "65537", "vs" to "770.8.1", "am" to "LanCast", "ft" to features, "pk" to publicKey))
     }
     fun close(completed: (Boolean) -> Unit) {
         closeResult?.let { completed(it); return }
