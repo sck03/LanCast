@@ -6,7 +6,7 @@
 
 ## 安装与操作
 
-GitHub Android工作流生成四个APK：Sender、Receiver Standard、Receiver Legacy、Receiver Airplay。需要苹果原生投屏时选择`airplay`接收APK，最低Android API23；现有Standard API23和Legacy API21要求不变。Airplay包采用独立应用ID，可与原接收端分别安装。
+GitHub Android工作流默认生成一个Sender发送APK及Standard、Legacy、AirPlay三个接收APK；D16允许只构建所需产品，各自独立下载。需要苹果原生投屏时选择`LanCast-Android-Receiver-AirPlay-*`，最低API23，包含Standard基础接收能力；现有Standard API23和Legacy API21要求不变。AirPlay包采用独立应用ID，安装名称为LanCast Receiver AirPlay。`airplay.yml`只检查协议，不生成APK；tvOS构建的是另一套LanCast自有协议接收App。最新参数和产物名称以[13](13-独立平台构建与版本配置.md)为准。
 
 打开接收App，手动勾选“允许苹果系统屏幕镜像”。服务就绪后，在iPhone/iPad控制中心选择接收名称；系统要求配对时输入接收页的苹果配对码，随后在电视允许连接。LanCast自有8位码与苹果配对码是不同认证入口。界面显示“正在接收”以解码器实际渲染回调为依据。
 

@@ -1,4 +1,4 @@
-name: Windows
+name: Windows (sender)
 on:
   push:
     branches: [main]
@@ -12,7 +12,7 @@ on:
         type: string
         default: ''
       version:
-        description: '程序版本（选填）：例如 0.4.1；留空使用项目默认值，只填三段数字'
+        description: '程序版本（选填）：例如 0.6.1；留空使用项目默认值，只填三段数字'
         type: string
         default: ''
       build_number:

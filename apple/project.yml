@@ -101,6 +101,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.lancast.tv
         TARGETED_DEVICE_FAMILY: '3'
+        INFOPLIST_KEY_CFBundleDisplayName: LanCast Receiver
+        EXCLUDED_SOURCE_FILE_NAMES: 'SenderModel.swift SenderSession.swift BroadcastStore.swift'
   LanCastTests:
     type: bundle.unit-test
     platform: macOS

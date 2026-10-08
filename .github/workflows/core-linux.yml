@@ -2,9 +2,9 @@ name: Linux core
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","scripts/tests/**","scripts/build_config.py","build-config.json","scripts/dependency-report.py","scripts/dependency_inventory.py",".github/workflows/core-linux.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/**","build-config.json",".github/workflows/**"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","scripts/tests/**","scripts/build_config.py","build-config.json","scripts/dependency-report.py","scripts/dependency_inventory.py",".github/workflows/core-linux.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/**","build-config.json",".github/workflows/**"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,6 +17,14 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate module boundaries and build scripts
+        run: |
+          python scripts/check-architecture.py
+          python -m unittest discover -s scripts/tests
+      - name: Validate GitHub Actions syntax
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes=
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
       - uses: actions/cache@v6
         with:
@@ -25,8 +33,6 @@ jobs:
           path: |
             target/
             ~/.cargo/registry/
-      - run: python scripts/check-architecture.py
-      - run: python -m unittest discover -s scripts/tests
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo test --workspace --all-features --locked

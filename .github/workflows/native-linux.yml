@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/cache@v6
         with:
           key: rust-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}

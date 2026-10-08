@@ -6,7 +6,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 
 ## 功能与模块
 
-- Windows 0.5.1：自动选择本机网络、统一搜索电视、自动获取接收端地址/指纹、8 位配对码、最小化到托盘及程序图标，详见 [D13 桌面模块与验证边界](docs/16-Windows易用性与桌面模块.md)。
+- Windows 发送端：自动选择本机网络、统一搜索电视、自动获取接收端地址/指纹、8 位配对码、最小化到托盘及程序图标，详见 [D13 桌面模块与验证边界](docs/16-Windows易用性与桌面模块.md)。
 - Android/Apple：自动本机网络、按名称选择设备、自动填入地址/指纹、完整身份确认与大字配对码，详见 [D14 连接体验与模块边界](docs/17-Android与Apple连接体验.md)。
 - 自有接收端：WSS 配对、完整 SPKI 指纹、一次邀请与电视确认；WebRTC H.264／Opus 镜像和 MP4 原文件播放。
 - Windows 发送：WGC 窗口／显示器、D3D11 转换、Media Foundation 硬件 H.264、WASAPI 系统声音；独立 RTC／TS 输出模块。
@@ -32,13 +32,23 @@ Windows DLNA：选择标注为普通电视（DLNA）的设备，无需配对码�
 
 ## 构建与测试
 
-[GitHub Actions](https://github.com/sck03/LanCast/actions)已按 Windows、Android、macOS、iOS、tvOS 分为独立工作流，Linux 核心与原生媒体各有独立检查。手动编译时选择平台，点击 **Run workflow**，一般保持默认、文本框留空即可；页面提供中文说明和“日常使用／开发调试”选项。填写方法和产物用途见[独立构建指南](docs/13-独立平台构建与版本配置.md)。
+[GitHub Actions](https://github.com/sck03/LanCast/actions)包含五个平台构建和三个独立检查（Linux 核心、Linux 原生媒体、AirPlay 协议）。手动构建选择平台，点击 **Run workflow**，通常保留默认、文本框留空；Android 可以选择全部产品、发送端、全部接收端或一个接收变体。填写方法、产物和构建模块见[独立构建指南](docs/13-独立平台构建与版本配置.md)。
+
+| 下载名前缀 | 用途 |
+|---|---|
+| `LanCast-Android-Sender-` | Android 10+ 发送端 |
+| `LanCast-Android-Receiver-Standard-` | Android 6+ 常规接收端 |
+| `LanCast-Android-Receiver-Legacy-` | Android 5+ 旧系统接收端 |
+| `LanCast-Android-Receiver-AirPlay-` | Android 6+ 接收端，含基础接收和可选苹果镜像 |
+| `LanCast-tvOS-Receiver-` | Apple TV 接收端，含 Device/Simulator 两种构建目标 |
+
+Android 默认四个 APK 是 **1 个发送端 + 3 个接收端**，每个默认包含 ARM32/ARM64；接收变体按需求选一个。tvOS 只接收 LanCast 自有镜像和 MP4；两个 App 包分别用于设备和模拟器。Android 的可选 AirPlay 模块在 Android 工作流构建，AirPlay 协议检查不产生 APK。用户包与测试/依赖报告已分开，Actions 摘要和包内清单标注角色、版本与源码。
 
 Windows 普通用户只需下载 `LanCast-Windows-x64-版本-序号-Release`，完整解压后运行 `LanCast.exe`，保留同目录的三个 DLL。其余产物是依赖报告、源码与重链接材料、命令行诊断工具，不需要放进程序目录。
 
 Windows Release 的 TS DLL 会去除调试段和 COFF 符号表；导出接口、展开信息和许可材料保留。下载后可用 `python scripts/verify-windows.py 解压目录` 复查包内哈希、PE 依赖与符号裁剪；实测体积见[进度记录](docs/08-实施进度与审阅入口.md)。
 
-默认应用版本与构建号统一从 [build-config.json](build-config.json) 读取。Apple 分别使用 `python3 scripts/build-macos.py`、`build-ios.py`、`build-tvos.py`，Mac 执行集成测试并生成通用包。设备安装另需有效签名与广播 App Group。
+默认应用版本与构建号统一从 [build-config.json](build-config.json) 读取。Apple 分别使用 `python3 scripts/build-macos.py`、`build-ios.py`、`build-tvos.py`，Mac 执行集成测试并生成通用包。Android Debug 为开发签名，Release 未签名；iOS/tvOS 设备安装需自行签名，iOS 广播另需一致的 App Group。构建成功不等于已完成正式发行或真机验收。
 
 ```sh
 python scripts/check-architecture.py
@@ -52,11 +62,9 @@ cargo test --manifest-path airplay-native/Cargo.toml --workspace --locked
 Android：JDK17、SDK36、NDK27.2.12479018，Linux 构建机设置 ANDROID_NDK_HOME：
 
 ```sh
-python scripts/build-android-core.py
-python scripts/build-android-media.py
-python scripts/build-android-airplay.py
-cd android
-./gradlew :app-receiver:assembleStandardDebug :app-receiver:assembleLegacyDebug :app-receiver:assembleAirplayDebug :app-sender:assembleDebug
+chmod +x android/gradlew
+python scripts/build-android.py --native --product all
+# 只构建常规接收端：--product receiver-standard
 ```
 
 Windows：使用 VS2022 C++/Windows SDK、UCRT64 和 Python。先按工作流构建最小 TS DLL，再执行：

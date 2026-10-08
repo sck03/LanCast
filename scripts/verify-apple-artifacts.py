@@ -12,6 +12,7 @@ import pathlib
 import plistlib
 import struct
 import zipfile
+from apple_products import PRODUCTS
 
 CPU = {0x01000007: "x86_64", 0x0100000C: "arm64"}
 
@@ -44,8 +45,16 @@ def verify(*roots):
         directory = found[platform]
         report = json.loads((directory / "build-report.json").read_text(encoding="utf-8"))
         assert report["platform"] == platform
+        definition = PRODUCTS[platform]
+        if "role" in report:
+            assert report["role"] == definition.role, "Product role mismatch"
+            assert report["rustFeatures"] == definition.rust_features.split(","), "Product feature mismatch"
         reports.append(report)
         assert len(report["artifacts"]) == (1 if platform == "macos" else 2)
+        if "role" in report:
+            expected_products = {name for name, _ in definition.directories(report["buildConfig"]["configuration"])}
+            assert {entry["product"] for entry in report["artifacts"]} == expected_products, "Missing or duplicate device/simulator archive"
+            assert {entry["product"] for entry in report["binaries"]} == expected_products, "Binary target mismatch"
         for entry in report["artifacts"]:
             path = directory / entry["file"]
             assert path.resolve().is_relative_to(directory.resolve())
@@ -56,6 +65,7 @@ def verify(*roots):
                 assert not any(".xctest/" in name for name in names), "Test bundle in app archive"
                 base = f"{scheme}.app/" + ("Contents/" if platform == "macos" else "")
                 info = plistlib.loads(archive.read(base + "Info.plist"))
+                assert info["CFBundleIdentifier"] == definition.bundle_id, "Application identity mismatch"
                 if "buildConfig" in report:
                     config = report["buildConfig"]
                     assert info["CFBundleShortVersionString"] == config["version"], "Application version mismatch"
@@ -66,11 +76,19 @@ def verify(*roots):
                 assert "_lancast._tcp" in info["NSBonjourServices"]
                 executable = base + ("MacOS/" if platform == "macos" else "") + scheme
                 arch = architectures(archive.read(executable))
-                product = entry["file"].removeprefix(scheme + "-").removesuffix(".zip")
+                product = entry.get("product") or entry["file"].removeprefix(scheme + "-").removesuffix(".zip")
                 expected = next(b["architectures"] for b in report["binaries"] if b["product"] == product)
                 assert arch == sorted(expected)
                 if platform == "macos":
                     assert arch == ["arm64", "x86_64"]
+                else:
+                    assert arch == ["arm64"]
+                    simulator = product.endswith("simulator")
+                    supported = ("iPhoneSimulator" if simulator else "iPhoneOS") if platform == "ios" else ("AppleTVSimulator" if simulator else "AppleTVOS")
+                    assert info["CFBundleSupportedPlatforms"] == [supported], "Device/simulator target mismatch"
+                    if platform == "tvos":
+                        assert info["UIDeviceFamily"] == [3], "tvOS must target Apple TV"
+                        assert not any(".appex/" in name for name in names), "Broadcast extension in tvOS receiver"
                 framework = base + "Frameworks/LiveKitWebRTC.framework/" + ("Versions/A/" if platform == "macos" else "") + "LiveKitWebRTC"
                 assert set(arch) <= set(architectures(archive.read(framework)))
                 if platform == "ios":

@@ -16,6 +16,7 @@ import subprocess
 import time
 import urllib.request
 from build_config import add_arguments, from_args, record
+from apple_products import PRODUCTS, app_paths
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APPLE = ROOT / "apple"
@@ -54,6 +55,7 @@ def main(target):
     args = parser.parse_args()
     args.platform = target
     product = from_args(target, args)
+    definition = PRODUCTS[target]
     if platform.system() != "Darwin":
         raise SystemExit("Apple builds require macOS/Xcode; run the Apple Actions workflow.")
     build_inputs = record(product)
@@ -70,8 +72,7 @@ def main(target):
         slices = []
         for rust_target in targets:
             run("rustup", "target", "add", rust_target)
-            features = "legacy" if args.platform == "tvos" else "sender,legacy"
-            run("cargo", "build", "--release", "--locked", "-p", "cast-ffi", "--no-default-features", "--features", features, "--target", rust_target, env=env)
+            run("cargo", "build", "--release", "--locked", "-p", "cast-ffi", "--no-default-features", "--features", definition.rust_features, "--target", rust_target, env=env)
             slices.append(ROOT / "target" / rust_target / "release/liblancast_core.a")
         output = CACHE / name / "liblancast_core.a"; output.parent.mkdir(parents=True, exist_ok=True)
         if len(slices) > 1: run("lipo", "-create", *slices, "-output", output)
@@ -84,11 +85,11 @@ def main(target):
     run("xcodebuild", "-create-xcframework", *libraries, "-output", framework)
     run(generator, "generate", "--spec", "project.yml", cwd=APPLE)
     if args.prepare_only: return
-    output = ROOT / "dist/apple" / args.platform; output.mkdir(parents=True, exist_ok=True)
+    output = ROOT / "dist/apple" / args.platform / product.label; output.mkdir(parents=True, exist_ok=True)
     shutil.copy2(DEPS / "LiveKitWebRTC.xcframework/LICENSE", output / "LiveKitWebRTC-LICENSE.txt")
     shutil.copy2(ROOT / "THIRD_PARTY.md", output / "THIRD_PARTY.md")
     shutil.copy2(ROOT / "LICENSE", output / "LanCast-LICENSE.txt")
-    scheme = {"macos": "LanCastMac", "ios": "LanCastIOS", "tvos": "LanCastTV"}[args.platform]
+    scheme = definition.scheme
     version_settings = [f"MARKETING_VERSION={product.version}", f"CURRENT_PROJECT_VERSION={product.build_number}"]
     common = ["xcodebuild", "-project", str(APPLE / "LanCast.xcodeproj"), "-scheme", scheme, "-configuration", "Debug" if target == "macos" else product.configuration, "-derivedDataPath", str(CACHE / "DerivedData"), *version_settings]
     products = CACHE / "DerivedData/Build/Products"
@@ -108,25 +109,31 @@ def main(target):
         dest = "iOS" if args.platform == "ios" else "tvOS"
         run(*common, "build", "-destination", f"generic/platform={dest}", "CODE_SIGNING_ALLOWED=NO")
         run(*common, "build", "-destination", f"generic/platform={dest} Simulator", "ARCHS=arm64", "CODE_SIGNING_ALLOWED=NO")
-    binaries = []
-    for app in products.glob(f"*/{scheme}.app"):
-        if not app.parent.name.startswith(product.configuration):
-            continue
+    binaries, artifacts = [], []
+    for app, kind in app_paths(products, target, product.configuration):
+        if not app.is_dir():
+            raise RuntimeError("Missing required Apple product: " + str(app))
         info_path = app / ("Contents/Info.plist" if target == "macos" else "Info.plist")
         info = plistlib.loads(info_path.read_bytes())
         if info.get("CFBundleShortVersionString") != product.version or str(info.get("CFBundleVersion")) != str(product.build_number):
             raise RuntimeError("Product version/build number not applied to " + str(app))
+        if info.get("CFBundleIdentifier") != definition.bundle_id:
+            raise RuntimeError("Unexpected application identity: " + str(app))
         executable = app / (f"Contents/MacOS/{scheme}" if args.platform == "macos" else scheme)
         architectures = subprocess.check_output(["lipo", "-archs", executable], text=True).strip().split()
         if args.platform == "macos" and set(architectures) != {"arm64", "x86_64"}:
             raise RuntimeError("Mac app is missing a required architecture")
-        binaries.append({"product": app.parent.name, "architectures": architectures})
-        run("ditto", "-c", "-k", "--keepParent", app, output / f"{scheme}-{app.parent.name}.zip")
-    if len(binaries) != (1 if target == "macos" else 2):
-        raise RuntimeError("Missing or unexpected Apple build products")
+        binaries.append({"product": app.parent.name, "kind": kind, "architectures": architectures})
+        archive = output / definition.archive_name(kind, product.label)
+        run("ditto", "-c", "-k", "--keepParent", app, archive)
+        with archive.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        artifacts.append({"file": archive.name, "product": app.parent.name, "kind": kind,
+                          "bytes": archive.stat().st_size, "sha256": digest})
     report = {
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-        "platform": args.platform, "webrtcVersion": WEBRTC_VERSION, "webrtcSha256": WEBRTC_SHA,
+        "platform": args.platform, "role": definition.role, "rustFeatures": definition.rust_features.split(","),
+        "webrtcVersion": WEBRTC_VERSION, "webrtcSha256": WEBRTC_SHA,
         "buildConfig": build_inputs,
         "xcodegenVersion": XCODEGEN_VERSION, "xcodegenSha256": XCODEGEN_SHA,
         "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
@@ -134,8 +141,22 @@ def main(target):
         "targets": TARGETS[args.platform], "deviceSigning": "unsigned; user signing required",
         "binaries": binaries,
         "scope": "Builds and automated tests only; no physical device or performance acceptance",
-        "artifacts": [{"file": p.name, "bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in output.glob("*.zip")],
+        "artifacts": artifacts,
     }
     (output / "build-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    (output / "INSTALL.txt").write_text(
+        f"{scheme}: {definition.role}; minimum {target} {definition.minimum_os}.\n"
+        "Device and Simulator archives are different targets, not different application roles.\n"
+        "Device apps are unsigned and require your own signing before installation.\n"
+        "Simulator apps run in Xcode Simulator; they cannot be installed on physical devices.\n"
+        "macOS apps are universal Intel/Apple Silicon builds, not notarized releases.\n"
+        "tvOS provides LanCast WSS/WebRTC and MP4 reception; Android's optional AirPlay receiver is separate.\n", encoding="utf-8")
+    if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(summary, "a", encoding="utf-8") as stream:
+            stream.write(f"## {scheme}: {definition.role}\n\nSource: `{report['commit']}`\n\n")
+            stream.write("| Archive | Target | Architectures |\n|---|---|---|\n")
+            for binary, artifact in zip(binaries, artifacts):
+                stream.write(f"| {artifact['file']} | {binary['kind']} | {', '.join(binary['architectures'])} |\n")
+            stream.write("\nDevice builds require signing. These are build results; physical-device acceptance remains separate.\n")
 
 

@@ -1,10 +1,10 @@
-name: AirPlay protocol
+name: AirPlay protocol checks (no APK)
 on:
   push:
     branches: [main]
-    paths: ["airplay-native/**", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
+    paths: ["airplay-native/**", "rust-toolchain.toml", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
   pull_request:
-    paths: ["airplay-native/**", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
+    paths: ["airplay-native/**", "rust-toolchain.toml", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
       - uses: actions/cache@v6
         with:

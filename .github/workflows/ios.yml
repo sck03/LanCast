@@ -1,10 +1,10 @@
-name: iOS
+name: iOS (sender + receiver)
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/apple_products.py","scripts/verify-apple-artifacts.py","scripts/build-ios.py",".github/workflows/ios.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/build-ios.py",".github/workflows/ios.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","apple/**","scripts/apple_build.py","scripts/apple_products.py","scripts/verify-apple-artifacts.py","scripts/build-ios.py",".github/workflows/ios.yml"]
   workflow_dispatch:
     inputs:
       source_ref:
@@ -12,7 +12,7 @@ on:
         type: string
         default: ''
       version:
-        description: '程序版本（选填）：例如 0.4.1；留空使用项目默认值，只填三段数字'
+        description: '程序版本（选填）：例如 0.6.1；留空使用项目默认值，只填三段数字'
         type: string
         default: ''
       build_number:
@@ -20,7 +20,7 @@ on:
         type: string
         default: ''
       configuration:
-        description: '构建用途：日常使用选 Release，排查问题选 Debug；保留默认即可，不会自动发布'
+        description: '构建模式：Release 优化 / Debug 调试；设备 App 均未签名，安装前需自行签名'
         type: choice
         options: ['日常使用（Release）', '开发调试（Debug）']
         default: '开发调试（Debug）'
@@ -58,8 +58,10 @@ jobs:
             ~/.cargo/registry/
             .cache/apple/webrtc.zip
             .cache/apple/xcodegen.zip
-      - name: Build iOS device and simulator apps
+      - name: Build iOS sender and receiver apps for device and simulator
         run: python3 scripts/build-ios.py
+      - name: Verify app identities targets and archive contents
+        run: python3 scripts/verify-apple-artifacts.py "dist/apple/ios/${{ steps.build-config.outputs.label }}"
       - uses: actions/cache/save@v6
         if: always() && steps.apple-cache.outputs.cache-hit != 'true'
         with:
@@ -70,10 +72,22 @@ jobs:
             .cache/apple/webrtc.zip
             .cache/apple/xcodegen.zip
       - uses: actions/upload-artifact@v7
+        with:
+          name: LanCast-iOS-Sender-Receiver-${{ steps.build-config.outputs.label }}
+          path: |
+            dist/apple/ios/${{ steps.build-config.outputs.label }}/*.zip
+            dist/apple/ios/${{ steps.build-config.outputs.label }}/*.txt
+            dist/apple/ios/${{ steps.build-config.outputs.label }}/*.md
+            dist/apple/ios/${{ steps.build-config.outputs.label }}/build-report.json
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: LanCast-Apple-ios-${{ steps.build-config.outputs.label }}
+          name: apple-ios-build-reports-${{ steps.build-config.outputs.label }}
           path: |
-            dist/apple/ios/
+            dist/apple/ios/${{ steps.build-config.outputs.label }}/*.xcresult/
+            dist/apple/ios/${{ steps.build-config.outputs.label }}/build-report.json
             apple/LanCast.xcodeproj/
             apple/Config/*-Info.plist
+          compression-level: 9

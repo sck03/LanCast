@@ -13,9 +13,18 @@ android {
     buildFeatures { buildConfig = true }
     flavorDimensions += "support"
     productFlavors {
-        create("standard") { dimension = "support"; minSdk = 23 }
-        create("airplay") { dimension = "support"; minSdk = 23; applicationIdSuffix = ".airplay" }
-        create("legacy") { dimension = "support"; minSdk = 21; applicationIdSuffix = ".legacy" }
+        create("standard") {
+            dimension = "support"; minSdk = 23
+            manifestPlaceholders["appLabel"] = "LanCast Receiver Standard"
+        }
+        create("airplay") {
+            dimension = "support"; minSdk = 23; applicationIdSuffix = ".airplay"
+            manifestPlaceholders["appLabel"] = "LanCast Receiver AirPlay"
+        }
+        create("legacy") {
+            dimension = "support"; minSdk = 21; applicationIdSuffix = ".legacy"
+            manifestPlaceholders["appLabel"] = "LanCast Receiver Legacy"
+        }
     }
     buildTypes { release { isMinifyEnabled = false } }
     sourceSets["standard"].java.srcDir("src/withoutAirplay/kotlin")

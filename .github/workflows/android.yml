@@ -1,18 +1,24 @@
-name: Android
+name: Android (sender + receivers)
+run-name: Android · ${{ inputs.product || 'all products' }} · ${{ inputs.configuration || 'default configuration' }}
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
+      product:
+        description: '产品：按用途选择；默认生成 1 个发送端和 3 个接收端，各自独立下载'
+        type: choice
+        options: ['全部（1 个发送端 + 3 个接收端）', '发送端（Android 10+）', '全部接收端（Standard / Legacy / AirPlay）', '接收端 Standard（Android 6+）', '接收端 Legacy（Android 5+）', '接收端 AirPlay（Android 6+，含 GPL 模块）']
+        default: '全部（1 个发送端 + 3 个接收端）'
       source_ref:
         description: '源码版本（选填）：一般留空，使用上方所选分支；编译旧版时填标签或提交号'
         type: string
         default: ''
       version:
-        description: '程序版本（选填）：例如 0.4.1；留空使用项目默认值，只填三段数字'
+        description: '程序版本（选填）：例如 0.6.1；留空使用项目默认值，只填三段数字'
         type: string
         default: ''
       build_number:
@@ -20,14 +26,14 @@ on:
         type: string
         default: ''
       configuration:
-        description: '构建用途：日常使用选 Release，排查问题选 Debug；保留默认即可，不会自动发布'
+        description: 'Debug 可开发安装；Release 为未签名优化包，安装前需自行签名；不会自动发布'
         type: choice
         options: ['日常使用（Release）', '开发调试（Debug）']
         default: '开发调试（Debug）'
 permissions:
   contents: read
 concurrency:
-  group: android-${{ github.ref }}-${{ github.event_name }}-${{ inputs.source_ref }}-${{ inputs.version }}-${{ inputs.build_number }}-${{ inputs.configuration }}
+  group: android-${{ github.ref }}-${{ github.event_name }}-${{ inputs.source_ref }}-${{ inputs.version }}-${{ inputs.build_number }}-${{ inputs.configuration }}-${{ inputs.product }}
   cancel-in-progress: true
 jobs:
   android:
@@ -45,6 +51,11 @@ jobs:
           LC_BUILD_NUMBER: ${{ inputs.build_number }}
           LC_CONFIGURATION: ${{ inputs.configuration }}
         run: python scripts/build_config.py --platform android --github
+      - name: Select sender and receiver products
+        id: products
+        env:
+          LC_ANDROID_PRODUCT: ${{ inputs.product }}
+        run: python scripts/android_products.py --github
       - name: Test build input validation
         run: |
           python scripts/check-architecture.py
@@ -67,7 +78,7 @@ jobs:
           path: |
             android/app-*/src/**/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
-          key: android-base-v2-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'core/Cargo.toml', 'crates/**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/build-android-core.py', 'scripts/build-android-media.py', 'scripts/build-ffmpeg.py') }}
+          key: android-base-v3-${{ steps.products.outputs.selection }}-${{ env.LC_ANDROID_ABIS }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'core/Cargo.toml', 'crates/**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/android_*.py', 'scripts/build-android-core.py', 'scripts/build-android-media.py', 'scripts/build-ffmpeg.py', '.github/workflows/android.yml') }}
       - name: Build product-specific Rust and minimal TS JNI libraries
         if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
@@ -83,37 +94,71 @@ jobs:
           key: ${{ steps.native-cache.outputs.cache-primary-key }}
       - uses: actions/cache@v6
         id: airplay-cache
+        if: steps.products.outputs.receiver_airplay == 'true'
         with:
           path: android/airplay-receiver/src/main/jniLibs/
-          key: android-airplay-v1-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.toml', 'airplay-native/**/*.rs', 'airplay-native/**/*.c', 'airplay-native/**/*.h', 'scripts/build-android-airplay.py') }}
+          key: android-airplay-v2-${{ env.LC_ANDROID_ABIS }}-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.toml', 'airplay-native/**/*.rs', 'airplay-native/**/*.c', 'airplay-native/**/*.h', 'scripts/build-android-airplay.py', 'scripts/android_ndk.py', 'rust-toolchain.toml', '.github/workflows/android.yml') }}
       - name: Build optional AirPlay JNI libraries
-        if: steps.airplay-cache.outputs.cache-hit != 'true'
+        if: steps.products.outputs.receiver_airplay == 'true' && steps.airplay-cache.outputs.cache-hit != 'true'
         run: |
           export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
           python scripts/build-android-airplay.py
-      - name: Build Kotlin apps lint and verify dependency separation
+      - name: Build lint verify and package selected products
         run: |
           chmod +x android/gradlew
           python scripts/build-android.py
-      - run: python scripts/verify-apks.py
       - run: python scripts/package-native-evidence.py android
+        if: steps.products.outputs.sender == 'true'
       - run: python scripts/package-airplay.py
+        if: steps.products.outputs.receiver_airplay == 'true'
       - uses: actions/upload-artifact@v7
+        if: steps.products.outputs.receiver_airplay == 'true'
         with:
           name: airplay-source-and-dependencies-${{ steps.build-config.outputs.label }}
           path: dist/airplay-evidence/
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
+        if: steps.products.outputs.sender == 'true'
         with:
-          name: android-native-relink-sources
+          name: android-sender-native-relink-sources-${{ steps.build-config.outputs.label }}
           path: dist/native-evidence/android/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: steps.products.outputs.sender == 'true'
+        with:
+          name: LanCast-Android-Sender-${{ steps.build-config.outputs.label }}
+          path: dist/android/${{ steps.build-config.outputs.label }}/sender/
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v7
+        if: steps.products.outputs.receiver_standard == 'true'
+        with:
+          name: LanCast-Android-Receiver-Standard-${{ steps.build-config.outputs.label }}
+          path: dist/android/${{ steps.build-config.outputs.label }}/receiver-standard/
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v7
+        if: steps.products.outputs.receiver_legacy == 'true'
+        with:
+          name: LanCast-Android-Receiver-Legacy-${{ steps.build-config.outputs.label }}
+          path: dist/android/${{ steps.build-config.outputs.label }}/receiver-legacy/
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v7
+        if: steps.products.outputs.receiver_airplay == 'true'
+        with:
+          name: LanCast-Android-Receiver-AirPlay-${{ steps.build-config.outputs.label }}
+          path: dist/android/${{ steps.build-config.outputs.label }}/receiver-airplay/
+          if-no-files-found: error
+          compression-level: 0
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: android-apks-${{ steps.build-config.outputs.label }}
+          name: android-build-reports-${{ steps.build-config.outputs.label }}
           path: |
-            android/app-*/build/outputs/apk/**/*.apk
-            android/app-*/build/reports/
+            android/*/build/reports/
             android/*-dependencies.txt
-            android/receiver-contracts/build/test-results/
+            android/*/build/test-results/
             dist/reports/build-android.json
             .cache/ffmpeg-install-*/build-manifest.json
+          compression-level: 9
