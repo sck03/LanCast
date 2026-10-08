@@ -66,7 +66,7 @@ where
         let fut = self.inner.call(req);
         async move {
             let router = fut.await?;
-            Ok(match pairing {
+            let router = match pairing {
                 config::Pairing::Legacy => {
                     router.merge(pairing::legacy::router(keychain, session_key))
                 }
@@ -76,7 +76,14 @@ where
                 config::Pairing::Automatic => {
                     router.merge(pairing::automatic::router(keychain, session_key, pin))
                 }
-            })
+            };
+            // Pairing routes are merged after the base RTSP router. Apply CSeq at
+            // the final boundary so every RTSP response echoes the request sequence.
+            Ok(
+                router.layer(tower_http::propagate_header::PropagateHeaderLayer::new(
+                    http::HeaderName::from_static("cseq"),
+                )),
+            )
         }
         .boxed()
     }

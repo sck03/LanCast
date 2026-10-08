@@ -59,6 +59,12 @@ fn response(s: &mut TcpStream) -> (u16, Vec<u8>) {
         assert!(header.len() < 16384);
     }
     let header = String::from_utf8(header).unwrap();
+    assert!(
+        header.lines().any(|line| line
+            .split_once(':')
+            .is_some_and(|(key, value)| key.eq_ignore_ascii_case("cseq") && value.trim() == "1")),
+        "RTSP response must echo CSeq"
+    );
     let status = header.split_whitespace().nth(1).unwrap().parse().unwrap();
     let len = header
         .lines()
