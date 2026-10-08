@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-08",
+  "status": "blocked_by_tool_policy",
+  "deleted_files": 0,
+  "candidate_files": 29,
+  "candidate_bytes": 137508,
+  "reason": "Both recursive cleanup and the narrower explicit-file deletion were rejected with 'blocked by policy'. No deletion or move was performed.",
+  "candidates": [
+    {
+      "path": "scripts/__pycache__/apple_build.cpython-313.pyc",
+      "bytes": 12509
+    },
+    {
+      "path": "scripts/__pycache__/architecture.cpython-313.opt-1.pyc",
+      "bytes": 6376
+    },
+    {
+      "path": "scripts/__pycache__/architecture.cpython-313.pyc",
+      "bytes": 6834
+    },
+    {
+      "path": "scripts/__pycache__/build-android-core.cpython-313.pyc",
+      "bytes": 2662
+    },
+    {
+      "path": "scripts/__pycache__/build-android-media.cpython-313.pyc",
+      "bytes": 1902
+    },
+    {
+      "path": "scripts/__pycache__/build-android.cpython-313.pyc",
+      "bytes": 2618
+    },
+    {
+      "path": "scripts/__pycache__/build-apple.cpython-313.pyc",
+      "bytes": 11126
+    },
+    {
+      "path": "scripts/__pycache__/build-ffmpeg.cpython-313.pyc",
+      "bytes": 5056
+    },
+    {
+      "path": "scripts/__pycache__/build-ios.cpython-313.pyc",
+      "bytes": 324
+    },
+    {
+      "path": "scripts/__pycache__/build-macos.cpython-313.pyc",
+      "bytes": 330
+    },
+    {
+      "path": "scripts/__pycache__/build-tvos.cpython-313.pyc",
+      "bytes": 327
+    },
+    {
+      "path": "scripts/__pycache__/build-windows.cpython-313.pyc",
+      "bytes": 2304
+    },
+    {
+      "path": "scripts/__pycache__/build_config.cpython-313.pyc",
+      "bytes": 8136
+    },
+    {
+      "path": "scripts/__pycache__/check-architecture.cpython-313.pyc",
+      "bytes": 3219
+    },
+    {
+      "path": "scripts/__pycache__/dependency-report.cpython-313.pyc",
+      "bytes": 1406
+    },
+    {
+      "path": "scripts/__pycache__/dependency_inventory.cpython-313.pyc",
+      "bytes": 9128
+    },
+    {
+      "path": "scripts/__pycache__/github-ci.cpython-313.pyc",
+      "bytes": 11324
+    },
+    {
+      "path": "scripts/__pycache__/package-native-evidence.cpython-313.pyc",
+      "bytes": 7524
+    },
+    {
+      "path": "scripts/__pycache__/validate-hardware-probe.cpython-313.pyc",
+      "bytes": 8448
+    },
+    {
+      "path": "scripts/__pycache__/verify-apks.cpython-313.pyc",
+      "bytes": 5387
+    },
+    {
+      "path": "scripts/__pycache__/verify-apple-artifacts.cpython-313.pyc",
+      "bytes": 6706
+    },
+    {
+      "path": "scripts/__pycache__/verify-windows.cpython-313.pyc",
+      "bytes": 3714
+    },
+    {
+      "path": "scripts/tests/__pycache__/test_architecture.cpython-313.pyc",
+      "bytes": 4222
+    },
+    {
+      "path": "scripts/tests/__pycache__/test_build_config.cpython-313.pyc",
+      "bytes": 4304
+    },
+    {
+      "path": "scripts/tests/__pycache__/test_dependency_inventory.cpython-313.pyc",
+      "bytes": 7674
+    },
+    {
+      "path": "windows/build-msvc/CMakeCache.txt",
+      "bytes": 3207
+    },
+    {
+      "path": "windows/build-msvc/CMakeFiles/4.3.4/CMakeSystem.cmake",
+      "bytes": 395
+    },
+    {
+      "path": "windows/build-msvc/CMakeFiles/CMakeConfigureLog.yaml",
+      "bytes": 260
+    },
+    {
+      "path": "windows/build-msvc/CMakeFiles/cmake.check_cache",
+      "bytes": 86
+    }
+  ]
+}

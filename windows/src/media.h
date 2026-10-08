@@ -19,7 +19,6 @@ class MediaSender {
     void answer(const std::string &sdp, const std::string &negotiation);
     void ice(const Json &body);
     void restart(const Json &body);
-    void pump() {}
     void stop();
 
   private:

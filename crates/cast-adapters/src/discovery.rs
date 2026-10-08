@@ -16,6 +16,7 @@ impl Advertisement {
         ip: Ipv4Addr,
         port: u16,
         variant: &str,
+        fingerprint: &str,
     ) -> anyhow::Result<Self> {
         let daemon = mdns_sd::ServiceDaemon::new()?;
         let info = mdns_sd::ServiceInfo::new(
@@ -24,7 +25,13 @@ impl Advertisement {
             &format!("lancast-{id}.local."),
             IpAddr::V4(ip),
             port,
-            [("version", "1"), ("deviceId", id), ("variant", variant)].as_slice(),
+            [
+                ("version", "1"),
+                ("deviceId", id),
+                ("variant", variant),
+                ("fingerprint", fingerprint),
+            ]
+            .as_slice(),
         )?;
         let name = info.get_fullname().to_string();
         daemon.register(info)?;
@@ -53,13 +60,22 @@ pub fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
             // Discovery is untrusted; TLS identity must still be verified by the user.
             let addresses: Vec<String> =
                 info.get_addresses().iter().map(|a| a.to_string()).collect();
-            found.insert(id.clone(),serde_json::json!({"id":id,"name":info.get_fullname(),"addresses":addresses,"port":info.get_port(),"kind":"lancast_receiver","verification":"unverified"}));
+            let fingerprint = advertised_fingerprint(info.get_property_val_str("fingerprint"));
+            found.insert(id.clone(),serde_json::json!({"id":id,"name":info.get_fullname(),"addresses":addresses,"port":info.get_port(),"fingerprint":fingerprint,"kind":"lancast_receiver","verification":"unverified"}));
         }
     }
     let _ = daemon.stop_browse("_lancast._tcp.local.");
     let _ = daemon.shutdown();
     Ok(found.into_values().collect())
 }
+// Public discovery hints are never a trust decision. The sender must compare the
+// full value with the receiver before passing it to the pinned TLS connection.
+fn advertised_fingerprint(value: Option<&str>) -> Option<String> {
+    value
+        .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
+        .map(str::to_ascii_lowercase)
+}
+
 pub async fn scan_dlna(interface: Ipv4Addr) -> anyhow::Result<Vec<Renderer>> {
     ensure!(dlna::lan_ip(IpAddr::V4(interface)), "SELECT_LAN_INTERFACE");
     let socket = tokio::net::UdpSocket::bind((interface, 0)).await?;
@@ -123,4 +139,19 @@ pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
         source,
     )?
     .to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn discovery_pin_is_optional_and_strictly_bounded() {
+        assert_eq!(advertised_fingerprint(None), None);
+        assert_eq!(advertised_fingerprint(Some("abc")), None);
+        assert_eq!(advertised_fingerprint(Some(&"g".repeat(64))), None);
+        assert_eq!(
+            advertised_fingerprint(Some(&"A".repeat(64))),
+            Some("a".repeat(64))
+        );
+    }
 }

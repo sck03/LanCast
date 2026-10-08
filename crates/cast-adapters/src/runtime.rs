@@ -271,6 +271,7 @@ impl Runtime {
                         ip,
                         address.port(),
                         server.variant(),
+                        &self.identity.fingerprint,
                     )?)
                 } else {
                     None
@@ -305,10 +306,11 @@ impl Runtime {
             }
             "scan" => {
                 let events = self.events.clone();
+                let scan_generation = c["scanGeneration"].clone();
                 self.tasks.push(tokio::spawn(async move {
                     match tokio::task::spawn_blocking(discovery::scan_lancast).await {
-                        Ok(Ok(devices)) => event(&events, "devices", json!({"devices":devices})),
-                        _ => event(&events, "error", json!({"code":"DISCOVERY_FAILED"})),
+                        Ok(Ok(devices)) => event(&events, "devices", json!({"devices":devices,"scanGeneration":scan_generation})),
+                        _ => event(&events, "devices", json!({"devices":[],"scanGeneration":scan_generation,"error":"DISCOVERY_FAILED"})),
                     }
                 }));
             }
@@ -380,11 +382,25 @@ impl Runtime {
             "dlna.scan" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let interface = string(&c, "interface")?.parse()?;
-                let devices = discovery::scan_dlna(interface).await?;
+                let devices = match discovery::scan_dlna(interface).await {
+                    Ok(devices) => devices,
+                    Err(error) => {
+                        event(
+                            &self.events,
+                            "dlna.devices",
+                            json!({"devices":[],"scanGeneration":c["scanGeneration"],"error":error.to_string()}),
+                        );
+                        return Ok(());
+                    }
+                };
                 for d in &devices {
                     self.renderers.insert(d.id.clone(), d.clone());
                 }
-                event(&self.events, "dlna.devices", json!({"devices":devices}));
+                event(
+                    &self.events,
+                    "dlna.devices",
+                    json!({"devices":devices,"scanGeneration":c["scanGeneration"]}),
+                );
             }
             "file.share" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");

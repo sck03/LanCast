@@ -89,7 +89,9 @@ pub struct Invitation {
 impl Invitation {
     pub fn new(now: Instant) -> Self {
         Self {
-            token: random_token(),
+            // Human-entered, single-use code. Five attempts, two-minute expiry
+            // and explicit receiver approval remain mandatory. Never advertise it.
+            token: format!("{:08}", rand::random_range(0..100_000_000u32)),
             created: now,
             attempts: 0,
             used: false,
@@ -197,6 +199,8 @@ mod tests {
         let now = Instant::now();
         let mut i = Invitation::new(now);
         let token = i.token.clone();
+        assert_eq!(token.len(), 8);
+        assert!(token.bytes().all(|b| b.is_ascii_digit()));
         i.consume(&token, now).unwrap();
         assert!(i.consume(&token, now).is_err());
         let mut i = Invitation::new(now);
@@ -204,5 +208,11 @@ mod tests {
             assert!(i.consume("wrong", now).is_err());
         }
         assert!(i.consume(&i.token.clone(), now).is_err());
+        let mut expired = Invitation::new(now);
+        assert!(
+            expired
+                .consume(&expired.token.clone(), now + Duration::from_secs(120))
+                .is_err()
+        );
     }
 }
