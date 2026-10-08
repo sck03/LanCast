@@ -2,9 +2,9 @@ name: Android
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
       source_ref:
@@ -46,7 +46,9 @@ jobs:
           LC_CONFIGURATION: ${{ inputs.configuration }}
         run: python scripts/build_config.py --platform android --github
       - name: Test build input validation
-        run: python -m unittest discover -s scripts/tests
+        run: |
+          python scripts/check-architecture.py
+          python -m unittest discover -s scripts/tests
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

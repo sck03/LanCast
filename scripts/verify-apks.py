@@ -13,9 +13,17 @@ report = record(config)
 report["artifacts"] = []
 for apk in apks:
     metadata = subprocess.check_output([str(aapt), "dump", "badging", str(apk)], text=True)
+    manifest = subprocess.check_output([str(aapt), "dump", "xmltree", str(apk), "AndroidManifest.xml"], text=True)
+    if "airplay" in apk.parts:
+        assert "dev.lancast.airplay.AirPlayService" in manifest, "AirPlay service missing from APK"
+        assert "BOOT_COMPLETED" not in manifest, "AirPlay must never start on boot"
+    else:
+        assert "dev.lancast.airplay.AirPlayService" not in manifest, "AirPlay service leaked into a base APK"
     assert re.search(r"versionCode='" + str(config.build_number) + "'", metadata), "APK build number mismatch"
     assert re.search(r"versionName='" + re.escape(config.version) + "'", metadata), "APK version mismatch"
     with zipfile.ZipFile(apk) as archive:
+        if "airplay" in apk.parts:
+            assert "assets/airplay/LICENSE.txt" in archive.namelist(), "GPL notice missing from AirPlay APK"
         packaged_abis = {p.split("/")[1] for p in archive.namelist() if p.startswith("lib/") and p.endswith(".so")}
         assert packaged_abis == set(config.android_abis), f"Unexpected ABIs: {packaged_abis}"
         for abi in config.android_abis:
