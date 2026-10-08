@@ -17,11 +17,15 @@ class MainActivity : Activity() {
     private lateinit var connection: ConnectionForm
     private val controls = mutableListOf<Pair<Button, () -> Boolean>>()
     private var externalRequest = false
+    private var captureRequest: String? = null
     private lateinit var audio: CheckBox
     private var pendingAudio = false
     private var profileRequest: String? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        captureRequest = savedInstanceState?.getString("captureRequest")
+        externalRequest = savedInstanceState?.getBoolean("externalRequest", false) ?: false
+        pendingAudio = savedInstanceState?.getBoolean("pendingAudio", false) ?: false
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 16, 24, 16) }
         root.addView(TextView(this).apply { text = "LanCast · 局域网分享"; textSize = 26f })
         state = TextView(this).apply { text = "自有接收端支持屏幕与文件；DLNA 直播需先完成画面与声音测试。"; textSize = 16f }; root.addView(state)
@@ -100,7 +104,17 @@ class MainActivity : Activity() {
         for ((button, enabled) in controls) button.isEnabled = enabled()
         audio.isEnabled = canStart()
     }
-    private fun requestCapture() { externalRequest = true; updateControls(); startActivityForResult(getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent(), 10) }
+    private fun requestCapture() {
+        runCatching {
+            captureRequest = SenderRuntime.prepareCapture(); externalRequest = true; updateControls()
+            startActivityForResult(getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent(), 10)
+        }.onFailure { SenderRuntime.cancelCapture(captureRequest); captureRequest = null; externalRequest = false; state.text = it.message; updateControls() }
+    }
+    override fun onSaveInstanceState(state: Bundle) {
+        state.putString("captureRequest", captureRequest); state.putBoolean("externalRequest", externalRequest)
+        state.putBoolean("pendingAudio", pendingAudio)
+        super.onSaveInstanceState(state)
+    }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, results)
         if (requestCode == 30) {
@@ -112,11 +126,12 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         externalRequest = false
-        if (resultCode != RESULT_OK || data == null) { state.text = "操作已取消，没有启动采集"; updateControls(); return }
+        if (resultCode != RESULT_OK || data == null) { if (requestCode == 10) SenderRuntime.cancelCapture(captureRequest); captureRequest = null; state.text = "操作已取消，没有启动采集"; updateControls(); return }
         if (requestCode == 10) {
             externalRequest = true
-            runCatching { startForegroundService(Intent(this, CaptureService::class.java).putExtra("grant", data).putExtra("audio", pendingAudio)) }
-                .onFailure { externalRequest = false; state.text = it.message }
+            runCatching { startForegroundService(Intent(this, CaptureService::class.java).putExtra("grant", data).putExtra("audio", pendingAudio).putExtra("requestId", checkNotNull(captureRequest) { "分享请求已过期，请重新授权" })) }
+                .onFailure { SenderRuntime.cancelCapture(captureRequest); externalRequest = false; state.text = it.message }
+            captureRequest = null
         }
         if (requestCode == 20) runCatching {
             check(!SenderRuntime.busy && (SenderRuntime.connected || SenderRuntime.dlnaId != null)) { "连接已失效，请重新选择电视" }

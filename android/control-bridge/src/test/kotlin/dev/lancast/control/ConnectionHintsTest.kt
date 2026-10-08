@@ -6,6 +6,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class ConnectionHintsTest {
+    @Test fun captureGrantCannotCrossTargetsStopOrReplay() {
+        val gate = CaptureGrantGate()
+        val tv = CaptureTarget("192.168.1.8:8787", null, null, "192.168.1.3")
+        val request = gate.prepare(tv)
+        assertFalse(gate.consume(request, tv.copy(receiver = "192.168.1.9:8787")))
+        assertTrue(gate.consume(request, tv)); assertFalse(gate.consume(request, tv))
+        val old = gate.prepare(tv); gate.cancel(); assertFalse(gate.consume(old, tv))
+        val newer = gate.prepare(tv); gate.cancel(old)
+        assertTrue(gate.consume(newer, tv))
+    }
     @Test fun addressesAndPinsAreValidated() {
         assertTrue(isLanIpv4("192.168.1.4")); assertTrue(isLanIpv4("172.16.1.4"))
         for (ip in listOf("127.0.0.1", "0.0.0.0", "8.8.8.8", "192.168.001.2", "host.local", "999.1.1.1")) assertFalse(ip, isLanIpv4(ip))

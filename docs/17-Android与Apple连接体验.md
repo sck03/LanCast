@@ -16,7 +16,7 @@
 
 | 模块 | 职责 |
 |---|---|
-| Android `control-bridge/ConnectionHints.kt` | 地址/指纹校验、公开 ReceiverHint、不可变 PairingInput、有界去重目录；无控件或JNI调用 |
+| Android `control-bridge/ConnectionHints.kt` | 地址/指纹校验、公开 ReceiverHint、不可变 PairingInput、有界目录、一次性 CaptureGrantGate；无控件或JNI调用 |
 | Android `control-bridge/LocalNetwork.kt` | 网卡枚举、优先本机活跃 Wi-Fi/以太网、子网选择和显式网卡覆盖；无网络探测包 |
 | Android `app-sender/ConnectionForm.kt` | 原生字段、折叠设置、列表和核对框；通过回调提交已核对的不可变输入，不持有核心/媒体 |
 | Android `SenderRuntime` | 发现代次、两种结果合并、限时 multicast lock、核心连接及与现有媒体生命周期协调 |
@@ -33,13 +33,15 @@ Android 发送/接收复用同一 drawable 图标，资源移入 control-bridge�
 
 配对和媒体准备期间锁定选择字段。Android 系统授权/文件选择期间保持当前目标；文件开始前重新选择有效本机地址。播放暂停/跳转仅对当前文件开放。停止仍撤销媒体和资源，不绕过旧的用户授权策略。
 
+Android 从系统授权返回到前台服务时，使用一次性请求ID绑定接收地址、DLNA设备与本机网络。停止/取消使请求失效，改变目标或重复使用不能启动采集；旧服务销毁只停止自己持有的采集会话。这个门控只验证应用自己的请求，不生成或替代系统录屏授权。
+
 Apple 核对框绑定不可变 BroadcastTicket 和操作类型；确认ID单独保留，兼容 SwiftUI 先清除 alert 绑定再执行按钮动作。修改身份字段会使未确认请求失效，并清除旧的广播准备配置。文件、镜像、iOS广播不能悄悄共用错误的目标/声音选项。
 
 自动网络识别仅支持本项目的 LAN IPv4 范围；Android 根据本机网络元数据和子网优先级选择，Apple 使用系统路由。复杂VPN/多网卡仍提供手动选择，不能保证任意自定义路由策略均自动正确。
 
 ## 验证入口与边界
 
-Android `ConnectionHintsTest` 覆盖私有IPv4、非规范/错误地址、子网、指纹规范化、同ID跨协议、去重及旧接收端缺失指纹。`build-android.py` 在组装/lint三个产品之外执行 control-bridge 对应构建模式的 JVM 单元测试。
+Android `ConnectionHintsTest` 的3项测试覆盖私有IPv4、非规范/错误地址、子网、指纹规范化、同ID跨协议、去重、旧接收端缺失指纹，以及采集请求停止/换目标/重复返回。`build-android.py` 在组装/lint三个产品之外执行 control-bridge 对应构建模式的 JVM 单元测试。
 
 Apple `DiscoveryContractsTests` 覆盖地址过滤、畸形记录、IPv6优先列表、名称归一、重复设备和旧身份清空；由 macOS 构建入口的 Swift Package 契约测试执行，原有WSS/RTC集成测试继续保留。
 

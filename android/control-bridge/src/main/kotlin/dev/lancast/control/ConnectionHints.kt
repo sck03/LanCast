@@ -5,6 +5,19 @@ import java.util.Locale
 
 data class PairingInput(val address: String, val fingerprint: String, val code: String)
 
+data class CaptureTarget(val receiver: String, val dlnaId: String?, val dlnaIp: String?, val local: String)
+/** A system grant belongs to one explicit target and is consumed at most once. */
+class CaptureGrantGate {
+    private var request: Pair<String, CaptureTarget>? = null
+    val pending get() = request != null
+    fun prepare(target: CaptureTarget): String = java.util.UUID.randomUUID().toString().also { request = it to target }
+    fun consume(id: String, target: CaptureTarget): Boolean {
+        if (request != (id to target)) return false
+        request = null; return true
+    }
+    fun cancel(id: String? = null) { if (id == null || request?.first == id) request = null }
+}
+
 /** Public discovery data only; a hint is never permission to connect. */
 data class ReceiverHint(val id: String, val name: String, val ip: String, val port: Int,
                         val fingerprint: String, val dlna: Boolean) {

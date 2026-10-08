@@ -5,6 +5,8 @@ import android.content.Intent
 import dev.lancast.control.ControlSession
 import dev.lancast.control.DeviceCatalog
 import dev.lancast.control.PairingInput
+import dev.lancast.control.CaptureGrantGate
+import dev.lancast.control.CaptureTarget
 import android.net.wifi.WifiManager
 import dev.lancast.media.RtcPeer
 import org.json.JSONObject
@@ -45,7 +47,9 @@ object SenderRuntime {
     private var multicast: WifiManager.MulticastLock? = null
     private var filePending = false
     private var stopping = false
-    val busy get() = peer != null || liveCapture != null || grant != null || probing || pendingSession != null || sessionId != null || media != null || filePending || stopping
+    private val captureGate = CaptureGrantGate()
+    private var activeCapture: String? = null
+    val busy get() = captureGate.pending || peer != null || liveCapture != null || grant != null || probing || pendingSession != null || sessionId != null || media != null || filePending || stopping
     val filePlaying get() = media != null && !stopping && liveCapture == null && peer == null
     val selectionLocked get() = connected || connecting || scanning || busy
     fun scan(context: Context, local: String) {
@@ -54,10 +58,14 @@ object SenderRuntime {
         scanGeneration++; val current = scanGeneration
         scanning = true; nativePending = true; dlnaPending = local.isNotEmpty()
         releaseMulticast()
+        try {
         val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicast = wifi.createMulticastLock("lancast-scan").apply { setReferenceCounted(false); acquire() }
         command("scan", JSONObject().put("scanGeneration", current))
         if (dlnaPending) command("dlna.scan", JSONObject().put("interface", local).put("scanGeneration", current))
+        } catch (error: Exception) {
+            scanning = false; nativePending = false; dlnaPending = false; releaseMulticast(); throw error
+        }
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             if (scanning && scanGeneration == current) {
                 scanning = false; nativePending = false; dlnaPending = false; releaseMulticast()
@@ -82,10 +90,23 @@ object SenderRuntime {
         core!!.command(op, body)
         if (op == "file.share") filePending = true
     }
-    fun beginCapture(context: Context, permission: Intent, audio: Boolean, stopService: () -> Unit) {
+    private fun captureTarget() = CaptureTarget(receiverAddress, dlnaId, dlnaIp, localAddress)
+    fun prepareCapture(): String {
+        check(!busy && (connected || dlnaId != null)) { "请先连接电视并停止当前分享" }
+        return captureGate.prepare(captureTarget())
+    }
+    fun cancelCapture(id: String? = null) = captureGate.cancel(id)
+    fun stopCaptureService(id: String) { if (activeCapture == id) stop() }
+    fun captureFailure(id: String, message: String) {
+        captureGate.cancel(id); stopCaptureService(id)
+        observer?.invoke(JSONObject().put("type", "media.status").put("body", JSONObject().put("status", "无法开始分享：$message")))
+    }
+    fun beginCapture(context: Context, permission: Intent, audio: Boolean, requestId: String, stopService: () -> Unit) {
+        check(captureGate.consume(requestId, captureTarget())) { "分享请求已取消或目标已改变，请重新授权" }
         check(connected || dlnaId != null)
         check(peer == null && liveCapture == null && grant == null) { "先停止当前分享" }
         generation++
+        activeCapture = requestId
         this.context = context.applicationContext; grant = permission; withAudio = audio; this.stopService = stopService
         probing = false
         if (dlnaId != null) createLive()
@@ -131,7 +152,7 @@ object SenderRuntime {
             }
             "probe.saved" -> stop()
             "live.failed" -> { stop(); observer?.invoke(JSONObject().put("type", "error").put("body", body)) }
-            "error" -> { connecting = false; filePending = false; if (peer != null || liveCapture != null || grant != null || probing) stop() }
+            "error" -> { connecting = false; filePending = false; if (captureGate.pending || peer != null || liveCapture != null || grant != null || probing) stop() }
             "connected" -> { connected = true; connecting = false }
             "disconnected" -> { connected = false; connecting = false; stopCapture(); if (!stopping) { core?.close(); core = null; catalog.clear(); selectedDevice = null; dlnaId = null; dlnaIp = null } }
             "stopped" -> { stopping = false }
@@ -175,7 +196,7 @@ object SenderRuntime {
         }
         observer?.invoke(event)
     }
-    private fun stopCapture() { generation++; pendingSession = null; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
+    private fun stopCapture() { generation++; captureGate.cancel(); activeCapture = null; pendingSession = null; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
     fun stop() {
         if (connecting) { close(); return }
         sessionId?.let { core?.send("session.stop", it, JSONObject().put("reason", "sender_stopped")) }
