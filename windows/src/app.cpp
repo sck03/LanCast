@@ -494,8 +494,9 @@ class DesktopApp {
         case 10:
             stop();
             break;
-        case 11:
-            if (pairing) {
+        case 11: {
+            const bool reset_core = pairing;
+            if (reset_core) {
                 release_core(core);
                 core = create_core();
                 open_profiles();
@@ -507,10 +508,21 @@ class DesktopApp {
             dlna_id.clear();
             dlna_ip.clear();
             selected_key.clear();
+            SendMessageW(devices_list, CB_SETCURSEL, static_cast<WPARAM>(-1), 0);
+            selecting_device = true;
+            SetWindowTextW(address, L"");
+            selecting_device = false;
             SetWindowTextW(fingerprint, L"");
             SetWindowTextW(invitation, L"");
+            if (reset_core) {
+                scanning = false;
+                catalog.clear();
+                refresh_devices();
+                scan();
+            }
             status("已断开；新连接需要重新选择电视并确认");
             break;
+        }
         case 12:
             MessageBoxW(
                 main_window,
@@ -594,6 +606,7 @@ class DesktopApp {
                 if (HIWORD(w) == EN_CHANGE && LOWORD(w) == MainView::address) {
                     if (!selecting_device) {
                         selected_key.clear();
+                        SendMessageW(devices_list, CB_SETCURSEL, static_cast<WPARAM>(-1), 0);
                         dlna_id.clear();
                         dlna_ip.clear();
                         SetWindowTextW(fingerprint, L"");
@@ -651,7 +664,8 @@ class DesktopApp {
                 return 0;
             }
         } catch (const std::exception &error) {
-            if (message == WM_TIMER || message == MEDIA_EVENT)
+            if (message == WM_TIMER || message == MEDIA_EVENT ||
+                (!stopping && (file_pending || profile_pending || live_pending)))
                 stop();
             status(error.what());
         }
