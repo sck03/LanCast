@@ -133,12 +133,14 @@ internal class MediaPipeline(
                 .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(mask).build())
                 .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(size * 2).build().configureOrRelease({ it.release() }) {
                     check(it.state == AudioTrack.STATE_INITIALIZED)
-                    it.setVolume(volume); it.play(); appliedVolume = volume
+                    val level = volume
+                    it.setVolume(level); it.play(); appliedVolume = level
                 }
         }
         fun writePcm(bytes: ByteBuffer, pts: Long) {
             val active = track ?: return
-            if (appliedVolume != volume) { active.setVolume(volume); appliedVolume = volume }
+            val level = volume
+            if (appliedVolume != level) { active.setVolume(level); appliedVolume = level }
             // Use AudioTrack's actual playback clock to account for queued samples.
             if (active.getTimestamp(audioTime)) {
                 val now = System.nanoTime() / 1000
