@@ -2,6 +2,7 @@ plugins {
     id("com.android.application") version "8.13.2" apply false
     id("com.android.library") version "8.13.2" apply false
     id("org.jetbrains.kotlin.android") version "2.3.10" apply false
+    id("org.jetbrains.kotlin.jvm") version "2.3.10" apply false
 }
 
 val product = groovy.json.JsonSlurper().parse(rootDir.resolve("../build-config.json")) as Map<*, *>

@@ -12,6 +12,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - Windows 发送：WGC 窗口／显示器、D3D11 转换、Media Foundation 硬件 H.264、WASAPI 系统声音；独立 RTC／TS 输出模块。
 - Android 发送：MediaProjection、硬件编码、合法内部声音、前台服务和授权撤销处理。
 - Apple：Mac 屏幕／窗口发送与接收、iPhone／iPad ReplayKit 广播与前台接收、Apple TV 接收，详见 [D09 架构、构建与安装](docs/11-苹果客户端架构与验收.md)。
+- AirPlay 按需接收：0.6.0新增独立Android Airplay接收APK，默认关闭、手动开启，包含现代HomeKit配对、旧镜像兼容、后台监听、电视确认和单路播放管理。[实现与审阅](docs/20-AirPlay实现与审阅指南.md)记录模块、GPL分发及验证边界；真实iPhone/电视互通仍待验收。
 - DLNA：发现与控制、合成画面／提示音测试、用户确认档案、通过后直播、拉流监控与一次恢复；MP4 文件能力独立。
 - Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 与固定上游 TLS 媒体桥。
 - Rust domain/core/adapters/ffi 分层，编码像素不穿过控制层；媒体队列有界，停止可打断等待。
@@ -68,4 +69,4 @@ ctest --test-dir windows/build -C Release --output-on-failure
 ./scripts/package-windows.ps1
 ```
 
-分发时不能只复制 exe，core、RTC、TS 三个 DLL 必须保留。项目采用 [Apache-2.0](LICENSE)；依赖和发行材料见 [THIRD_PARTY.md](THIRD_PARTY.md)。没有实测的包体、延迟、音画同步或电视兼容率不作为已达标承诺。
+分发时不能只复制 exe，core、RTC、TS 三个 DLL 必须保留。基础项目采用 [Apache-2.0](LICENSE)，可选AirPlay模块及组合APK采用GPL-3.0-only；依赖和发行材料见 [THIRD_PARTY.md](THIRD_PARTY.md)。没有实测的包体、延迟、音画同步或电视兼容率不作为已达标承诺。

@@ -6,7 +6,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 config = resolve("android")
 mode = config.configuration.lower()
 apks = list((root/"android").glob(f"app-*/build/outputs/apk/**/{mode}/*.apk"))
-assert len(apks) == 3, f"Expected 3 {mode} APKs, found {len(apks)}"
+assert len(apks) == 4, f"Expected 4 {mode} APKs, found {len(apks)}"
 sdk = pathlib.Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"])
 aapt = sdk / "build-tools/35.0.0" / ("aapt.exe" if os.name == "nt" else "aapt")
 report = record(config)
@@ -20,6 +20,10 @@ for apk in apks:
         assert packaged_abis == set(config.android_abis), f"Unexpected ABIs: {packaged_abis}"
         for abi in config.android_abis:
             libraries = ["liblancast_core.so", "libjingle_peerconnection_so.so"]
+            if "airplay" in apk.parts:
+                libraries.append("liblancast_airplay.so")
+            else:
+                assert f"lib/{abi}/liblancast_airplay.so" not in archive.namelist(), "GPL AirPlay library leaked into a base product"
             if "app-sender" in apk.parts:
                 libraries.append("liblancast_media.so")
             else:

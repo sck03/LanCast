@@ -1,0 +1,45 @@
+use bytes::BytesMut;
+
+use super::{Device, Stream};
+
+/// Playback backend for video streams.
+pub trait VideoDevice: Device<Params = VideoParams, Stream: VideoStream> {}
+
+/// Stream receiving decrypted video packets.
+pub trait VideoStream: Stream<Content = VideoPacket> {}
+impl<T> VideoStream for T where T: Stream<Content = VideoPacket> {}
+
+/// Parameters provided when a video stream is created.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct VideoParams {
+    pub connection_id: u64,
+}
+
+/// Decrypted video payload delivered to a [`VideoStream`].
+#[derive(Debug)]
+pub struct VideoPacket {
+    /// Packet classification.
+    pub kind: PacketKind,
+    /// Stream timestamp associated with the packet.
+    pub timestamp: u64,
+    /// Local UNIX microseconds, derived from the negotiated timing channel.
+    pub presentation_us: Option<i64>,
+    /// Packet payload bytes.
+    pub payload: BytesMut,
+}
+
+/// Kind of video payload delivered to the backend.
+#[derive(Debug, Clone, Copy)]
+pub enum PacketKind {
+    /// AVC decoder configuration record.
+    AvcC(u16),
+    /// HEVC decoder configuration record.
+    Hvc1(u16),
+    /// Regular encoded video payload.
+    Payload,
+    /// Auxiliary plist payload.
+    Plist,
+    /// Unknown packet kind.
+    Other(u16),
+}

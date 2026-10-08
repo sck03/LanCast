@@ -9,7 +9,7 @@ ndk = pathlib.Path(os.environ["ANDROID_NDK_HOME"])
 host = "windows-x86_64" if os.name == "nt" else "linux-x86_64"
 toolchain = ndk / "toolchains/llvm/prebuilt" / host / "bin"
 targets = [("armv7-linux-androideabi", "armv7a-linux-androideabi21", "armeabi-v7a"), ("aarch64-linux-android", "aarch64-linux-android21", "arm64-v8a")]
-roles = [("standard", [], "app-receiver"), ("legacy", ["legacy"], "app-receiver"), ("main", ["sender"], "app-sender")]
+roles = [("standard", [], "app-receiver"), ("airplay", [], "app-receiver"), ("legacy", ["legacy"], "app-receiver"), ("main", ["sender"], "app-sender")]
 for target, clang, abi in targets:
     subprocess.run(["rustup", "target", "add", target], check=True)
     env = os.environ.copy()

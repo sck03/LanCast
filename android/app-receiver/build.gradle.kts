@@ -14,9 +14,12 @@ android {
     flavorDimensions += "support"
     productFlavors {
         create("standard") { dimension = "support"; minSdk = 23 }
+        create("airplay") { dimension = "support"; minSdk = 23; applicationIdSuffix = ".airplay" }
         create("legacy") { dimension = "support"; minSdk = 21; applicationIdSuffix = ".legacy" }
     }
     buildTypes { release { isMinifyEnabled = false } }
+    sourceSets["standard"].java.srcDir("src/withoutAirplay/kotlin")
+    sourceSets["legacy"].java.srcDir("src/withoutAirplay/kotlin")
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }
     packaging { jniLibs { useLegacyPackaging = false } }
 }
@@ -25,6 +28,9 @@ dependencies {
     implementation(project(":control-bridge"))
     implementation(project(":media-webrtc"))
     implementation(project(":player-api"))
+    implementation(project(":receiver-contracts"))
+    add("airplayImplementation", project(":player-standard"))
+    add("airplayImplementation", project(":airplay-receiver"))
     add("standardImplementation", project(":player-standard"))
     add("legacyImplementation", project(":player-legacy"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")

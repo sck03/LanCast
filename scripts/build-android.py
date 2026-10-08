@@ -18,9 +18,10 @@ def main():
     wrapper = "gradlew.bat" if platform.system() == "Windows" else "./gradlew"
     tasks = [f":app-receiver:assembleStandard{mode}", f":app-receiver:assembleLegacy{mode}",
              f":app-sender:assemble{mode}", f":app-receiver:lintStandard{mode}",
-             f":app-receiver:lintLegacy{mode}", f":app-sender:lint{mode}", f":control-bridge:test{mode}UnitTest"]
+             f":app-receiver:lintLegacy{mode}", f":app-sender:lint{mode}", f":control-bridge:test{mode}UnitTest",
+             f":app-receiver:assembleAirplay{mode}", f":app-receiver:lintAirplay{mode}", ":receiver-contracts:test"]
     subprocess.run([wrapper, *tasks, "--stacktrace"], cwd=ROOT / "android", env=env, check=True)
-    for flavor in ("legacy", "standard"):
+    for flavor in ("legacy", "standard", "airplay"):
         with (ROOT / "android" / f"{flavor}-dependencies.txt").open("w", encoding="utf-8") as output:
             subprocess.run([wrapper, ":app-receiver:dependencies", "--configuration", f"{flavor}{mode}RuntimeClasspath"],
                            cwd=ROOT / "android", env=env, stdout=output, check=True)
@@ -28,6 +29,9 @@ def main():
         raise RuntimeError("Media3 leaked into Legacy receiver")
     if "media3-common:1.11.1" not in (ROOT / "android/standard-dependencies.txt").read_text(encoding="utf-8"):
         raise RuntimeError("Standard receiver Media3 version mismatch")
+    for flavor in ("legacy", "standard"):
+        if "project :airplay-receiver" in (ROOT / "android" / f"{flavor}-dependencies.txt").read_text(encoding="utf-8"):
+            raise RuntimeError(f"GPL AirPlay module leaked into {flavor}")
 
 
 if __name__ == "__main__":

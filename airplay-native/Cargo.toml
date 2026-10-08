@@ -1,0 +1,42 @@
+[package]
+name = "lancast-airplay"
+version = "0.6.0"
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-only"
+description = "Optional LanCast AirPlay receiver adapter; separate from the Apache control core"
+
+[lib]
+name = "lancast_airplay"
+crate-type = ["cdylib", "rlib"]
+
+[workspace]
+members = ["vendor/rairplay"]
+resolver = "3"
+
+[dependencies]
+rairplay = { path = "vendor/rairplay" }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros", "io-util"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1"] }
+bytes = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ed25519-dalek = "2.2"
+rand = "0.8"
+hex = "0.4"
+futures = "0.3"
+tracing = { version = "0.1", features = ["max_level_off"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21.1"
+
+[dev-dependencies]
+tempfile = "3"
+plist = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+

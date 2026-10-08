@@ -1,10 +1,13 @@
 # 第三方组件与许可证
 
-业务源码采用 Apache-2.0。免费开源依赖不替代编解码专利或平台发行条款。
+基础业务源码采用Apache-2.0。`airplay-native`和`android/airplay-receiver`为可选GPL-3.0-only模块；包含它们的Android Airplay组合APK按GPL-3.0-only分发，其他变体不链接此模块。免费开源依赖不替代编解码专利或平台发行条款。
 
 | 组件 | 固定输入 | 用途 | 许可 |
 |---|---|---|---|
 | Rust crates | Cargo.lock | 控制、TLS、发现、Hyper文件/直播服务、UPnP | 依赖报告列出每个包的license/source |
+| rairplay及本地修正 | 7a0ec4036905afe0c8de16881d85d5846dc938a7，原始文件哈希见airplay-native/vendor/rairplay/UPSTREAM.json | 可选AirPlay协议 | GPL-3.0-only |
+| PlayFair / shairplay子模块 | 096b61ad14c90169f438e690d096e3fcf87e504e，仅src/lib/playfair | 协议握手中的媒体密钥处理；不提供受保护内容播放 | GPLv3，保留原组件说明 |
+| AirPlay Rust依赖 | airplay-native/Cargo.lock | 协议、密码算法、异步网络、JNI | 独立锁定；工作流附依赖清单和Cargo源码包 |
 | webrtc-sdk Android | 150.7871.01 | 开发期Android RTC | 包装MIT；libwebrtc BSD与附带第三方许可 |
 | Android定制libwebrtc目标 | 0385653a83f21acf3c916466d4088b29fe2f160b | 原定源构建目标，尚未完成；当前使用固定上游AAR | 按固定源与DEPS审计 |
 | libdatachannel | 9e6a13abbb6846c003d817d0387b6706466e2b03 | Windows RTC传输 | MPL-2.0 |

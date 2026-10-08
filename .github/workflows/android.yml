@@ -2,9 +2,9 @@ name: Android
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","media-native/**","scripts/build-android*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
       source_ref:
@@ -32,7 +32,7 @@ concurrency:
 jobs:
   android:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v7
         with:
@@ -64,19 +64,22 @@ jobs:
         with:
           path: |
             android/app-*/src/**/jniLibs/
+            android/airplay-receiver/src/main/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
-          key: android-native-v1-${{ hashFiles('Cargo.lock', '**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/build-android-*.py', 'scripts/build-ffmpeg.py') }}
+          key: android-native-v2-${{ hashFiles('Cargo.lock', '**/Cargo.toml', 'airplay-native/Cargo.lock', 'airplay-native/src/**', 'airplay-native/vendor/**', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/build-android-*.py', 'scripts/build-ffmpeg.py') }}
       - name: Build product-specific Rust and minimal TS JNI libraries
         if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
           export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
           python scripts/build-android-core.py
           python scripts/build-android-media.py
+          python scripts/build-android-airplay.py
       - uses: actions/cache/save@v6
         if: steps.native-cache.outputs.cache-hit != 'true'
         with:
           path: |
             android/app-*/src/**/jniLibs/
+            android/airplay-receiver/src/main/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
           key: ${{ steps.native-cache.outputs.cache-primary-key }}
       - name: Build Kotlin apps lint and verify dependency separation
@@ -85,6 +88,11 @@ jobs:
           python scripts/build-android.py
       - run: python scripts/verify-apks.py
       - run: python scripts/package-native-evidence.py android
+      - run: python scripts/package-airplay.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: airplay-source-and-dependencies-${{ steps.build-config.outputs.label }}
+          path: dist/airplay-evidence/
       - uses: actions/upload-artifact@v7
         with:
           name: android-native-relink-sources
@@ -97,5 +105,6 @@ jobs:
             android/app-*/build/outputs/apk/**/*.apk
             android/app-*/build/reports/
             android/*-dependencies.txt
+            android/receiver-contracts/build/test-results/
             dist/reports/build-android.json
             .cache/ffmpeg-install-*/build-manifest.json

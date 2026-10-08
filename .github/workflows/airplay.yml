@@ -1,0 +1,30 @@
+name: AirPlay protocol
+on:
+  push:
+    branches: [main]
+    paths: ["airplay-native/**", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
+  pull_request:
+    paths: ["airplay-native/**", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: airplay-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+      - uses: actions/cache@v6
+        with:
+          path: |
+            airplay-native/target/
+            ~/.cargo/registry/
+          key: airplay-linux-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.rs') }}
+          restore-keys: airplay-linux-
+      - run: cargo fmt --manifest-path airplay-native/Cargo.toml --all --check
+      - run: cargo clippy --manifest-path airplay-native/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --manifest-path airplay-native/Cargo.toml --workspace --locked
