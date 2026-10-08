@@ -7,6 +7,17 @@ DEFAULTS = {"schema": 1, "version": "0.4.0", "build_number": 4,
 
 
 class BuildConfigTests(unittest.TestCase):
+    def test_android_abi_cache_keys_are_safe_order_independent_and_distinct(self):
+        dual = resolve("android", environ={}, defaults=DEFAULTS)
+        reversed_abis = resolve("android", android_abis="arm64-v8a,armeabi-v7a", environ={}, defaults=DEFAULTS)
+        self.assertEqual(dual.android_abi_key, reversed_abis.android_abi_key)
+        keys = {dual.android_abi_key}
+        for abi in DEFAULTS["android_abis"]:
+            keys.add(resolve("android", android_abis=abi, environ={}, defaults=DEFAULTS).android_abi_key)
+        self.assertEqual(len(keys), 3)
+        for key in keys:
+            self.assertRegex(key, r"^[a-z0-9-]+$")
+
     def test_chinese_workflow_choices_export_native_build_modes(self):
         for label, mode in (("日常使用（Release）", "Release"), ("开发调试（Debug）", "Debug")):
             for platform in DEFAULTS["configuration"]:

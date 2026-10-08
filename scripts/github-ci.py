@@ -15,7 +15,8 @@ WORKFLOWS = tuple(name + ".yml" for name in (*PRODUCT_WORKFLOWS, *CHECK_WORKFLOW
 
 def run_summary(run):
     return {"workflow": run["path"].split("@", 1)[0].rsplit("/", 1)[-1], "run": run["id"],
-            "sha": run["head_sha"], "status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"]}
+            "sha": run["head_sha"], "event": run["event"], "title": run["display_title"],
+            "status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"]}
 
 
 def main():

@@ -25,6 +25,11 @@ class BuildConfig:
     def label(self):
         return f"{self.version}-{self.build_number}-{self.configuration}"
 
+    @property
+    def android_abi_key(self):
+        # actions/cache rejects commas; ABI order does not change the native payload.
+        return "-".join(sorted(self.android_abis))
+
     def environment(self):
         return {
             "LC_VERSION": self.version,
@@ -93,7 +98,7 @@ def main():
         with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as stream:
             stream.writelines(f"{key}={value}\n" for key, value in config.environment().items())
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
-            stream.write(f"label={config.label}\nconfiguration={config.configuration}\n")
+            stream.write(f"label={config.label}\nconfiguration={config.configuration}\nandroid_abi_key={config.android_abi_key}\n")
     print(json.dumps(record(config), indent=2))
 
 
