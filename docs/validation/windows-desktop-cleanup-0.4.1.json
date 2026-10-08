@@ -3,8 +3,8 @@
   "status": "moved_for_user_deletion",
   "archive_directory": "E:/cast/待手动删除-LanCast-20261008",
   "deleted_files": 0,
-  "moved_files": 6336,
-  "moved_bytes": 4110014654,
+  "moved_files": 6360,
+  "moved_bytes": 4131909957,
   "verification": "Each source and destination was resolved within the approved directories. File counts and total byte sizes matched after each move; original paths no longer existed.",
   "groups": [
     {"path": "windows/build-msvc", "files": 4, "bytes": 3948},
@@ -13,7 +13,9 @@
     {"path": "target", "files": 5110, "bytes": 3915261270},
     {"path": ".cache/desktop-check", "files": 1195, "bytes": 194589910},
     {"path": ".cache/refactor_desktop.py", "files": 1, "bytes": 23943},
-    {"path": ".cache/build_desktop_check.py", "files": 1, "bytes": 2023}
+    {"path": ".cache/build_desktop_check.py", "files": 1, "bytes": 2023},
+    {"path": ".cache/ui-review-0.5", "files": 4, "bytes": 5465904},
+    {"path": "dist/LanCast-Windows-x64", "destination": "dist/LanCast-Windows-x64-0.4.1-5", "files": 20, "bytes": 16429399}
   ],
   "candidate_files": 29,
   "candidate_bytes": 137508,

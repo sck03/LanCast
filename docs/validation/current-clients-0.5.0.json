@@ -1,0 +1,119 @@
+{
+  "date": "2026-10-08",
+  "version": "0.5.0",
+  "build_number": 6,
+  "program_commit": "186be1f9064f6b7de8428bc5a1e67449cf5cb350",
+  "pairing_version": 2,
+  "compatibility": "Current pairing dialect only; no manual sender identity entry, old long invitations, or downgrade path. Android Legacy OS support remains.",
+  "runs": [
+    {
+      "platform": "windows",
+      "id": 37729005805,
+      "source_commit": "186be1f9064f6b7de8428bc5a1e67449cf5cb350",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37729005805"
+    },
+    {
+      "platform": "linux-core",
+      "id": 37729005773,
+      "source_commit": "186be1f9064f6b7de8428bc5a1e67449cf5cb350",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37729005773"
+    },
+    {
+      "platform": "android",
+      "id": 37729005782,
+      "source_commit": "186be1f9064f6b7de8428bc5a1e67449cf5cb350",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37729005782"
+    },
+    {
+      "platform": "macos",
+      "id": 37729005838,
+      "source_commit": "186be1f9064f6b7de8428bc5a1e67449cf5cb350",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37729005838"
+    },
+    {
+      "platform": "ios",
+      "id": 37729005820,
+      "source_commit": "186be1f9064f6b7de8428bc5a1e67449cf5cb350",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37729005820"
+    },
+    {
+      "platform": "tvos",
+      "id": 37729005775,
+      "source_commit": "186be1f9064f6b7de8428bc5a1e67449cf5cb350",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37729005775"
+    }
+  ],
+  "checks": {
+    "windows_rust_tests": 34,
+    "linux_rust_tests": 35,
+    "windows_native_tests": [
+      "desktop_contract",
+      "view_contract",
+      "rtc_contract",
+      "media_abi_contract"
+    ],
+    "android_jvm_tests": 3,
+    "apple_contract_tests": 7,
+    "mac_application_integration_tests": 5,
+    "local_python_tests": 11,
+    "local_native_view": "passed; native form, removed manual identity controls, scrolling, icon, hidden timer, tray restore and re-registration",
+    "old_protocol_tests": [
+      "old receiver is rejected before the code is sent",
+      "old sender is rejected before receiver approval"
+    ],
+    "apple_discovery": "System Bonjour browser/publisher compiled on Mac/iOS/tvOS; pure tests verify current TXT version and bound address membership."
+  },
+  "windows_artifact": {
+    "name": "LanCast-Windows-x64-0.5.0-6-Release",
+    "compressed_bytes": 6902042,
+    "product_version": "0.5.0",
+    "file_version": "0.5.0.6",
+    "hashes_verified": 9,
+    "icon_sizes": 8,
+    "manifest_verified": true,
+    "package_files": 20,
+    "package_bytes": 16431453,
+    "binaries": [
+      {
+        "file": "LanCast.exe",
+        "bytes": 459776,
+        "sha256": "1c86f7537e476c74fd9e5713706f5375ec79aabb474c87ab888d937dda4f08a7"
+      },
+      {
+        "file": "lancast_core.dll",
+        "bytes": 6404096,
+        "sha256": "0834505df269f1cc433d47f6a16f6b1b15373a031d0bc4442a37feec489d4b21"
+      },
+      {
+        "file": "lancast_rtc.dll",
+        "bytes": 2854912,
+        "sha256": "5e6f634e98e1ff47acf03f6849be3af795ccf2cb4703740df3e84165cf7c21c5"
+      },
+      {
+        "file": "lancast_ts.dll",
+        "bytes": 6592322,
+        "sha256": "3254452eaefd079caf6d85babe39ca13c2fdf063afd17e3661b6af493eb4be6e"
+      }
+    ]
+  },
+  "cleanup": {
+    "record": "windows-desktop-cleanup-0.4.1.json",
+    "moved_files": 6360,
+    "moved_bytes": 4131909957,
+    "archive_directory": "E:/cast/待手动删除-LanCast-20261008",
+    "space_reclaimed": "Requires manual deletion by the user."
+  },
+  "limits": [
+    "No physical TV/phone/Apple device validation in this task.",
+    "Native view screenshot is a test fixture, not a real cast.",
+    "Actual Bonjour permission prompts, Wi-Fi/VPN changes, Explorer restart and long-running background casting remain to be validated.",
+    "Only the Windows product artifact was downloaded and independently checked in the final round; Android/Apple results are CI builds/tests, not independently installed packages.",
+    "Production signing and complete performance acceptance remain unfinished."
+  ]
+}
