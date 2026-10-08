@@ -102,9 +102,10 @@ struct ContentView: View {
                     }.disabled(sender.connectionLocked)
                 }
                 TextField("电视上的 8 位配对码", text: $sender.invite).autocorrectionDisabled().disabled(sender.connectionLocked)
-                DisclosureGroup("高级设置 / 手动连接", isExpanded: $sender.advanced) {
-                    TextField("接收端 IPv4:8787", text: $sender.address)
-                    TextField("旧版接收端的完整 SHA-256 指纹", text: $sender.fingerprint)
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+                DisclosureGroup("网络设置", isExpanded: $sender.advanced) {
                     Picker("本机网络", selection: $sender.networkChoice) {
                         Text("自动选择").tag("")
                         ForEach(sender.availableNetworks, id: \.self) { Text($0).tag($0) }

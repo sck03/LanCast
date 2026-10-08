@@ -3,6 +3,94 @@ use cast_adapters::runtime::Engine;
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sender_rejects_previous_receiver_before_sending_code() {
+    use cast_adapters::{auth, protocol::Message};
+    use futures_util::{SinkExt, StreamExt};
+    let sender = Engine::new().unwrap();
+    let identity = auth::Identity::create().unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let fingerprint = identity.fingerprint.clone();
+    let acceptor =
+        tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(identity.server_config().unwrap()));
+    let peer = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let tls = acceptor.accept(stream).await.unwrap();
+        let mut ws = tokio_tungstenite::accept_async(tls).await.unwrap();
+        let old_challenge = Message::new(
+            "auth.challenge",
+            json!({"nonce":auth::random_token(),"expiresInMs":30000}),
+        );
+        ws.send(tokio_tungstenite::tungstenite::Message::Text(
+            serde_json::to_string(&old_challenge).unwrap().into(),
+        ))
+        .await
+        .unwrap();
+        let response = tokio::time::timeout(Duration::from_secs(5), ws.next())
+            .await
+            .unwrap();
+        if let Some(Ok(frame)) = response {
+            assert!(
+                !frame.is_text(),
+                "A pairing code was sent to an incompatible receiver"
+            );
+        }
+    });
+    sender.command(json!({"op":"connect","address":address.to_string(),"fingerprint":fingerprint,"invite":"12345678"})).unwrap();
+    assert_eq!(event(&sender, "error")["code"], "PAIRING_VERSION_MISMATCH");
+    sender.close();
+    peer.await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn receiver_rejects_previous_sender_before_requesting_approval() {
+    use cast_adapters::{auth, protocol::Message};
+    use futures_util::{SinkExt, StreamExt};
+    let receiver = Engine::new().unwrap();
+    receiver
+        .command(json!({"op":"listen","address":"127.0.0.1:0"}))
+        .unwrap();
+    let ready = event(&receiver, "receiver.ready");
+    let config = auth::pinned_config(ready["fingerprint"].as_str().unwrap()).unwrap();
+    let (mut ws, _) = tokio_tungstenite::connect_async_tls_with_config(
+        format!("wss://{}/v1/ws", ready["address"].as_str().unwrap()),
+        None,
+        false,
+        Some(tokio_tungstenite::Connector::Rustls(std::sync::Arc::new(
+            config,
+        ))),
+    )
+    .await
+    .unwrap();
+    let frame = ws.next().await.unwrap().unwrap();
+    let challenge: Value = serde_json::from_str(frame.to_text().unwrap()).unwrap();
+    assert_eq!(challenge["body"]["pairingVersion"], auth::PAIRING_VERSION);
+    let identity = auth::Identity::create().unwrap();
+    let old_pair = Message::new(
+        "pair.request",
+        json!({"invite":ready["invite"],"senderDeviceId":identity.id,"senderName":"previous sender","senderPublicKey":identity.public_key,"signature":identity.sign(challenge["body"]["nonce"].as_str().unwrap()).unwrap()}),
+    );
+    ws.send(tokio_tungstenite::tungstenite::Message::Text(
+        serde_json::to_string(&old_pair).unwrap().into(),
+    ))
+    .await
+    .unwrap();
+    let response = tokio::time::timeout(Duration::from_secs(5), ws.next())
+        .await
+        .unwrap();
+    if let Some(Ok(frame)) = response {
+        assert!(!frame.is_text(), "An incompatible sender was accepted");
+    }
+    while let Some(raw) = receiver.poll() {
+        assert_ne!(
+            serde_json::from_str::<Value>(&raw).unwrap()["type"],
+            "pair.request"
+        );
+    }
+    receiver.close();
+}
+
 fn event(engine: &Engine, kind: &str) -> Value {
     let deadline = Instant::now() + Duration::from_secs(8);
     loop {

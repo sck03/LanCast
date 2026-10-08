@@ -21,15 +21,15 @@ using Json = nlohmann::json;
 namespace {
 class DesktopApp {
     static constexpr UINT MEDIA_EVENT = WM_APP + 1;
-    HWND main_window{}, status_text{}, address{}, fingerprint{}, invitation{}, windows_list{},
-        audio_check{}, devices_list{};
+    HWND main_window{}, status_text{}, invitation{}, windows_list{}, audio_check{}, devices_list{};
     LancastHandle core = 0;
     static LancastHandle create_core() {
         LancastConfig c{sizeof(LancastConfig), 2, 0};
         return lancast_create_v2(&c);
     }
     std::unique_ptr<MediaSender> media;
-    std::string session, mode, dlna_id, dlna_ip, local_address;
+    std::string session, mode, dlna_id, dlna_ip, local_address, receiver_address,
+        receiver_fingerprint;
     Json shared_file;
     bool connected = false;
     uint64_t generation = 0;
@@ -253,9 +253,10 @@ class DesktopApp {
                 SendMessageW(devices_list, CB_SETCURSEL, 0, 0);
                 select_device();
             } else if (!scanning)
-                status(catalog.entries().empty()
-                           ? "未发现电视。请确认电脑和电视在同一网络，或打开高级设置手动连接。"
-                           : "请选择要连接的电视");
+                status(
+                    catalog.entries().empty()
+                        ? "未发现电视。请确认各端使用当前版本并连接同一网络；高级设置可切换网卡。"
+                        : "请选择要连接的电视");
         } else if (type == "file.shared") {
             if (!file_pending || stopping || exiting)
                 return;
@@ -378,11 +379,10 @@ class DesktopApp {
         case 4: {
             if (connected || pairing || busy())
                 return;
-            auto endpoint = text(address);
+            auto endpoint = receiver_address;
             auto split = endpoint.rfind(':');
             if (split == std::string::npos || !network::lan_ipv4(endpoint.substr(0, split))) {
-                view.show_advanced();
-                throw std::runtime_error("请选择电视，或在高级设置中填写电视的局域网地址和端口");
+                throw std::runtime_error("请刷新并选择当前版本的接收端");
             }
             const auto port = endpoint.substr(split + 1);
             if (port.empty() || port.size() > 5 ||
@@ -390,19 +390,16 @@ class DesktopApp {
                              [](char c) { return c >= '0' && c <= '9'; }) ||
                 std::stoi(port) < 1 || std::stoi(port) > 65535)
                 throw std::runtime_error("电视端口必须是 1–65535 之间的数字");
-            auto pin = text(fingerprint);
-            std::erase_if(pin,
-                          [](char c) { return c == ':' || c == ' ' || c == '\r' || c == '\n'; });
+            const auto pin = receiver_fingerprint;
             if (!valid_fingerprint(pin)) {
-                view.show_advanced();
-                throw std::runtime_error("此电视没有提供有效指纹。请升级电视接收端，或在高级设置中"
-                                         "填入电视显示的完整指纹");
+                throw std::runtime_error("接收端身份信息无效，请更新各端并重新搜索");
             }
             auto invite = text(invitation);
             std::erase_if(invite, [](char c) { return c == ' ' || c == '\r' || c == '\n'; });
-            if (invite.empty()) {
+            if (invite.size() != 8 || !std::all_of(invite.begin(), invite.end(),
+                                                   [](char c) { return c >= '0' && c <= '9'; })) {
                 SetFocus(invitation);
-                throw std::runtime_error("请输入电视上的配对码；过期时请在电视上更新邀请");
+                throw std::runtime_error("请输入电视上的 8 位数字配对码；过期时请在电视刷新");
             }
             std::string formatted;
             for (size_t i = 0; i < pin.size(); i += 8) {
@@ -465,7 +462,7 @@ class DesktopApp {
             dialog.nMaxFile = 32768;
             dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
             if (GetOpenFileNameW(&dialog)) {
-                auto remote = text(address);
+                auto remote = receiver_address;
                 auto ip = dlna_id.empty() ? remote.substr(0, remote.rfind(':')) : dlna_ip;
                 select_route(ip);
                 mode = "file";
@@ -509,10 +506,8 @@ class DesktopApp {
             dlna_ip.clear();
             selected_key.clear();
             SendMessageW(devices_list, CB_SETCURSEL, static_cast<WPARAM>(-1), 0);
-            selecting_device = true;
-            SetWindowTextW(address, L"");
-            selecting_device = false;
-            SetWindowTextW(fingerprint, L"");
+            receiver_address.clear();
+            receiver_fingerprint.clear();
             SetWindowTextW(invitation, L"");
             if (reset_core) {
                 scanning = false;
@@ -603,18 +598,6 @@ class DesktopApp {
                     choose_network();
                     return 0;
                 }
-                if (HIWORD(w) == EN_CHANGE && LOWORD(w) == MainView::address) {
-                    if (!selecting_device) {
-                        selected_key.clear();
-                        SendMessageW(devices_list, CB_SETCURSEL, static_cast<WPARAM>(-1), 0);
-                        dlna_id.clear();
-                        dlna_ip.clear();
-                        SetWindowTextW(fingerprint, L"");
-                        SetWindowTextW(invitation, L"");
-                    }
-                    update_controls();
-                    return 0;
-                }
                 if (HIWORD(w) == BN_CLICKED)
                     click(LOWORD(w));
                 return 0;
@@ -679,7 +662,7 @@ class DesktopApp {
     std::string selected_key;
     bool ready = false, pairing = false, file_pending = false, stopping = false;
     bool scanning = false, scan_lancast_pending = false, scan_dlna_pending = false;
-    bool manual_network = false, selecting_device = false, media_available = false, exiting = false;
+    bool manual_network = false, media_available = false, exiting = false;
     ULONGLONG scan_started = 0, exit_started = 0;
     uint64_t scan_generation = 0;
     bool busy() const {
@@ -690,11 +673,10 @@ class DesktopApp {
         if (!ready)
             return;
         const bool active = busy();
-        for (int id : {1, 16, 17, MainView::devices, MainView::address, MainView::fingerprint,
-                       MainView::invitation})
+        for (int id : {1, 16, 17, MainView::devices, MainView::invitation})
             EnableWindow(view.get(id), !active && !connected && !pairing && !scanning && !exiting);
         EnableWindow(view.get(4), !active && !connected && !pairing && !scanning && !exiting &&
-                                      !text(address).empty() && dlna_id.empty());
+                                      !receiver_address.empty() && dlna_id.empty());
         EnableWindow(view.get(5), !active && !pairing && !scanning && !exiting && media_available &&
                                       (connected || !dlna_id.empty()));
         EnableWindow(view.get(6), !active && !pairing && !scanning && !exiting &&
@@ -779,10 +761,8 @@ class DesktopApp {
         selected_key.clear();
         dlna_id.clear();
         dlna_ip.clear();
-        selecting_device = true;
-        SetWindowTextW(address, L"");
-        selecting_device = false;
-        SetWindowTextW(fingerprint, L"");
+        receiver_address.clear();
+        receiver_fingerprint.clear();
         SetWindowTextW(invitation, L"");
         SendMessageW(devices_list, CB_RESETCONTENT, 0, 0);
         scanning = scan_lancast_pending = true;
@@ -820,18 +800,13 @@ class DesktopApp {
         selected_key = d.key;
         dlna_id = d.dlna ? d.id : "";
         dlna_ip = d.dlna ? d.ip : "";
-        selecting_device = true;
-        SetWindowTextW(address, wide(d.address).c_str());
-        selecting_device = false;
-        SetWindowTextW(fingerprint, wide(d.fingerprint).c_str());
+        receiver_address = d.address;
+        receiver_fingerprint = d.fingerprint;
         SetWindowTextW(invitation, L"");
         select_route(d.ip);
-        status(
-            d.dlna ? "已选择普通电视。可直接播放 "
-                     "MP4；分享屏幕前请先测试电视兼容性。视频通过本地网络明文传输。"
-            : d.fingerprint.empty()
-                ? "已选择旧版接收端。请升级电视接收端，或在高级设置填写指纹，然后输入电视配对码。"
-                : "已自动填入电视地址和指纹。输入电视上的配对码，点击连接电视。");
+        status(d.dlna ? "已选择普通电视。可直接播放 "
+                        "MP4；分享屏幕前请先测试电视兼容性。视频通过本地网络明文传输。"
+                      : "已自动获取电视地址和指纹。输入电视上的配对码，点击连接电视。");
     }
     void close() {
         if (exiting)
@@ -903,8 +878,6 @@ class DesktopApp {
                          GetSystemMetrics(SM_CYSMICON), LR_SHARED)));
         view.create(main_window);
         status_text = view.get(MainView::status);
-        address = view.get(MainView::address);
-        fingerprint = view.get(MainView::fingerprint);
         invitation = view.get(MainView::invitation);
         windows_list = view.get(MainView::sources);
         audio_check = view.get(MainView::audio);
@@ -924,8 +897,7 @@ class DesktopApp {
             status("媒体库加载失败，屏幕分享不可用。请完整解压程序和三个 DLL；文件播放仍可用。");
         MSG msg{};
         while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
-            if (msg.message == WM_KEYDOWN && msg.wParam == VK_RETURN &&
-                (msg.hwnd == invitation || msg.hwnd == address || msg.hwnd == fingerprint)) {
+            if (msg.message == WM_KEYDOWN && msg.wParam == VK_RETURN && msg.hwnd == invitation) {
                 if (IsWindowEnabled(view.get(4))) {
                     try {
                         click(4);

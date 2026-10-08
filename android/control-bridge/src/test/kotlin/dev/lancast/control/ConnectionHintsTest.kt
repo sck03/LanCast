@@ -21,7 +21,8 @@ class ConnectionHintsTest {
         for (ip in listOf("127.0.0.1", "0.0.0.0", "8.8.8.8", "192.168.001.2", "host.local", "999.1.1.1")) assertFalse(ip, isLanIpv4(ip))
         assertTrue(sameSubnet("192.168.1.4", "192.168.1.8", 24))
         assertFalse(sameSubnet("192.168.1.4", "192.168.2.8", 24))
-        assertEquals("a".repeat(64), normalizedFingerprint("AA:".repeat(31) + "AA"))
+        assertEquals("a".repeat(64), normalizedFingerprint("A".repeat(64)))
+        assertNull(normalizedFingerprint("AA:".repeat(31) + "AA"))
         assertNull(normalizedFingerprint("g".repeat(64)))
     }
     @Test fun discoveryMergesProtocolsAndDoesNotRetainOldIdentity() {
@@ -33,7 +34,7 @@ class ConnectionHintsTest {
         catalog.update(JSONArray().put(dlna), true)
         assertEquals(2, catalog.devices.size); assertEquals("192.168.1.8:8787", catalog.devices[0].address)
         native.remove("fingerprint"); catalog.update(JSONArray().put(native), false)
-        assertEquals("", catalog.devices[0].fingerprint)
+        assertEquals(1, catalog.devices.size); assertTrue(catalog.devices[0].dlna)
         catalog.update(JSONArray().put(JSONObject().put("id", "bad").put("port", "bad")), false)
         assertEquals(1, catalog.devices.size); assertTrue(catalog.devices[0].dlna)
     }

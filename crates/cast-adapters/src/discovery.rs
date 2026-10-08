@@ -1,4 +1,7 @@
-use crate::dlna::{self, Renderer};
+use crate::{
+    auth,
+    dlna::{self, Renderer},
+};
 use anyhow::ensure;
 use std::{
     collections::HashMap,
@@ -19,6 +22,7 @@ impl Advertisement {
         fingerprint: &str,
     ) -> anyhow::Result<Self> {
         let daemon = mdns_sd::ServiceDaemon::new()?;
+        let pairing_version = auth::PAIRING_VERSION.to_string();
         let info = mdns_sd::ServiceInfo::new(
             "_lancast._tcp.local.",
             name,
@@ -30,6 +34,7 @@ impl Advertisement {
                 ("deviceId", id),
                 ("variant", variant),
                 ("fingerprint", fingerprint),
+                ("pairingVersion", pairing_version.as_str()),
             ]
             .as_slice(),
         )?;
@@ -60,7 +65,12 @@ pub fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
             // Discovery is untrusted; TLS identity must still be verified by the user.
             let addresses: Vec<String> =
                 info.get_addresses().iter().map(|a| a.to_string()).collect();
-            let fingerprint = advertised_fingerprint(info.get_property_val_str("fingerprint"));
+            let Some(fingerprint) = advertised_fingerprint(
+                info.get_property_val_str("fingerprint"),
+                info.get_property_val_str("pairingVersion"),
+            ) else {
+                continue;
+            };
             found.insert(id.clone(),serde_json::json!({"id":id,"name":info.get_fullname(),"addresses":addresses,"port":info.get_port(),"fingerprint":fingerprint,"kind":"lancast_receiver","verification":"unverified"}));
         }
     }
@@ -70,7 +80,10 @@ pub fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
 }
 // Public discovery hints are never a trust decision. The sender must compare the
 // full value with the receiver before passing it to the pinned TLS connection.
-fn advertised_fingerprint(value: Option<&str>) -> Option<String> {
+fn advertised_fingerprint(value: Option<&str>, version: Option<&str>) -> Option<String> {
+    if version.and_then(|value| value.parse::<u64>().ok()) != Some(auth::PAIRING_VERSION) {
+        return None;
+    }
     value
         .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
         .map(str::to_ascii_lowercase)
@@ -145,12 +158,20 @@ pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
 mod tests {
     use super::*;
     #[test]
-    fn discovery_pin_is_optional_and_strictly_bounded() {
-        assert_eq!(advertised_fingerprint(None), None);
-        assert_eq!(advertised_fingerprint(Some("abc")), None);
-        assert_eq!(advertised_fingerprint(Some(&"g".repeat(64))), None);
+    fn discovery_requires_current_pairing_and_full_pin() {
+        assert_eq!(advertised_fingerprint(None, Some("2")), None);
+        assert_eq!(advertised_fingerprint(Some("abc"), Some("2")), None);
         assert_eq!(
-            advertised_fingerprint(Some(&"A".repeat(64))),
+            advertised_fingerprint(Some(&"g".repeat(64)), Some("2")),
+            None
+        );
+        assert_eq!(advertised_fingerprint(Some(&"a".repeat(64)), None), None);
+        assert_eq!(
+            advertised_fingerprint(Some(&"a".repeat(64)), Some("1")),
+            None
+        );
+        assert_eq!(
+            advertised_fingerprint(Some(&"A".repeat(64)), Some("2")),
             Some("a".repeat(64))
         );
     }

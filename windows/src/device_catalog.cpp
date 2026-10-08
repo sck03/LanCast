@@ -55,6 +55,8 @@ void DeviceCatalog::update(const nlohmann::json &devices, bool dlna) {
                 if (valid_fingerprint(pin))
                     item.fingerprint = pin;
             }
+            if (item.fingerprint.empty())
+                continue;
         }
         if (!network::lan_ipv4(item.ip))
             continue;

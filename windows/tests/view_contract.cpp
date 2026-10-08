@@ -9,7 +9,10 @@
 static MainView *view = nullptr;
 static unsigned timer_ticks = 0;
 static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM w, LPARAM l) {
-    if (message == WM_TIMER) { ++timer_ticks; return 0; }
+    if (message == WM_TIMER) {
+        ++timer_ticks;
+        return 0;
+    }
     LRESULT result{};
     if (view && view->handle(message, w, l, result))
         return result;
@@ -68,8 +71,10 @@ int main(int argc, char **argv) {
         SetWindowTextW(controls.get(MainView::network_summary),
                        L"已自动选择网络 · 192.168.1.10（界面测试示例）");
         SetWindowTextW(controls.get(MainView::status), L"请选择电视，输入配对码后即可连接。");
-        check((GetWindowLongPtrW(controls.get(MainView::address), GWL_STYLE) & WS_VISIBLE) == 0,
-              "manual fields collapsed initially");
+        check((GetWindowLongPtrW(controls.get(16), GWL_STYLE) & WS_VISIBLE) == 0,
+              "network settings collapsed initially");
+        check(!controls.get(102) && !controls.get(103),
+              "manual identity entry is not part of the form");
         check(SendMessageW(controls.get(MainView::audio), BM_GETCHECK, 0, 0) == BST_CHECKED,
               "audio choice initialized");
         if (argc > 1) {
@@ -79,11 +84,11 @@ int main(int argc, char **argv) {
             ShowWindow(window, SW_HIDE);
         }
         controls.toggle_advanced();
-        check((GetWindowLongPtrW(controls.get(MainView::address), GWL_STYLE) & WS_VISIBLE) != 0,
+        check((GetWindowLongPtrW(controls.get(16), GWL_STYLE) & WS_VISIBLE) != 0,
               "advanced fields can be reached");
         RECT source{}, manual{};
         GetWindowRect(controls.get(MainView::sources), &source);
-        GetWindowRect(controls.get(MainView::fingerprint), &manual);
+        GetWindowRect(controls.get(16), &manual);
         check(source.top > manual.bottom, "advanced fields do not overlap sharing controls");
         SetWindowPos(window, nullptr, 0, 0, 780, 560, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
         SendMessageW(window, WM_VSCROLL, SB_BOTTOM, 0);
@@ -92,8 +97,8 @@ int main(int argc, char **argv) {
         check(scroll.nMax > static_cast<int>(scroll.nPage),
               "small windows retain a scrollable form");
         controls.toggle_advanced();
-        check((GetWindowLongPtrW(controls.get(MainView::fingerprint), GWL_STYLE) & WS_VISIBLE) == 0,
-              "collapse hides identity editor");
+        check((GetWindowLongPtrW(controls.get(16), GWL_STYLE) & WS_VISIBLE) == 0,
+              "collapse hides network settings");
         {
             TrayIcon tray;
             tray.attach(window, icon);
@@ -103,7 +108,8 @@ int main(int argc, char **argv) {
                 const auto deadline = GetTickCount64() + 2000;
                 while (!timer_ticks && GetTickCount64() < deadline) {
                     MSG message{};
-                    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) DispatchMessageW(&message);
+                    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
+                        DispatchMessageW(&message);
                     Sleep(1);
                 }
                 KillTimer(window, 9);

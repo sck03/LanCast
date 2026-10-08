@@ -14,7 +14,7 @@ public enum ConnectionHints {
             (bytes[0] == 192 && bytes[1] == 168) || (bytes[0] == 169 && bytes[1] == 254)
     }
     public static func fingerprint(_ value: String) -> String? {
-        let pin = value.filter { !$0.isWhitespace && $0 != ":" }.lowercased()
+        let pin = value.lowercased()
         return pin.count == 64 && pin.allSatisfy({ "0123456789abcdef".contains($0) }) ? pin : nil
     }
     public static func displayFingerprint(_ value: String) -> String {
@@ -43,7 +43,8 @@ public struct DiscoveredReceiver: Identifiable, Equatable {
         self.name = String(name.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(100).map(String.init).joined())
         address = "\(ip):\(port)"
         let rawPin = record["fingerprint"] as? String ?? ""
-        fingerprint = rawPin.count == 64 ? ConnectionHints.fingerprint(rawPin) ?? "" : ""
+        guard let pin = ConnectionHints.fingerprint(rawPin) else { return nil }
+        fingerprint = pin
     }
     public static func parse(_ records: [[String: Any]]) -> [DiscoveredReceiver] {
         var seen = Set<String>()

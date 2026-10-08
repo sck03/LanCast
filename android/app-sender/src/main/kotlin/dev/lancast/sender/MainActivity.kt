@@ -173,7 +173,7 @@ class MainActivity : Activity() {
             "disconnected" -> state.text = "连接已断开，屏幕采集已停止；请重新配对"
             "error" -> state.text = body.optString("code")
             "media.status" -> if (!body.optString("status").startsWith("statistics:")) state.text = body.optString("status")
-            "devices", "dlna.devices", "discovery.updated" -> if (!SenderRuntime.scanning) state.text = if (SenderRuntime.catalog.devices.isEmpty()) "未发现电视，请检查同一网络，或在高级设置手动连接" else "请选择电视；新版接收端会自动填入地址和指纹"
+            "devices", "dlna.devices", "discovery.updated" -> if (!SenderRuntime.scanning) state.text = if (SenderRuntime.catalog.devices.isEmpty()) "未发现电视，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" else "请选择电视，将自动获取地址和指纹"
             "dlna.state" -> state.text = "DLNA 指令已返回，实际画面请以电视为准"
             "message" -> if (body.optString("type") == "error") state.text = body.getJSONObject("body").optString("code")
         }

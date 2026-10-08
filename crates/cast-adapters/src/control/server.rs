@@ -188,11 +188,18 @@ async fn receiver_connection<
     let nonce = auth::random_token();
     send(
         &mut ws,
-        &Message::new("auth.challenge", json!({"nonce":nonce,"expiresInMs":30000})),
+        &Message::new(
+            "auth.challenge",
+            json!({"nonce":nonce,"expiresInMs":30000,"pairingVersion":auth::PAIRING_VERSION}),
+        ),
     )
     .await?;
     let pair = tokio::time::timeout(Duration::from_secs(30), receive(&mut ws)).await??;
     ensure!(pair.kind == "pair.request", "AUTH_REQUIRED");
+    ensure!(
+        pair.body["pairingVersion"].as_u64() == Some(auth::PAIRING_VERSION),
+        "PAIRING_VERSION_MISMATCH"
+    );
     let owner = Uuid::parse_str(pair.string("senderDeviceId")?)?;
     let sender_name: String = pair.string("senderName")?.chars().take(80).collect();
     let public = pair.string("senderPublicKey")?;
@@ -260,7 +267,7 @@ async fn receiver_connection<
     let mut heartbeat = tokio::time::interval(Duration::from_secs(5));
     let mut last_seen = Instant::now();
     let run = async {
-        send(&mut ws,&pair.reply("pair.accepted",json!({"receiverDeviceId":server.identity.id,"deviceToken":auth::random_token(),"receiverPublicKey":server.identity.public_key,"trust":"session_only"}))).await?;
+        send(&mut ws,&pair.reply("pair.accepted",json!({"pairingVersion":auth::PAIRING_VERSION,"receiverDeviceId":server.identity.id,"deviceToken":auth::random_token(),"receiverPublicKey":server.identity.public_key,"trust":"session_only"}))).await?;
         loop {
             tokio::select! {
                 received = receive(&mut ws) => {

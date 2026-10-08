@@ -33,31 +33,20 @@ void MainView::create(HWND window) {
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 28, 190, 620, 260, devices);
     add(L"BUTTON", L"刷新电视", WS_TABSTOP, 668, 187, 144, 36, 1);
     add(L"STATIC", L"电视配对码", 0, 28, 238, 106, 26, 0);
-    auto code =
-        add(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 138, 232, 180, 34, invitation);
+    auto code = add(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL | ES_NUMBER, 138, 232,
+                    180, 34, invitation);
     SendMessageW(code, EM_SETCUEBANNER, 0, reinterpret_cast<LPARAM>(L"电视上的 8 位数字"));
-    SendMessageW(code, EM_SETLIMITTEXT, 128, 0);
+    SendMessageW(code, EM_SETLIMITTEXT, 16, 0);
     add(L"BUTTON", L"连接电视", BS_OWNERDRAW | WS_TABSTOP, 332, 231, 142, 36, 4);
     add(L"BUTTON", L"高级设置…", WS_TABSTOP, 488, 231, 150, 36, 15);
     add(L"BUTTON", L"连接帮助", WS_TABSTOP, 652, 231, 160, 36, 12);
-    add(L"STATIC", L"新版自动填入地址与指纹；普通电视（DLNA）选中后即可播放视频。", 0, 28, 280, 784,
-        24, 0);
+    add(L"STATIC", L"自动获取地址与指纹；普通电视（DLNA）选中后即可播放视频。", 0, 28, 280, 784, 24,
+        0);
 
     add(L"STATIC", L"本机网络", 0, 28, 316, 112, 24, 0, 0, true);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, 146, 310, 492, 180, 16, 0,
         true);
     add(L"BUTTON", L"重新自动选择", WS_TABSTOP, 652, 310, 160, 32, 17, 0, true);
-    add(L"STATIC", L"电视地址", 0, 28, 358, 112, 24, 0, 0, true);
-    auto endpoint = add(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 146, 352, 666, 32,
-                        address, 0, true);
-    SendMessageW(endpoint, EM_SETCUEBANNER, 0,
-                 reinterpret_cast<LPARAM>(L"未发现电视时填写，例如 192.168.1.20:8787"));
-    SendMessageW(endpoint, EM_SETLIMITTEXT, 64, 0);
-    add(L"STATIC", L"完整指纹", 0, 28, 400, 112, 24, 0, 0, true);
-    auto pin = add(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 146, 394, 666, 32,
-                   fingerprint, 0, true);
-    SendMessageW(pin, EM_SETCUEBANNER, 0, reinterpret_cast<LPARAM>(L"仅旧版接收端需要手动填写"));
-    SendMessageW(pin, EM_SETLIMITTEXT, 95, 0);
 
     add(L"STATIC", L"2   选择分享内容", 0, 28, 328, 400, 28, 0, 1);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, 28, 366, 620, 260, sources);
@@ -100,7 +89,7 @@ void MainView::resize() {
     RECT client{};
     GetClientRect(window_, &client);
     int width = std::max(720, MulDiv(client.right, 96, dpi_));
-    const int total = scale(686 + (advanced_ ? 140 : 0));
+    const int total = scale(686 + (advanced_ ? 56 : 0));
     scroll_ = std::clamp(scroll_, 0, std::max(0, total - static_cast<int>(client.bottom)));
     SCROLLINFO info{sizeof(info),
                     SIF_RANGE | SIF_PAGE | SIF_POS,
@@ -112,7 +101,7 @@ void MainView::resize() {
     SetScrollInfo(window_, SB_VERT, &info, TRUE);
     for (const auto &item : items_) {
         ShowWindow(item.window, item.advanced && !advanced_ ? SW_HIDE : SW_SHOW);
-        const int y = item.y + (!item.advanced && item.y >= 328 && advanced_ ? 140 : 0);
+        const int y = item.y + (!item.advanced && item.y >= 328 && advanced_ ? 56 : 0);
         // Rows use proportions so long translated labels stay usable when resized.
         const int x = 28 + MulDiv(item.x - 28, width - 56, 784);
         const int w = MulDiv(item.width, width - 56, 784);
@@ -124,10 +113,6 @@ void MainView::toggle_advanced() {
     advanced_ = !advanced_;
     SetWindowTextW(get(15), advanced_ ? L"收起高级设置" : L"高级设置…");
     resize();
-}
-void MainView::show_advanced() {
-    if (!advanced_)
-        toggle_advanced();
 }
 bool MainView::handle(UINT message, WPARAM w, LPARAM l, LRESULT &result) {
     result = 0;

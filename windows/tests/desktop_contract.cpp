@@ -35,8 +35,8 @@ int main() {
         check(valid_fingerprint(catalog.entries()[0].fingerprint), "pin hint retained");
         native["fingerprint"] = nullptr;
         catalog.update(Json::array({native}), false);
-        check(catalog.entries().size() == 2 && catalog.entries()[0].fingerprint.empty(),
-              "old receivers cannot inherit a previous identity hint");
+        check(catalog.entries().size() == 1 && catalog.entries()[0].dlna,
+              "receivers without a full identity are not selectable");
         native["addresses"] = Json::array();
         catalog.update(Json::array({native, {{"id", 123}}, {{"id", "bad"}, {"port", "oops"}}}),
                        false);

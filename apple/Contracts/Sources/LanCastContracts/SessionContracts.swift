@@ -15,13 +15,13 @@ public struct BroadcastTicket: Codable, Equatable {
     public let audio: Bool
     public let createdAt: Date
     public init(address: String, fingerprint: String, invite: String, audio: Bool, now: Date = Date()) throws {
-        version = 1; id = UUID(); self.address = address
+        version = 2; id = UUID(); self.address = address
         self.fingerprint = fingerprint.lowercased(); self.invite = invite; self.audio = audio; createdAt = now
         try validate(now: now)
     }
     public func validate(now: Date = Date()) throws {
         let parts = address.split(separator: ":", omittingEmptySubsequences: false)
-        guard version == 1, parts.count == 2, let port = UInt16(parts[1]), port > 0 else {
+        guard version == 2, parts.count == 2, let port = UInt16(parts[1]), port > 0 else {
             throw CastFailure.invalid("请输入接收端 IPv4:端口")
         }
         let octets = parts[0].split(separator: ".", omittingEmptySubsequences: false)
@@ -29,7 +29,7 @@ public struct BroadcastTicket: Codable, Equatable {
             throw CastFailure.invalid("接收端地址无效")
         }
         guard fingerprint.count == 64, fingerprint.allSatisfy({ "0123456789abcdef".contains($0) }),
-              !invite.isEmpty, invite.utf8.count <= 256 else { throw CastFailure.invalid("需要完整 SHA-256 指纹和邀请") }
+              invite.utf8.count == 8, invite.allSatisfy({ "0123456789".contains($0) }) else { throw CastFailure.invalid("请选择接收端并输入8位数字配对码") }
         guard now >= createdAt, now.timeIntervalSince(createdAt) < 120 else { throw CastFailure.invalid("广播配置已过期，请更新接收端邀请后重新准备") }
     }
 }

@@ -21,6 +21,12 @@ use std::{
 };
 use uuid::Uuid;
 
+/// All current senders and receivers must use the same pairing dialect.
+pub const PAIRING_VERSION: u64 = 2;
+pub fn valid_pairing_code(value: &str) -> bool {
+    value.len() == 8 && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
 pub fn random_token() -> String {
     let mut data = [0u8; 32];
     rand::rng().fill_bytes(&mut data);
@@ -201,6 +207,9 @@ mod tests {
         let token = i.token.clone();
         assert_eq!(token.len(), 8);
         assert!(token.bytes().all(|b| b.is_ascii_digit()));
+        assert!(valid_pairing_code(&token));
+        assert!(!valid_pairing_code(&random_token()));
+        assert!(!valid_pairing_code("1234abcd"));
         i.consume(&token, now).unwrap();
         assert!(i.consume(&token, now).is_err());
         let mut i = Invitation::new(now);

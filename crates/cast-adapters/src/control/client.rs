@@ -52,6 +52,7 @@ impl Client {
     ) -> anyhow::Result<Self> {
         let endpoint: SocketAddr = address.parse()?;
         ensure!(!endpoint.ip().is_unspecified(), "INVALID_ADDRESS");
+        ensure!(auth::valid_pairing_code(invite), "INVALID_PAIRING_CODE");
         let config = auth::pinned_config(pin)?;
         let url = format!("wss://{endpoint}/v1/ws");
         let (mut ws, _) = tokio::time::timeout(
@@ -66,14 +67,22 @@ impl Client {
         .await??;
         let challenge = tokio::time::timeout(Duration::from_secs(30), receive(&mut ws)).await??;
         ensure!(challenge.kind == "auth.challenge", "AUTH_REQUIRED");
+        ensure!(
+            challenge.body["pairingVersion"].as_u64() == Some(auth::PAIRING_VERSION),
+            "PAIRING_VERSION_MISMATCH"
+        );
         let pair = Message::new(
             "pair.request",
-            json!({"invite":invite,"senderDeviceId":identity.id,"senderName":name,"senderPublicKey":identity.public_key,"signature":identity.sign(challenge.string("nonce")?)?}),
+            json!({"pairingVersion":auth::PAIRING_VERSION,"invite":invite,"senderDeviceId":identity.id,"senderName":name,"senderPublicKey":identity.public_key,"signature":identity.sign(challenge.string("nonce")?)?}),
         );
         send(&mut ws, &pair).await?;
         event(&events, "pair.waiting", json!({}));
         let accepted = tokio::time::timeout(Duration::from_secs(65), receive(&mut ws)).await??;
         ensure!(accepted.kind == "pair.accepted", "PAIR_REJECTED");
+        ensure!(
+            accepted.body["pairingVersion"].as_u64() == Some(auth::PAIRING_VERSION),
+            "PAIRING_VERSION_MISMATCH"
+        );
         event(
             &events,
             "connected",

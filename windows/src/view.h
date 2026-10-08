@@ -7,8 +7,8 @@ class MainView {
     MainView() = default;
     MainView(const MainView &) = delete;
     MainView &operator=(const MainView &) = delete;
-    static constexpr int devices = 100, address = 102, fingerprint = 103, invitation = 104,
-                         sources = 105, audio = 106, status = 107, network_summary = 108;
+    static constexpr int devices = 100, invitation = 104, sources = 105, audio = 106, status = 107,
+                         network_summary = 108;
     ~MainView();
     void create(HWND window);
     HWND get(int id) const {
@@ -16,7 +16,6 @@ class MainView {
     }
     void resize();
     void toggle_advanced();
-    void show_advanced();
     bool handle(UINT message, WPARAM w, LPARAM l, LRESULT &result);
 
   private:

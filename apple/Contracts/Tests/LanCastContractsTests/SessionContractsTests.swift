@@ -12,17 +12,21 @@ final class SessionContractsTests: XCTestCase {
     }
     func testTicketRejectsExpiredAndClockRollback() throws {
         let now = Date(timeIntervalSince1970: 1000)
-        let ticket = try BroadcastTicket(address: "192.168.1.2:8787", fingerprint: String(repeating: "a", count: 64), invite: "one-use", audio: true, now: now)
+        let ticket = try BroadcastTicket(address: "192.168.1.2:8787", fingerprint: String(repeating: "a", count: 64), invite: "12345678", audio: true, now: now)
         try ticket.validate(now: now.addingTimeInterval(119))
         XCTAssertThrowsError(try ticket.validate(now: now.addingTimeInterval(120)))
         XCTAssertThrowsError(try ticket.validate(now: now.addingTimeInterval(-1)))
         XCTAssertEqual(try JSONDecoder().decode(BroadcastTicket.self, from: JSONEncoder().encode(ticket)), ticket)
+        XCTAssertEqual(ticket.version, 2)
+        for code in ["one-use", "1234567a", "123456789", ""] {
+            XCTAssertThrowsError(try BroadcastTicket(address: "192.168.1.2:8787", fingerprint: String(repeating: "a", count: 64), invite: code, audio: false))
+        }
     }
     func testPartialPinAndInvalidEndpointRejected() {
         for address in ["0.0.0.0:9", "example.org:9", "192.168.1.2:0", "192.168.1.2:65536", "256.1.1.1:9"] {
-            XCTAssertThrowsError(try BroadcastTicket(address: address, fingerprint: String(repeating: "a", count: 64), invite: "token", audio: false))
+            XCTAssertThrowsError(try BroadcastTicket(address: address, fingerprint: String(repeating: "a", count: 64), invite: "12345678", audio: false))
         }
-        XCTAssertThrowsError(try BroadcastTicket(address: "192.168.1.2:9", fingerprint: "abcd", invite: "token", audio: false))
+        XCTAssertThrowsError(try BroadcastTicket(address: "192.168.1.2:9", fingerprint: "abcd", invite: "12345678", audio: false))
     }
     func testStopAndReplacementRejectOldReplies() {
         var gate = SessionGate(); gate.begin(request: "old"); let old = gate.generation

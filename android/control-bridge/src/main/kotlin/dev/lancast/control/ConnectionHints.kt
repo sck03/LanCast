@@ -50,7 +50,7 @@ fun sameSubnet(local: String, remote: String, prefix: Int): Boolean {
     return (a and mask) == (b and mask)
 }
 fun normalizedFingerprint(value: String): String? {
-    val pin = value.replace(":", "").filterNot { it.isWhitespace() }.lowercase(Locale.ROOT)
+    val pin = value.lowercase(Locale.ROOT)
     return pin.takeIf { it.length == 64 && it.all { c -> c in '0'..'9' || c in 'a'..'f' } }
 }
 class DeviceCatalog {
@@ -71,9 +71,9 @@ class DeviceCatalog {
             val rawPort = record.opt("port")
             val port = if (dlna) 0 else when (rawPort) { is Int -> rawPort; is Long -> rawPort.takeIf { it in 1..65535 }?.toInt() ?: 0; else -> 0 }
             if (!dlna && port !in 1..65535) continue
-            // Wire hints are deliberately stricter than the manual-entry normalizer.
             val rawPin = record.opt("fingerprint") as? String ?: ""
             val pin = if (rawPin.length == 64) normalizedFingerprint(rawPin) ?: "" else ""
+            if (!dlna && pin.isEmpty()) continue
             val hint = ReceiverHint(id, name, ip, port, pin, dlna)
             if (entries.size < 128) entries[hint.key] = hint
         }

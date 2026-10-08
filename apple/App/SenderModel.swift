@@ -3,8 +3,8 @@ import SwiftUI
 import LanCastContracts
 
 final class SenderModel: ObservableObject {
-    @Published var address = "" { didSet { if address != oldValue && !fillingSelection { fingerprint = ""; invite = ""; selectedDevice = ""; invalidatePreparation() } } }
-    @Published var fingerprint = "" { didSet { if fingerprint != oldValue { invalidatePreparation() } } }
+    @Published private(set) var address = ""
+    @Published private(set) var fingerprint = ""
     @Published var invite = "" { didSet { if invite != oldValue { invalidatePreparation() } } }
     @Published var audio = true { didSet { if audio != oldValue { invalidatePreparation() } } }
     @Published var status = "选择电视，地址和指纹会自动填入"
@@ -29,7 +29,6 @@ final class SenderModel: ObservableObject {
     }
     @Published var confirmation: PairingConfirmation?
     private var pendingConfirmation: UUID?
-    private var fillingSelection = false
     var connectionLocked: Bool { connected || connecting || scanning || broadcastPrepared || confirmation != nil }
     @Published var position = 0.0
     @Published var volume = 1.0
@@ -48,7 +47,7 @@ final class SenderModel: ObservableObject {
     private func ticket() throws -> BroadcastTicket {
         let endpoint = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard ConnectionHints.isLanIPv4(String(endpoint.split(separator: ":").first ?? "")), let pin = ConnectionHints.fingerprint(fingerprint) else {
-            advanced = true; throw CastFailure.invalid("请选择电视，或在高级设置填写有效地址和完整指纹")
+            throw CastFailure.invalid("请搜索并选择当前版本的接收端")
         }
         return try BroadcastTicket(address: endpoint, fingerprint: pin, invite: invite.filter { !$0.isWhitespace }, audio: audio)
     }
@@ -60,8 +59,8 @@ final class SenderModel: ObservableObject {
     }
     func selectDevice(_ device: DiscoveredReceiver) {
         guard !connectionLocked else { return }
-        fillingSelection = true; address = device.address; fingerprint = device.fingerprint; invite = ""; selectedDevice = device.id; fillingSelection = false
-        status = device.fingerprint.isEmpty ? "旧版接收端未提供指纹，请升级或在高级设置填写" : "已填入地址和指纹，请输入电视上的配对码"
+        invalidatePreparation(); address = device.address; fingerprint = device.fingerprint; invite = ""; selectedDevice = device.id
+        status = "已获取地址和指纹，请输入电视上的配对码"
         do { localAddress = try localAddressFor(receiver: device.address, manual: networkChoice.isEmpty ? nil : networkChoice) }
         catch { status = error.localizedDescription }
     }
@@ -122,7 +121,7 @@ final class SenderModel: ObservableObject {
                 if event.string("type") == "devices" {
                     let found = event.object("body")["devices"] as? [JSONObject] ?? []
                     self.devices = DiscoveredReceiver.parse(found); self.scanning = false
-                    self.status = self.devices.isEmpty ? "未发现接收端，请检查同一网络或使用高级设置" : "请选择电视，地址和指纹会自动填入"
+                    self.status = self.devices.isEmpty ? "未发现接收端，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" : "请选择电视，将自动获取地址和指纹"
                     self.discovery?.close(); self.discovery = nil
                     if self.devices.count == 1 { self.selectDevice(self.devices[0]) }
                 } else if event.string("type") == "error" { self.scanning = false; self.status = event.object("body").string("code"); self.discovery?.close(); self.discovery = nil }
