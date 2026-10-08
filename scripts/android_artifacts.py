@@ -52,7 +52,11 @@ def verify_apk(apk, product, config, metadata, manifest):
     require(f"sdkVersion:'{product.minimum_sdk}'" in metadata.splitlines(), f"{product.key}: minimum SDK mismatch")
     require(f"application-label:'LanCast {product.name}'" in metadata.splitlines(), f"{product.key}: application label mismatch")
     require(("dev.lancast.airplay.AirPlayService" in manifest) == product.airplay, "AirPlay service isolation failed")
-    require(("mediaProjection" in manifest) == (product.role == "sender"), "Capture service role mismatch")
+    # aapt prints foregroundServiceType as a numeric flag, not "mediaProjection".
+    capture = re.search(r'"(?:dev\.lancast\.sender)?\.CaptureService"', manifest) is not None
+    require(capture == (product.role == "sender"), "Capture service role mismatch")
+    require(("android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" in manifest) == (product.role == "sender"),
+            "Capture permission role mismatch")
     require("BOOT_COMPLETED" not in manifest, "Products must never start capture or AirPlay on boot")
     with zipfile.ZipFile(apk) as archive:
         names = archive.namelist()

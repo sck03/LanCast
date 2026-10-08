@@ -39,6 +39,8 @@ jobs:
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 80
+    env:
+      LC_ANDROID_NDK_VERSION: '27.2.12479018'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -70,7 +72,7 @@ jobs:
       - name: Use runner SDK and install pinned components
         run: |
           yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;${LC_ANDROID_NDK_VERSION}"
       - run: rustup toolchain install 1.98.1 --profile minimal
       - uses: actions/cache/restore@v6
         id: native-cache
@@ -78,11 +80,11 @@ jobs:
           path: |
             android/app-*/src/**/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
-          key: android-base-v3-${{ steps.products.outputs.selection }}-${{ steps.build-config.outputs.android_abi_key }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'core/Cargo.toml', 'crates/**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/android_*.py', 'scripts/build-android-core.py', 'scripts/build-android-media.py', 'scripts/build-ffmpeg.py', '.github/workflows/android.yml') }}
+          key: android-base-v3-ndk${{ env.LC_ANDROID_NDK_VERSION }}-${{ steps.products.outputs.selection }}-${{ steps.build-config.outputs.android_abi_key }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'core/Cargo.toml', 'crates/**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/android_products.py', 'scripts/android_ndk.py', 'scripts/build-android-core.py', 'scripts/build-android-media.py', 'scripts/build-ffmpeg.py') }}
       - name: Build product-specific Rust and minimal TS JNI libraries
         if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
-          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
+          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${LC_ANDROID_NDK_VERSION}"
           python scripts/build-android-core.py
           python scripts/build-android-media.py
       - uses: actions/cache/save@v6
@@ -97,11 +99,11 @@ jobs:
         if: steps.products.outputs.receiver_airplay == 'true'
         with:
           path: android/airplay-receiver/src/main/jniLibs/
-          key: android-airplay-v2-${{ steps.build-config.outputs.android_abi_key }}-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.toml', 'airplay-native/**/*.rs', 'airplay-native/**/*.c', 'airplay-native/**/*.h', 'scripts/build-android-airplay.py', 'scripts/android_ndk.py', 'rust-toolchain.toml', '.github/workflows/android.yml') }}
+          key: android-airplay-v2-ndk${{ env.LC_ANDROID_NDK_VERSION }}-${{ steps.build-config.outputs.android_abi_key }}-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.toml', 'airplay-native/**/*.rs', 'airplay-native/**/*.c', 'airplay-native/**/*.h', 'scripts/build-android-airplay.py', 'scripts/android_ndk.py', 'rust-toolchain.toml') }}
       - name: Build optional AirPlay JNI libraries
         if: steps.products.outputs.receiver_airplay == 'true' && steps.airplay-cache.outputs.cache-hit != 'true'
         run: |
-          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
+          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${LC_ANDROID_NDK_VERSION}"
           python scripts/build-android-airplay.py
       - name: Build lint verify and package selected products
         run: |

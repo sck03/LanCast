@@ -28,17 +28,26 @@ def architectures(data):
     return [CPU[struct.unpack_from("<I", data, 4)[0]]]
 
 
-def verify(*roots):
-    reports, packages = [], []
+def find_builds(roots):
     found = {}
     for root in roots:
+        assert root.is_dir(), f"Missing artifact directory: {root}"
+        root_found = False
         for path in root.rglob("build-report.json"):
             data = json.loads(path.read_text(encoding="utf-8"))
             platform = data.get("platform")
             if platform in ("macos", "ios", "tvos"):
+                root_found = True
                 assert platform not in found, "Multiple builds for one platform; select exact run directories"
                 found[platform] = path.parent
+        assert root_found, f"No Apple build report in requested directory: {root}"
     assert found, "No Apple build reports found"
+    return found
+
+
+def verify(*roots):
+    reports, packages = [], []
+    found = find_builds(roots)
     for platform, scheme, minimum in [("macos", "LanCastMac", "13.0"), ("ios", "LanCastIOS", "16.0"), ("tvos", "LanCastTV", "17.0")]:
         if platform not in found:
             continue

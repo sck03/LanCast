@@ -12,6 +12,12 @@ from scripts.android_products import PRODUCTS, SELECTION_LABELS, gradle_tasks, s
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = SimpleNamespace(version="1.2.3", build_number=17, android_abis=("armeabi-v7a", "arm64-v8a"))
+SENDER_MANIFEST = '''E: uses-permission
+  A: android:name(0x01010003)="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
+E: service
+  A: android:name(0x01010003)="dev.lancast.sender.CaptureService"
+  A: android:foregroundServiceType(0x01010599)=(type 0x11)0x20
+'''
 
 
 def elf(abi, alignment=None):
@@ -96,7 +102,7 @@ class AndroidProductsTests(unittest.TestCase):
                     make_apk(apk, product)
                     manifest = "dev.lancast.airplay.AirPlayService" if product.airplay else ""
                     if product.role == "sender":
-                        manifest += "mediaProjection"
+                        manifest += SENDER_MANIFEST
                     report = verify_apk(apk, product, CONFIG, metadata(product), manifest)
                     self.assertEqual(report["role"], product.role)
                     self.assertEqual(len(report["sha256"]), 64)
@@ -108,7 +114,7 @@ class AndroidProductsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / "standard.apk"
             make_apk(apk, standard)
-            for bad_metadata, manifest in ((metadata(legacy), ""), (metadata(standard), "mediaProjection"),
+            for bad_metadata, manifest in ((metadata(legacy), ""), (metadata(standard), SENDER_MANIFEST),
                                            (metadata(standard), "dev.lancast.airplay.AirPlayService")):
                 with self.assertRaises(ValueError):
                     verify_apk(apk, standard, CONFIG, bad_metadata, manifest)
