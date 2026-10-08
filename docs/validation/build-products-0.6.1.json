@@ -1,0 +1,394 @@
+{
+  "schema": 1,
+  "date": "2026-10-08",
+  "timezone": "Asia/Shanghai",
+  "recordedAtUtc": "2026-10-08T14:01:37.800361+00:00",
+  "version": "0.6.1",
+  "buildNumber": 9,
+  "programCommit": "693fb4f4ae7290af8be43588e21795daa1318df6",
+  "programTree": "b8e41832cd33ece0236e3a76320ed77b0cddb308",
+  "scope": "Builds, regression checks and downloaded artifact verification; physical-device interoperability/performance and production release remain unaccepted. The evidence documentation commit may follow this tested program commit.",
+  "localChecks": {
+    "pythonTests": 27,
+    "architecture": "passed",
+    "actionlint": "1.7.7 passed",
+    "markdownLocalLinks": 123
+  },
+  "workflows": {
+    "preMerge": {
+      "windows": {
+        "run": 37784606278,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606278",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "android": {
+        "run": 37784606819,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606819",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "macos": {
+        "run": 37784606455,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606455",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "ios": {
+        "run": 37784606745,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606745",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "tvos": {
+        "run": 37784606472,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606472",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "core-linux": {
+        "run": 37784606456,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606456",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "native-linux": {
+        "run": 37784606398,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606398",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "airplay": {
+        "run": 37784606235,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784606235",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      }
+    },
+    "main": {
+      "windows": {
+        "run": 37786350604,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350604",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "android": {
+        "run": 37786350693,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350693",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "macos": {
+        "run": 37786350653,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350653",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "ios": {
+        "run": 37786350593,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350593",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "tvos": {
+        "run": 37786350659,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350659",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "core-linux": {
+        "run": 37786350864,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350864",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "native-linux": {
+        "run": 37786350854,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350854",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      },
+      "airplay": {
+        "run": 37786350601,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37786350601",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6"
+      }
+    },
+    "androidSubsetRelease": {
+      "receiver-standard": {
+        "run": 37784851898,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784851898",
+        "event": "workflow_dispatch",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6",
+        "product": "receiver-standard",
+        "configuration": "Release",
+        "version": "0.6.1",
+        "buildNumber": 90,
+        "artifacts": [
+          "LanCast-Android-Receiver-Standard-0.6.1-90-Release",
+          "android-build-reports-0.6.1-90-Release"
+        ],
+        "onlySelectedProductUploaded": true
+      },
+      "sender": {
+        "run": 37784860024,
+        "url": "https://github.com/sck03/LanCast/actions/runs/37784860024",
+        "event": "workflow_dispatch",
+        "status": "completed",
+        "conclusion": "success",
+        "headCommit": "693fb4f4ae7290af8be43588e21795daa1318df6",
+        "product": "sender",
+        "configuration": "Release",
+        "version": "0.6.1",
+        "buildNumber": 9,
+        "artifacts": [
+          "LanCast-Android-Sender-0.6.1-9-Release",
+          "android-build-reports-0.6.1-9-Release",
+          "android-sender-native-relink-sources-0.6.1-9-Release"
+        ],
+        "onlySelectedProductUploaded": true
+      }
+    }
+  },
+  "androidDownloads": {
+    "run": 37784606819,
+    "sourceCommit": "43b40dc71cecaaf27e45295438175984bba4e59b",
+    "packages": [
+      {
+        "product": "sender",
+        "role": "sender",
+        "file": "LanCast-Android-Sender-0.6.1-9-Debug.apk",
+        "bytes": 45684254,
+        "sha256": "7a314d46ef8a8565a9449fe92a31a5100381e23514aa1b546e13cfeb6f7b213b",
+        "applicationId": "dev.lancast.sender",
+        "minimumSdk": 29,
+        "nativeLibrariesVerified": 6,
+        "dexRoleIsolation": "passed"
+      },
+      {
+        "product": "receiver-standard",
+        "role": "receiver",
+        "file": "LanCast-Android-Receiver-Standard-0.6.1-9-Debug.apk",
+        "bytes": 37626508,
+        "sha256": "dec7d8b3d5dab8f69b60ce9911befa72a38312a7a8c2819d0eb07a5b8a719e08",
+        "applicationId": "dev.lancast.receiver",
+        "minimumSdk": 23,
+        "nativeLibrariesVerified": 4,
+        "dexRoleIsolation": "passed"
+      },
+      {
+        "product": "receiver-legacy",
+        "role": "receiver",
+        "file": "LanCast-Android-Receiver-Legacy-0.6.1-9-Debug.apk",
+        "bytes": 33879072,
+        "sha256": "2a76ab833073bb484229f25cbedad34185e212017e9eab2482368006127d2c09",
+        "applicationId": "dev.lancast.receiver.legacy",
+        "minimumSdk": 21,
+        "nativeLibrariesVerified": 4,
+        "dexRoleIsolation": "passed"
+      },
+      {
+        "product": "receiver-airplay",
+        "role": "receiver",
+        "file": "LanCast-Android-Receiver-AirPlay-0.6.1-9-Debug.apk",
+        "bytes": 44326170,
+        "sha256": "c107be429d54c7be16c525ad53da8047343d19efc3f38f75aa71ff32bc179a91",
+        "applicationId": "dev.lancast.receiver.airplay",
+        "minimumSdk": 23,
+        "nativeLibrariesVerified": 6,
+        "dexRoleIsolation": "passed"
+      }
+    ],
+    "scope": "Downloaded bytes, manifest hashes, all JNI ELF architectures/alignment and Dex feature isolation; no Android runtime or physical device acceptance",
+    "sourceTreeMatchesProgram": true
+  },
+  "appleDownloads": {
+    "sourceCommit": "b565fba93c3fac518768b6f657ea646c3d47b21a",
+    "workflowHeadCommit": "19aad6ab8c2df5db7c9fc7f5da010aa010a9f5a5",
+    "runs": {
+      "macos": 37782163855,
+      "ios": 37782163894,
+      "tvos": 37782163807
+    },
+    "appAndBuildInputsUnchangedThroughProgramCommit": true,
+    "verifiedWithCurrentVerifier": true,
+    "packages": [
+      {
+        "file": "LanCastMac-Sender-Receiver-Universal-0.6.1-9-Release.zip",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "minimumOS": "13.0",
+        "version": "0.6.1",
+        "buildNumber": "9",
+        "bytes": 22201563,
+        "sha256": "c113bc8bcc318cbfd9c5c5112b7b1371cee944d3d3736efb877abc41d445b235",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastIOS-Sender-Receiver-Device-0.6.1-9-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "16.0",
+        "version": "0.6.1",
+        "buildNumber": "9",
+        "bytes": 19939447,
+        "sha256": "1fb7257d7af01696ad9c21f56879145feabbe7447b7003101ece5cc4fb2ca2b1",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastIOS-Sender-Receiver-Simulator-0.6.1-9-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "16.0",
+        "version": "0.6.1",
+        "buildNumber": "9",
+        "bytes": 34589941,
+        "sha256": "649d1eca7df5fb06ea867b05a7bd32d259446c4ccd7c3620e1187a2833278188",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastTV-Receiver-Device-0.6.1-9-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "17.0",
+        "version": "0.6.1",
+        "buildNumber": "9",
+        "bytes": 9872855,
+        "sha256": "a98b9e471738392c46e927615cf6731a984ff135588224ecacde74a380a9e9c6",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastTV-Receiver-Simulator-0.6.1-9-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "17.0",
+        "version": "0.6.1",
+        "buildNumber": "9",
+        "bytes": 10118718,
+        "sha256": "7b2232b75280f02bb7649ec655ce71a97f5ac90385fa4d8c9fec331086e57d2c",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      }
+    ],
+    "scope": "Offline archive verification; no runtime or signing acceptance"
+  },
+  "windowsDownload": {
+    "run": 37782163810,
+    "buildConfig": {
+      "platform": "windows",
+      "version": "0.6.1",
+      "build_number": 9,
+      "configuration": "Release",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "b565fba93c3fac518768b6f657ea646c3d47b21a",
+      "artifact_label": "0.6.1-9-Release",
+      "signing": "development or unsigned; no production signing credentials used"
+    },
+    "appAndBuildInputsUnchangedThroughProgramCommit": true,
+    "hashes": [
+      {
+        "Hash": "AED6B7FC08959C75C69A65E9E2B201011D812C71C046C7C9B2F4E8BD1F259CAC",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\BUILD-STATUS.txt"
+      },
+      {
+        "Hash": "24B94F79CA33F1D2030BB3B3DD970EE5DA8CC4EF87454F0C584EC3EF65CDEA40",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\build-windows.json"
+      },
+      {
+        "Hash": "06BC7A9A4790D827DC383DF7499F70766B7D1727A41FB27827ED6C1E51D0478C",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\lancast_core.dll"
+      },
+      {
+        "Hash": "BF563CD5260E665DAD1BFD9ECE783C4963FC05317401AFFDC484C6C6EE260A1A",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\lancast_rtc.dll"
+      },
+      {
+        "Hash": "77A90B9BA3200593254E047DEFAE03DF099DDCE090F84E10FEF08789552C7C87",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\lancast_ts.dll"
+      },
+      {
+        "Hash": "982B0F3FB6C0E24828CA4036C67339E566C9C79EF23263A0871C239FE8591CBB",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\LanCast.exe"
+      },
+      {
+        "Hash": "3DDF9BE5C28FE27DAD143A5DC76EEA25222AD1DD68934A047064E56ED2FA40C5",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\LICENSE"
+      },
+      {
+        "Hash": "431A531C1AC4F90D9A07C697D24A72680BEA65201178883B0830EE6B61FC29FB",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\THIRD_PARTY.md"
+      },
+      {
+        "Hash": "E2BB3C0EA3E2EB2FD34426897751200F1021D0D435207C2B54116B493EB36DF7",
+        "Path": "D:\\a\\LanCast\\LanCast\\dist\\LanCast-Windows-x64\\使用说明.txt"
+      }
+    ],
+    "verification": "SHA-256, x64 PE imports, runtime DLL dependencies and Release TS symbol policy passed"
+  },
+  "repository": {
+    "pullRequest": "https://github.com/sck03/LanCast/pull/1",
+    "merged": true,
+    "mergeCommit": "693fb4f4ae7290af8be43588e21795daa1318df6",
+    "deletedBranch": "feat/airplay-receiver",
+    "localBranches": [
+      "main"
+    ],
+    "remoteBranches": [
+      "main"
+    ]
+  },
+  "remainingAcceptance": [
+    "Physical Windows/Android/Apple screen, audio and file interoperability",
+    "Real iPhone/TV modern and legacy AirPlay paths, background/network/Surface lifecycle and stability",
+    "Production signing and upgrades, single-ABI publishing, supplier RTC source reproduction and complete binary SBOM",
+    "Further incremental migration of platform orchestration into shared use-case contracts"
+  ]
+}

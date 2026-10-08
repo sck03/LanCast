@@ -6,6 +6,8 @@
 
 **先阅读 [08 实施进度与审阅入口](08-实施进度与审阅入口.md)。** 已清理过期且含失效原型引用的旧设计文档；需要追溯时查看[清理前的Git历史](https://github.com/sck03/LanCast/tree/512df71/docs/archive)，不将其作为当前设计依据。
 
+D16程序提交693fb4f已合入main，主分支八个工作流与两种Android单产品Release构建通过；四个APK、五个Apple压缩包和Windows用户包的独立复核范围在08分别记录。功能分支已清理；后续说明提交不替代对应程序提交的构建证据。
+
 ## 固定方向
 
 - Android业务用Kotlin；共享控制与网络用Rust；原生媒体与Windows客户端用C++20；Apple使用Swift与独立Objective-C++音频适配。

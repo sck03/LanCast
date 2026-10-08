@@ -14,8 +14,8 @@
 | libopus | 5ec2f3c915d0529b94a3a302969c673531654824 | Windows Opus编码 | BSD及随附notices |
 | Mbed TLS | 947808ba53faf09c526f575f5635e2e86472ba5d | Windows DTLS | Apache-2.0许可分支 |
 | libjuice/libsrtp/usrsctp/plog | libdatachannel固定子模块 | ICE/SRTP/SCTP/日志 | BSD/BSD/BSD/MIT，保留各自许可 |
-| Media3 | 1.11.1 | Standard播放器；Legacy不包含 | Apache-2.0 |
-| OkHttp | 4.12.0 | Standard pin数据源 | Apache-2.0 |
+| Media3 | 1.11.1 | Standard/AirPlay播放器；Legacy不包含 | Apache-2.0 |
+| OkHttp | 4.12.0 | Standard/AirPlay pin数据源 | Apache-2.0 |
 | FFmpeg | 8.0.1，SHA256见build-ffmpeg.py | MPEG-TS封装、Windows H.264 SPS/VUI元数据修正 | LGPL-2.1-or-later配置；GPL/nonfree禁用，无软件编码器/解码器 |
 | nlohmann/json | 65ee68451d8eb2b5f3a30b410476ab83deb3289b | Windows JSON | MIT |
 | Gradle wrapper | 8.13，分发ZIP哈希固定 | 构建 | Apache-2.0 |
