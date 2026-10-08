@@ -38,7 +38,7 @@ final class SenderModel: ObservableObject {
     private let capture = MacCapture()
     #endif
     private let sender = SenderSession()
-    private var discovery: CoreSession?
+    private var discovery: ReceiverDiscovery?
     private var generation = UUID()
     init() {
         sender.status = { [weak self] value in self?.status = value; self?.connected = self?.sender.connected ?? false; self?.connecting = self?.sender.connecting ?? false }
@@ -114,20 +114,19 @@ final class SenderModel: ObservableObject {
     }
     func scan() {
         guard !connectionLocked else { return }
-        refreshNetwork(); discovery?.close(); devices = []; selectedDevice = ""; address = ""; fingerprint = ""; invite = ""; scanning = true
-        do {
-            discovery = try CoreSession { [weak self] event in
-                guard let self else { return }
-                if event.string("type") == "devices" {
-                    let found = event.object("body")["devices"] as? [JSONObject] ?? []
-                    self.devices = DiscoveredReceiver.parse(found); self.scanning = false
-                    self.status = self.devices.isEmpty ? "未发现接收端，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" : "请选择电视，将自动获取地址和指纹"
-                    self.discovery?.close(); self.discovery = nil
-                    if self.devices.count == 1 { self.selectDevice(self.devices[0]) }
-                } else if event.string("type") == "error" { self.scanning = false; self.status = event.object("body").string("code"); self.discovery?.close(); self.discovery = nil }
+        refreshNetwork(); discovery?.stop(); devices = []; selectedDevice = ""; address = ""; fingerprint = ""; invite = ""; scanning = true
+        discovery = ReceiverDiscovery { [weak self] result in
+            guard let self else { return }
+            self.scanning = false; self.discovery = nil
+            switch result {
+            case .success(let devices):
+                self.devices = devices
+                self.status = devices.isEmpty ? "未发现接收端，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" : "请选择电视，将自动获取地址和指纹"
+                if devices.count == 1 { self.selectDevice(devices[0]) }
+            case .failure(let error): self.status = error.localizedDescription
             }
-            discovery?.command("scan")
-        } catch { scanning = false; status = error.localizedDescription }
+        }
+        discovery?.start()
     }
     func connectFile() {
         requestPairing(.file)
@@ -190,11 +189,11 @@ final class SenderModel: ObservableObject {
         #endif
     }
     func stop() {
-        stopCapture(); sender.stop(); discovery?.close(); discovery = nil; scanning = false; cancelConfirmation(); broadcastPrepared = false
+        stopCapture(); sender.stop(); discovery?.stop(); discovery = nil; scanning = false; cancelConfirmation(); broadcastPrepared = false
         #if os(iOS)
         BroadcastStore.clear()
         #endif
     }
-    func suspendHost() { stopCapture(); sender.stop(); discovery?.close(); discovery = nil; scanning = false; cancelConfirmation() }
+    func suspendHost() { stopCapture(); sender.stop(); discovery?.stop(); discovery = nil; scanning = false; cancelConfirmation() }
 }
 #endif

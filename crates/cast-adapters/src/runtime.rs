@@ -264,7 +264,10 @@ impl Runtime {
                     c["variant"].as_str().unwrap_or("standard"),
                     self.events.clone(),
                 ));
-                let advertisement = if let IpAddr::V4(ip) = address.ip() {
+                let advertisement = if !c["advertise"].as_bool().unwrap_or(true) {
+                    // Apple hosts publish with system Bonjour; avoid raw multicast entitlements.
+                    None
+                } else if let IpAddr::V4(ip) = address.ip() {
                     Some(discovery::Advertisement::start(
                         &self.identity.id.to_string(),
                         c["name"].as_str().unwrap_or("LanCast"),

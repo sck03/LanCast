@@ -23,6 +23,7 @@ impl Advertisement {
     ) -> anyhow::Result<Self> {
         let daemon = mdns_sd::ServiceDaemon::new()?;
         let pairing_version = auth::PAIRING_VERSION.to_string();
+        let bound_address = ip.to_string();
         let info = mdns_sd::ServiceInfo::new(
             "_lancast._tcp.local.",
             name,
@@ -35,6 +36,7 @@ impl Advertisement {
                 ("variant", variant),
                 ("fingerprint", fingerprint),
                 ("pairingVersion", pairing_version.as_str()),
+                ("address", bound_address.as_str()),
             ]
             .as_slice(),
         )?;
@@ -65,6 +67,12 @@ pub fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
             // Discovery is untrusted; TLS identity must still be verified by the user.
             let addresses: Vec<String> =
                 info.get_addresses().iter().map(|a| a.to_string()).collect();
+            let Some(address) =
+                advertised_address(info.get_property_val_str("address"), &addresses)
+            else {
+                continue;
+            };
+            let addresses = vec![address];
             let Some(fingerprint) = advertised_fingerprint(
                 info.get_property_val_str("fingerprint"),
                 info.get_property_val_str("pairingVersion"),
@@ -87,6 +95,13 @@ fn advertised_fingerprint(value: Option<&str>, version: Option<&str>) -> Option<
     value
         .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
         .map(str::to_ascii_lowercase)
+}
+fn advertised_address(value: Option<&str>, resolved: &[String]) -> Option<String> {
+    value
+        .filter(|value| {
+            value.parse::<Ipv4Addr>().is_ok() && resolved.iter().any(|ip| ip.as_str() == *value)
+        })
+        .map(str::to_owned)
 }
 
 pub async fn scan_dlna(interface: Ipv4Addr) -> anyhow::Result<Vec<Renderer>> {
@@ -159,6 +174,13 @@ mod tests {
     use super::*;
     #[test]
     fn discovery_requires_current_pairing_and_full_pin() {
+        let resolved = vec!["192.168.1.2".to_owned(), "10.0.0.2".to_owned()];
+        assert_eq!(
+            advertised_address(Some("10.0.0.2"), &resolved),
+            Some("10.0.0.2".into())
+        );
+        assert_eq!(advertised_address(Some("10.0.0.3"), &resolved), None);
+        assert_eq!(advertised_address(None, &resolved), None);
         assert_eq!(advertised_fingerprint(None, Some("2")), None);
         assert_eq!(advertised_fingerprint(Some("abc"), Some("2")), None);
         assert_eq!(

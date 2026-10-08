@@ -50,4 +50,10 @@ public struct DiscoveredReceiver: Identifiable, Equatable {
         var seen = Set<String>()
         return records.prefix(128).compactMap { Self(record: $0) }.filter { seen.insert($0.id).inserted }.sorted { $0.id < $1.id }
     }
+    public static func bonjour(name: String, port: Int, resolved: [String], txt: [String: Data]) -> DiscoveredReceiver? {
+        func value(_ key: String) -> String { txt[key].flatMap { String(data: $0, encoding: .utf8) } ?? "" }
+        guard value("pairingVersion") == "2", resolved.contains(value("address")) else { return nil }
+        return Self(record: ["id": value("deviceId"), "name": name, "port": port,
+                             "addresses": [value("address")], "fingerprint": value("fingerprint")])
+    }
 }

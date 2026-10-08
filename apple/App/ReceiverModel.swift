@@ -19,6 +19,7 @@ final class ReceiverModel: ObservableObject {
     @Published var player: AVPlayer?
     @Published var listening = false
     private var core: CoreSession?
+    private var advertisement: ReceiverAdvertisement?
     private var fileBridge: CoreSession?
     private var rtc: RtcSession?
     private var session: String?
@@ -41,7 +42,7 @@ final class ReceiverModel: ObservableObject {
             UIApplication.shared.isIdleTimerDisabled = true
             #endif
             core = try CoreSession { [weak self] in self?.event($0) }
-            core?.command("listen", ["address": address, "name": "LanCast Apple", "variant": "apple"])
+            core?.command("listen", ["address": address, "name": "LanCast Apple", "variant": "apple", "advertise": false])
             status = "正在启动安全接收…"
         } catch { stop(); status = error.localizedDescription }
     }
@@ -64,6 +65,7 @@ final class ReceiverModel: ObservableObject {
         core?.command("stop"); clearMedia(); status = "投屏已停止，可刷新配对码"
     }
     func stop() {
+        advertisement?.stop(); advertisement = nil
         clearMedia(); core?.close(); core = nil; listening = false; pendingApprovalID = nil; approval = nil; invite = ""; fingerprint = ""
         #if !os(macOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -83,7 +85,18 @@ final class ReceiverModel: ObservableObject {
     private func event(_ event: JSONObject) {
         let body = event.object("body")
         switch event.string("type") {
-        case "receiver.ready": listening = true; address = body.string("address"); fingerprint = body.string("fingerprint"); invite = body.string("invite"); status = "在发送端选择此设备并输入配对码，再在本屏允许连接"
+        case "receiver.ready":
+            address = body.string("address"); fingerprint = body.string("fingerprint"); invite = body.string("invite")
+            do {
+                advertisement = try ReceiverAdvertisement(address: address, deviceID: body.string("deviceId"), fingerprint: fingerprint) { [weak self] result in
+                    guard let self else { return }
+                    switch result {
+                    case .success: self.listening = true; self.status = "在发送端选择此设备并输入配对码，再在本屏允许连接"
+                    case .failure(let error): self.stop(); self.status = error.localizedDescription
+                    }
+                }
+                advertisement?.start()
+            } catch { stop(); status = error.localizedDescription }
         case "receiver.invite": invite = body.string("invite")
         case "pair.request":
             // Never overwrite an unanswered approval with another device's request.

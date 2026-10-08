@@ -22,6 +22,7 @@
 | Android `SenderRuntime` | 发现代次、两种结果合并、限时 multicast lock、核心连接及与现有媒体生命周期协调 |
 | Apple `LanCastContracts/DiscoveryContracts.swift` | Foundation 值类型与验证，不持有网络/SwiftUI/媒体对象 |
 | Apple `Shared/Control/LocalAddresses.swift` | 以太网/Wi-Fi/显式桥接地址枚举，按系统路由选择来源；UDP connect 只查路由，不发送数据或查询DNS |
+| Apple `Shared/Control/BonjourDiscovery.swift` | 系统Bonjour浏览、解析与发布；有界服务列表/截止时间、取消、绑定地址与TXT校验；无原始组播套接字 |
 | Apple `SenderModel` | 设备选择、不可变确认快照、UI状态；确认时验证请求ID和票据有效期，再交给 SenderSession/广播存储 |
 | Apple `SenderSession` / `ReceiverModel` | 原有控制/媒体会话；暴露连接等待状态，接收模型管理自动网络与用户明确启动 |
 
@@ -29,7 +30,9 @@ Android 发送/接收复用同一 drawable 图标，资源移入 control-bridge�
 
 ## 状态与安全
 
-切换设备清空旧指纹和配对码。Android 两类扫描使用共享核心的 `scanGeneration`，超时或重建后丢弃旧结果；multicast lock 在完成/超时/关闭时释放。Apple 为每次扫描持有独立 CoreSession，关闭旧会话使旧回调失效。
+切换设备清空旧指纹和配对码。Android 两类扫描使用共享核心的 `scanGeneration`，超时或重建后丢弃旧结果；multicast lock 在完成/超时/关闭时释放。Apple使用独立Bonjour对象，取消后清除delegate、服务和定时任务，忽略旧回调。
+
+Apple选用系统Bonjour而非Rust原始mDNS套接字：按[Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)，iOS原始组播需要额外multicast entitlement。本项目只执行声明过的常规Bonjour服务浏览/发布，保留现有NSLocalNetworkUsageDescription和NSBonjourServices，由系统处理局域网权限。发布时携带Rust WSS监听的真实IPv4与端口；接收者校验TXT地址属于解析结果，避免多网卡连接到未监听的地址。
 
 配对和媒体准备期间锁定选择字段。Android 系统授权/文件选择期间保持当前目标；文件开始前重新选择有效本机地址。播放暂停/跳转仅对当前文件开放。停止仍撤销媒体和资源，不绕过旧的用户授权策略。
 
@@ -43,6 +46,6 @@ Apple 核对框绑定不可变 BroadcastTicket 和操作类型；确认ID单独�
 
 Android `ConnectionHintsTest` 的3项测试覆盖私有IPv4、非规范/错误地址、子网、指纹规范化、同ID跨协议、去重、旧接收端缺失指纹，以及采集请求停止/换目标/重复返回。`build-android.py` 在组装/lint三个产品之外执行 control-bridge 对应构建模式的 JVM 单元测试。
 
-Apple `DiscoveryContractsTests` 覆盖地址过滤、畸形记录、IPv6优先列表、名称归一、重复设备和旧身份清空；由 macOS 构建入口的 Swift Package 契约测试执行，原有WSS/RTC集成测试继续保留。
+Apple `DiscoveryContractsTests` 的3项测试覆盖地址过滤、畸形记录、IPv6优先列表、名称归一、重复设备、缺失身份拒绝及Bonjour绑定地址/配对版本；由macOS构建入口执行，原有WSS/RTC集成测试继续保留。
 
 每个平台的实际构建提交、结果与产物核对范围记在[08](08-实施进度与审阅入口.md)。没有可用真机时，不将源码/模拟器编译写成电视操作、系统权限、后台长稳或真实网络切换验收。
