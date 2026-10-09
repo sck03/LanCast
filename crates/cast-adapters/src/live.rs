@@ -22,10 +22,75 @@ use std::{
 };
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_util::sync::CancellationToken;
+const START_TIMEOUT: Duration = Duration::from_secs(8);
 struct Reader {
     tx: mpsc::Sender<(Instant, Bytes)>,
     stop: CancellationToken,
 }
+
+struct Subscription {
+    rx: mpsc::Receiver<(Instant, Bytes)>,
+    stop: CancellationToken,
+    gate: Option<StartGate>,
+    started: Instant,
+    gate_started: Instant,
+    resource: Arc<LiveResource>,
+}
+impl Subscription {
+    async fn next_chunk(&mut self) -> std::io::Result<Bytes> {
+        loop {
+            let wait = if self.gate.is_some() {
+                START_TIMEOUT
+                    .checked_sub(self.started.elapsed())
+                    .filter(|remaining| !remaining.is_zero())
+                    .ok_or_else(|| std::io::Error::other("STREAM_TIMEOUT"))?
+            } else {
+                Duration::from_secs(2)
+            };
+            let message = tokio::select! { biased;
+                _ = self.stop.cancelled() => return Err(std::io::Error::other("STREAM_REVOKED_OR_SLOW_READER")),
+                r = tokio::time::timeout(wait, self.rx.recv()) => r,
+            };
+            let (timestamp, data) = message
+                .map_err(|_| std::io::Error::other("STREAM_TIMEOUT"))?
+                .ok_or_else(|| std::io::Error::other("STREAM_CLOSED"))?;
+            // timeout polls the channel before its timer; check again after an
+            // executor delay so a newly ready block cannot revive expired startup.
+            if self.gate.is_some() && self.started.elapsed() >= START_TIMEOUT {
+                return Err(std::io::Error::other("STREAM_TIMEOUT"));
+            }
+            if timestamp.elapsed() > Duration::from_secs(2) {
+                return Err(std::io::Error::other("SLOW_READER"));
+            }
+            let data = if let Some(gate) = self.gate.as_mut() {
+                // Bound undecodable startup content independently of the total deadline.
+                if self.gate_started.elapsed() > Duration::from_secs(2) {
+                    *gate = StartGate::default();
+                    self.gate_started = Instant::now();
+                }
+                let Some(start) = gate.push(&data).map_err(std::io::Error::other)? else {
+                    continue;
+                };
+                self.gate = None;
+                Bytes::from(start)
+            } else {
+                // Ingress already validated this block; keep the shared allocation
+                // once this subscriber has its own decodable starting point.
+                data
+            };
+            self.resource
+                .delivered
+                .fetch_add(data.len() as u64, Ordering::Release);
+            return Ok(data);
+        }
+    }
+}
+impl Drop for Subscription {
+    fn drop(&mut self) {
+        self.stop.cancel();
+    }
+}
+
 pub struct LiveResource {
     token: String,
     allowed: IpAddr,
@@ -94,35 +159,50 @@ impl LiveResource {
         {
             self.ready.store(true, Ordering::Release);
         }
+        let mut readers = self
+            .readers
+            .lock()
+            .map_err(|_| anyhow::anyhow!("RESOURCE_CLOSED"))?;
+        ensure!(!self.stop.is_cancelled(), "RESOURCE_CLOSED");
+        readers.retain(|r| !r.stop.is_cancelled() && !r.tx.is_closed());
+        if readers.is_empty() {
+            return Ok(());
+        }
         let block = Bytes::copy_from_slice(data);
         let now = Instant::now();
-        self.readers
-            .lock()
-            .map_err(|_| anyhow::anyhow!("RESOURCE_CLOSED"))?
-            .retain(|r| {
-                if r.stop.is_cancelled() || r.tx.try_send((now, block.clone())).is_err() {
-                    r.stop.cancel();
-                    false
-                } else {
-                    true
-                }
-            });
+        readers.retain(|r| {
+            if r.tx.try_send((now, block.clone())).is_err() {
+                r.stop.cancel();
+                false
+            } else {
+                true
+            }
+        });
         Ok(())
     }
-    fn subscribe(
-        &self,
-        connection: Option<CancellationToken>,
-    ) -> (mpsc::Receiver<(Instant, Bytes)>, CancellationToken) {
+    fn subscribe(self: &Arc<Self>, connection: Option<CancellationToken>) -> Subscription {
         // 16 * 65424 = 1046784 bytes, below the per-reader 1 MiB budget.
         let (tx, rx) = mpsc::channel(16);
         let stop = connection.unwrap_or_else(|| self.stop.child_token());
         let mut readers = self.readers.lock().unwrap();
         readers.retain(|r| !r.tx.is_closed() && !r.stop.is_cancelled());
-        readers.push(Reader {
-            tx,
-            stop: stop.clone(),
-        });
-        (rx, stop)
+        if self.stop.is_cancelled() || stop.is_cancelled() {
+            stop.cancel();
+        } else {
+            readers.push(Reader {
+                tx,
+                stop: stop.clone(),
+            });
+        }
+        let now = Instant::now();
+        Subscription {
+            rx,
+            stop,
+            gate: Some(StartGate::default()),
+            started: now,
+            gate_started: now,
+            resource: self.clone(),
+        }
     }
     async fn respond(self: Arc<Self>, request: Request<Incoming>) -> Response<Body> {
         if self.stop.is_cancelled()
@@ -154,53 +234,11 @@ impl LiveResource {
             return response;
         }
         self.pulls.fetch_add(1, Ordering::Release);
-        let (rx, stop) = self.subscribe(request.extensions().get::<CancellationToken>().cloned());
-        let state = (
-            rx,
-            stop,
-            StartGate::default(),
-            Instant::now(),
-            Instant::now(),
-            false,
-            self.clone(),
-        );
-        let chunks = stream::try_unfold(
-            state,
-            |(mut rx, stop, mut gate, started, mut gate_started, mut ready, resource)| async move {
-                loop {
-                    let wait = if ready {
-                        Duration::from_secs(2)
-                    } else {
-                        Duration::from_secs(8).saturating_sub(started.elapsed())
-                    };
-                    let message = tokio::select! { biased;
-                        _ = stop.cancelled() => return Err(std::io::Error::other("STREAM_REVOKED_OR_SLOW_READER")),
-                        r = tokio::time::timeout(wait, rx.recv()) => r,
-                    };
-                    let (timestamp, data) = message
-                        .map_err(|_| std::io::Error::other("STREAM_TIMEOUT"))?
-                        .ok_or_else(|| std::io::Error::other("STREAM_CLOSED"))?;
-                    if timestamp.elapsed() > Duration::from_secs(2) {
-                        return Err(std::io::Error::other("SLOW_READER"));
-                    }
-                    if !ready && gate_started.elapsed() > Duration::from_secs(2) {
-                        gate = StartGate::default();
-                        gate_started = Instant::now();
-                    }
-                    if let Some(bytes) = gate.push(&data).map_err(std::io::Error::other)? {
-                        ready = true;
-                        resource
-                            .delivered
-                            .fetch_add(bytes.len() as u64, Ordering::Release);
-                        return Ok(Some((
-                            Frame::data(Bytes::from(bytes)),
-                            (rx, stop, gate, started, gate_started, ready, resource),
-                        )));
-                    }
-                    // Do not accumulate more than two seconds of undecodable content.
-                }
-            },
-        );
+        let subscription = self.subscribe(request.extensions().get::<CancellationToken>().cloned());
+        let chunks = stream::try_unfold(subscription, |mut subscription| async move {
+            let data = subscription.next_chunk().await?;
+            Ok::<_, std::io::Error>(Some((Frame::data(data), subscription)))
+        });
         *response.body_mut() = StreamBody::new(chunks).boxed_unsync();
         response
     }
@@ -224,6 +262,93 @@ impl LiveResource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn null_packet() -> [u8; 188] {
+        let mut packet = [0xff; 188];
+        packet[..4].copy_from_slice(&[0x47, 0x1f, 0xff, 0x10]);
+        packet
+    }
+
+    #[tokio::test]
+    async fn ready_subscribers_share_the_ingress_allocation() {
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        let mut first = live.subscribe(None);
+        let mut second = live.subscribe(None);
+        // Both readers have already passed their independent startup gate.
+        first.gate = None;
+        second.gate = None;
+        let packet = null_packet();
+        live.write(&packet).unwrap();
+        let first_data = first.next_chunk().await.unwrap();
+        let second_data = second.next_chunk().await.unwrap();
+        assert_eq!(first_data.as_ref(), packet);
+        assert_eq!(second_data.as_ref(), packet);
+        assert_eq!(first_data.as_ptr(), second_data.as_ptr());
+        assert_eq!(live.delivered(), (2 * packet.len()) as u64);
+    }
+
+    #[tokio::test]
+    async fn startup_deadline_rejects_even_buffered_data() {
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        let mut subscription = live.subscribe(None);
+        subscription.started -= Duration::from_secs(9);
+        live.write(&null_packet()).unwrap();
+        assert_eq!(
+            subscription.next_chunk().await.unwrap_err().to_string(),
+            "STREAM_TIMEOUT"
+        );
+        // A zero-duration timeout alone would still consume a ready channel.
+        assert_eq!(subscription.rx.len(), 1);
+        drop(subscription);
+        assert_eq!(live.active_readers(), 0);
+    }
+
+    #[tokio::test]
+    async fn stale_media_is_rejected_and_revoke_interrupts_waiting() {
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        let mut subscription = live.subscribe(None);
+        subscription.gate = None;
+        live.readers.lock().unwrap()[0]
+            .tx
+            .try_send((
+                Instant::now() - Duration::from_secs(3),
+                Bytes::copy_from_slice(&null_packet()),
+            ))
+            .unwrap();
+        assert_eq!(
+            subscription.next_chunk().await.unwrap_err().to_string(),
+            "SLOW_READER"
+        );
+        let waiting = tokio::spawn(async move { subscription.next_chunk().await });
+        tokio::task::yield_now().await;
+        live.revoke();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(1), waiting)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_err()
+        );
+        assert_eq!(live.active_readers(), 0);
+    }
+
+    #[test]
+    fn dropped_and_late_subscriptions_do_not_retain_readers() {
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        let connection = CancellationToken::new();
+        let subscription = live.subscribe(Some(connection.clone()));
+        drop(subscription);
+        assert!(connection.is_cancelled());
+        assert!(!live.stop.is_cancelled());
+        live.write(&null_packet()).unwrap();
+        assert!(live.readers.lock().unwrap().is_empty());
+        live.revoke();
+        let late = live.subscribe(Some(CancellationToken::new()));
+        assert!(late.stop.is_cancelled());
+        assert!(late.rx.is_closed());
+        assert!(live.readers.lock().unwrap().is_empty());
+    }
+
     #[tokio::test]
     async fn head_never_claims_a_finite_live_length() {
         let live = LiveResource::new("127.0.0.1".parse().unwrap());
@@ -253,18 +378,17 @@ mod tests {
     #[test]
     fn slow_readers_are_isolated_and_stop_is_immediate() {
         let live = LiveResource::new("127.0.0.1".parse().unwrap());
-        let (_slow, slow_stop) = live.subscribe(None);
-        let (mut fast, fast_stop) = live.subscribe(None);
-        let mut packet = [0xff; 188];
-        packet[..4].copy_from_slice(&[0x47, 0x1f, 0xff, 0x10]);
+        let slow = live.subscribe(None);
+        let mut fast = live.subscribe(None);
+        let packet = null_packet();
         for _ in 0..17 {
             live.write(&packet).unwrap();
-            fast.try_recv().unwrap();
+            fast.rx.try_recv().unwrap();
         }
-        assert!(slow_stop.is_cancelled());
-        assert!(!fast_stop.is_cancelled());
+        assert!(slow.stop.is_cancelled());
+        assert!(!fast.stop.is_cancelled());
         live.revoke();
-        assert!(fast_stop.is_cancelled());
+        assert!(fast.stop.is_cancelled());
         assert!(live.write(&packet).is_err());
     }
 }
