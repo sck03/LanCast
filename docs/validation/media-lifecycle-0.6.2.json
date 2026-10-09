@@ -7,7 +7,7 @@
   "baseline_commit": "dc66c88970f1106c8a1f07cd8b3f15313544630e",
   "changed_paths_since_baseline": [
     "android/airplay-receiver/src/main/kotlin/dev/lancast/airplay/MediaPipeline.kt",
-    "docs/21-AirPlayý���������Դ��������.md"
+    "docs/21-AirPlay媒体队列与资源生命周期.md"
   ],
   "validation_scope": "Baseline passed all eight workflows. Final Android-only volume follow-up passed all four Debug products and the AirPlay Release product; other platform build inputs are unchanged.",
   "baseline_workflows": [

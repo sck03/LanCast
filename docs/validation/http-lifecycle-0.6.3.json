@@ -1,0 +1,347 @@
+{
+  "schema": 1,
+  "date": "2026-10-09",
+  "version": "0.6.3",
+  "build_number": 11,
+  "program_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+  "baseline_commit": "0cd2d8b8a7b45595b0a30caec9ca4b27ae38e34e",
+  "validation_scope": "Shared HTTP connection ownership and live TS fan-out; platform products built by existing GitHub Actions scripts. This record does not claim physical-device, CPU/RSS, latency or release-signing acceptance.",
+  "local": {
+    "rust_tests_windows": 41,
+    "python_tests": 28,
+    "new_rust_regressions": 7,
+    "rustfmt": "passed",
+    "clippy_all_targets_all_features_deny_warnings": "passed",
+    "ffi_no_default_features": "passed",
+    "ffi_legacy_only": "passed",
+    "architecture": "passed",
+    "actionlint": "passed",
+    "markdown_file_links_before_program_commit": 155,
+    "regressions_failed_on_baseline": [
+      "http_server::tests::completed_connections_cancel_request_work_and_release_slots",
+      "http_server::tests::stopping_or_aborting_listener_releases_pending_handlers"
+    ]
+  },
+  "workflows": [
+    {
+      "workflow": "windows.yml",
+      "run": 37863969625,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863969625"
+    },
+    {
+      "workflow": "android.yml",
+      "run": 37863969685,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863969685"
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 37863969739,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863969739"
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 37863969615,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863969615"
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 37863969774,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863969774"
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 37863969706,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863969706"
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 37863969619,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863969619"
+    },
+    {
+      "workflow": "airplay.yml",
+      "run": 37863990157,
+      "sha": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/37863990157"
+    }
+  ],
+  "github_validation": {
+    "logs": [
+      {
+        "job": "linux_core",
+        "job_id": 113606150079,
+        "sha256": "60c4d493e7d73089678b2db0bb746722e1ccba79f81522228a9b0ca045d93835",
+        "rust_tests_passed": 42
+      },
+      {
+        "job": "linux_native",
+        "job_id": 113606150060,
+        "sha256": "b528a06548cdee85d52b81f4743eecb974ac9bfbf0c71973ae50e6c82edf75c3",
+        "http_transport_checks": [
+          [
+            "HTTP/1.0",
+            "1155072"
+          ],
+          [
+            "HTTP/1.1",
+            "1155072"
+          ]
+        ]
+      },
+      {
+        "job": "airplay",
+        "job_id": 113606219495,
+        "sha256": "67562322de31cd548cd06df191dad7319b2557ef396530638dff100a90574194",
+        "rust_tests_passed": 27
+      },
+      {
+        "job": "windows_core",
+        "job_id": 113606149865,
+        "sha256": "924cbdfd0af96fffd939fef187e08d1fb473115b53fedd411030a3630c4eb639",
+        "rust_tests_passed": 41
+      },
+      {
+        "job": "windows_app",
+        "job_id": 113606150192,
+        "sha256": "8c7c3baeb8eb2bd89f94048ac09d9273e11178d88e8b5628b2a34dd83bd53c5e",
+        "cpp_contract_tests": 5
+      },
+      {
+        "job": "macos",
+        "job_id": 113606150291,
+        "sha256": "ec50edd6686d578dac4802eb4de4f0f6b31fa93abb1653e39d37e303d94a6473",
+        "swift_contract_tests": 7,
+        "integration_tests": 5
+      },
+      {
+        "job": "ios",
+        "job_id": 113606149969,
+        "sha256": "cfc648f2bf5d9fdeaf31ec7d600ad0be5e985cb4084baafc990f9c1d28260cfa"
+      },
+      {
+        "job": "tvos",
+        "job_id": 113606150669,
+        "sha256": "ae49003103b69b044049796568a69bc9c61acba698f17f68f1c437e2f6d09f2d"
+      },
+      {
+        "job": "android",
+        "job_id": 113606150722,
+        "sha256": "37260c55fa380de0d7dd3b03d5fa9269c0394a2a61f35523a8ce59634b03bc55"
+      }
+    ],
+    "android_jvm_suites": [
+      {
+        "name": "dev.lancast.receiver.contracts.MediaQueueTest",
+        "tests": 9,
+        "sha256": "c387757f857c9f815a0cda2de991c3d85b27835fd67e98db79ec6ea0592ef00d"
+      },
+      {
+        "name": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+        "tests": 3,
+        "sha256": "575e9aca05f95599a26e10d767096b95af166119e6f04f564fc0de0348fa494c"
+      },
+      {
+        "name": "dev.lancast.control.ConnectionHintsTest",
+        "tests": 3,
+        "sha256": "4ffb033165c3f74a8a0494040e9ea89faecc68fb72264bea8b07ce3a9bac0ab0"
+      },
+      {
+        "name": "dev.lancast.airplay.ResourceSetupTest",
+        "tests": 3,
+        "sha256": "b6252dee2ba018dc645cec58b43ced975f4189b2015d5137922e8d945ec66c98"
+      }
+    ],
+    "android_ci_products": [
+      {
+        "product": "sender",
+        "role": "sender",
+        "application_id": "dev.lancast.sender",
+        "minimum_sdk": 29,
+        "abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "license": "Apache-2.0 with third-party notices",
+        "bytes": 45717022,
+        "sha256": "70abb842c628ffbb40deaeba3f37231564a397348b257c74a71d21b268d59e93",
+        "file": "android/app-sender/build/outputs/apk/debug/app-sender-debug.apk",
+        "package_file": "dist/android/0.6.3-11-Debug/sender/LanCast-Android-Sender-0.6.3-11-Debug.apk",
+        "signing": "Debug development signature; upgrades require the same signing key"
+      },
+      {
+        "product": "receiver-standard",
+        "role": "receiver",
+        "application_id": "dev.lancast.receiver",
+        "minimum_sdk": 23,
+        "abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "license": "Apache-2.0 with third-party notices",
+        "bytes": 37655978,
+        "sha256": "d3fc8a00b61fbfc0bec3b24f1cdaccff94ec36612de00f1594703c1013d53db8",
+        "file": "android/app-receiver/build/outputs/apk/standard/debug/app-receiver-standard-debug.apk",
+        "package_file": "dist/android/0.6.3-11-Debug/receiver-standard/LanCast-Android-Receiver-Standard-0.6.3-11-Debug.apk",
+        "signing": "Debug development signature; upgrades require the same signing key"
+      },
+      {
+        "product": "receiver-legacy",
+        "role": "receiver",
+        "application_id": "dev.lancast.receiver.legacy",
+        "minimum_sdk": 21,
+        "abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "license": "Apache-2.0 with third-party notices",
+        "bytes": 33908464,
+        "sha256": "179899bc077f90b55adb63f4aaa1e638bf8fc8b4343fc2da150dbb54d6d7c281",
+        "file": "android/app-receiver/build/outputs/apk/legacy/debug/app-receiver-legacy-debug.apk",
+        "package_file": "dist/android/0.6.3-11-Debug/receiver-legacy/LanCast-Android-Receiver-Legacy-0.6.3-11-Debug.apk",
+        "signing": "Debug development signature; upgrades require the same signing key"
+      },
+      {
+        "product": "receiver-airplay",
+        "role": "receiver",
+        "application_id": "dev.lancast.receiver.airplay",
+        "minimum_sdk": 23,
+        "abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "license": "GPL-3.0-only",
+        "bytes": 44355631,
+        "sha256": "ebcf1c5a14f25d6e83a7646a32fd00c292fbb014a3295db85e8ca7d2e8120ae1",
+        "file": "android/app-receiver/build/outputs/apk/airplay/debug/app-receiver-airplay-debug.apk",
+        "package_file": "dist/android/0.6.3-11-Debug/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.6.3-11-Debug.apk",
+        "signing": "Debug development signature; upgrades require the same signing key"
+      }
+    ]
+  },
+  "downloaded_artifacts": [
+    {
+      "platform": "windows",
+      "run": 37863969625,
+      "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "files": 20,
+      "bytes": 11229439,
+      "binaries": [
+        {
+          "file": "LanCast.exe",
+          "bytes": 460288,
+          "sha256": "533fcb1479531a6a1da5e0f0aeef3073887d058337b4e324ed79c03cd2fb336e"
+        },
+        {
+          "file": "lancast_core.dll",
+          "bytes": 6417920,
+          "sha256": "67d0ddd531175e827afbbbce603d8ce1d3ff475938a322fb2ae6b417e133227a"
+        },
+        {
+          "file": "lancast_rtc.dll",
+          "bytes": 2854912,
+          "sha256": "4713ecb7e90891f2c698d7926ed0534056ba8bfbb6090a2fbdaa8c76835d40d0"
+        },
+        {
+          "file": "lancast_ts.dll",
+          "bytes": 1375232,
+          "sha256": "77a90b9ba3200593254e047defae03df099ddce090f84e10fef08789552c7c87"
+        }
+      ],
+      "checks": [
+        "package SHA-256",
+        "PE x64 and imports",
+        "Release TS stripping",
+        "actual PE ProductVersion and FileVersion"
+      ],
+      "configuration": "Release",
+      "product_version": "0.6.3",
+      "file_version": "0.6.3.11"
+    },
+    {
+      "platform": "android",
+      "run": 37863969685,
+      "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "product": "receiver-legacy",
+      "file": "LanCast-Android-Receiver-Legacy-0.6.3-11-Debug.apk",
+      "bytes": 33908464,
+      "sha256": "179899bc077f90b55adb63f4aaa1e638bf8fc8b4343fc2da150dbb54d6d7c281",
+      "native_libraries_verified": 4,
+      "checks": [
+        "manifest/source/version and APK hash",
+        "all ELF architectures and page alignment",
+        "DEX role and library isolation"
+      ],
+      "configuration": "Debug"
+    },
+    {
+      "platform": "macos",
+      "run": 37863969739,
+      "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+      "file": "LanCastMac-Sender-Receiver-Universal-0.6.3-11-Release.zip",
+      "bytes": 22217330,
+      "sha256": "e5936c5d8df03154d976a156ed99e552918389d51f8ee285cd914b9c2b9bc547",
+      "checks": [
+        "archive hashes",
+        "version/build and universal architectures",
+        "framework metadata and no test bundle"
+      ],
+      "configuration": "Release"
+    }
+  ],
+  "cleanup": {
+    "operation": "move_preserving_files",
+    "destination": "E:/cast/待手动删除-LanCast-0.6.3-20261009",
+    "files": 308,
+    "bytes": 799427298,
+    "disk_bytes_freed": 0,
+    "count_and_size_verified_after_move": true,
+    "reason": "Automatic approval rejected recursive deletion with blocked by policy; reversible moves were permitted. Manual deletion is required to reclaim disk space.",
+    "groups": [
+      {"source": ".cache/artifacts", "files": 274, "bytes": 799237721},
+      {"source": "scripts/__pycache__", "files": 27, "bytes": 144368},
+      {"source": "scripts/tests/__pycache__", "files": 7, "bytes": 45209}
+    ],
+    "preserved": ["source and Git history", "licenses", "build dependencies", "docs/validation summaries", "hardware media samples"]
+  },
+  "documentation_repairs": [
+    "Corrected the corrupted UTF-8 source path in media-lifecycle-0.6.2.json without changing its build evidence.",
+    "Marked E:/cast/docs as the initial design archive and linked it to the current repository review entry."
+  ],
+  "remaining_acceptance": [
+    "Physical television slow-read, reconnect, file seek and repeated start/stop",
+    "Measured CPU/RSS, socket/handle counts and two-hour stability",
+    "Cross-device audio/video synchronization and real network changes",
+    "Production signing, upgrade and release acceptance"
+  ]
+}
