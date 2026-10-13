@@ -67,6 +67,8 @@ def selected_products(value=None, *, environ=None):
 def gradle_tasks(products, mode):
     tasks = [f":{p.module}:{task}{p.variant(mode)}" for p in products for task in ("assemble", "lint")]
     tasks.append(f":control-bridge:test{mode}UnitTest")
+    if any(p.role == "sender" for p in products):
+        tasks.append(f":app-sender:test{mode}UnitTest")
     if any(p.role == "receiver" for p in products):
         tasks.append(":receiver-contracts:test")
     if any(p.airplay for p in products):

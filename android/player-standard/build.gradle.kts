@@ -1,17 +1,15 @@
-plugins { id("com.android.library"); id("org.jetbrains.kotlin.android") }
+plugins { alias(libs.plugins.android.library) }
 android {
     namespace = "dev.lancast.player.standard"
-    compileSdk = 36
-    buildToolsVersion = "35.0.0"
+    compileSdk = libs.versions.compileSdk.get().toInt()
+    buildToolsVersion = libs.versions.buildTools.get()
     defaultConfig { minSdk = 23 }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }
 }
-kotlin { jvmToolchain(17) }
-dependencies { coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+dependencies { coreLibraryDesugaring(libs.desugar)
     implementation(project(":player-api"))
     implementation(project(":control-bridge"))
-    implementation("androidx.media3:media3-exoplayer:1.11.1")
-    implementation("androidx.media3:media3-ui:1.11.1")
-    implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.okhttp)
 }
-android.sourceSets["main"].java.srcDir("../player-media3/src/main/kotlin")

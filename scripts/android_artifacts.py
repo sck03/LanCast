@@ -9,6 +9,11 @@ import struct
 import subprocess
 import zipfile
 
+if __package__:
+    from .android_toolchain import versions
+else:
+    from android_toolchain import versions
+
 
 def require(condition, message):
     if not condition:
@@ -44,6 +49,43 @@ def find_apks(root, products, mode):
     return result
 
 
+def jni_contracts(product):
+    """Project-owned native lookups that must survive R8, including callback descriptors."""
+    contracts = {"dev.lancast.control.NativeCore": {
+        "create()J", "command(JLjava/lang/String;)I", "poll(J)Ljava/lang/String;", "destroy(J)V", "writeTs(J[B)I",
+    }}
+    if product.role == "sender":
+        contracts.update({
+            "dev.lancast.sender.TsMux": {"create(IIZLdev/lancast/sender/TsMux$Sink;)J", "write(JZ[BJ)I", "destroy(J)V"},
+            "dev.lancast.sender.TsMux$Sink": {"onTs([B)I"},
+        })
+    if product.airplay:
+        contracts["dev.lancast.airplay.NativeEngine"] = {
+            "startNative(Ljava/lang/String;Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;)J",
+            "approveNative(JJZ)V", "stopSessionNative(JJ)V", "stopNative(J)V",
+            "onEvent(JILjava/lang/String;)V", "onVideoConfig(JII[B[B)Z", "onVideo(JJZ[B)Z",
+            "onAudioConfig(JIIII)Z", "onAudio(JJ[B)Z",
+        }
+    return contracts
+
+
+def verify_jni_listing(class_name, expected, listing):
+    # apkanalyzer emits smali; inspect declarations, never string-pool references.
+    declarations = {line.split()[-1] for line in listing.splitlines() if line.strip().startswith(".method ")}
+    missing = expected - declarations
+    require(not missing, f"{class_name}: missing or renamed JNI methods: {sorted(missing)}")
+
+
+def verify_jni(apk, product, sdk):
+    analyzer = Path(sdk) / "cmdline-tools/latest/bin" / ("apkanalyzer.bat" if os.name == "nt" else "apkanalyzer")
+    contracts = jni_contracts(product)
+    for class_name, expected in contracts.items():
+        listing = subprocess.check_output([str(analyzer), "dex", "code", "--class", class_name, str(apk)],
+                                          text=True, encoding="utf-8")
+        verify_jni_listing(class_name, expected, listing)
+    return sorted(contracts)
+
+
 def verify_apk(apk, product, config, metadata, manifest):
     expected = {"name": product.application_id, "versionCode": str(config.build_number), "versionName": config.version}
     package = re.search(r"^package: (.+)$", metadata, re.MULTILINE)
@@ -75,24 +117,36 @@ def verify_apk(apk, product, config, metadata, manifest):
                 verify_elf(archive.read(name), name.split("/")[1])
             except ValueError as error:
                 raise ValueError(f"{apk.name}/{name}: {error}") from error
+        contents = archive.infolist()
+        payload = {
+            "dex_bytes": sum(item.file_size for item in contents if re.fullmatch(r"classes(?:[0-9]+)?\.dex", item.filename)),
+            "native_bytes": sum(item.file_size for item in contents if item.filename in libraries),
+            "resource_bytes": sum(item.file_size for item in contents if item.filename == "resources.arsc" or item.filename.startswith("res/")),
+        }
     with apk.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     return {"product": product.key, "role": product.role, "application_id": product.application_id,
             "minimum_sdk": product.minimum_sdk, "abis": list(config.android_abis),
             "license": "GPL-3.0-only" if product.airplay else "Apache-2.0 with third-party notices",
-            "bytes": apk.stat().st_size, "sha256": digest}
+            "bytes": apk.stat().st_size, "sha256": digest, **payload}
 
 
 def verify_and_package(root, config, products, report):
     root = Path(root)
     sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
     require(sdk, "Set ANDROID_HOME or ANDROID_SDK_ROOT for APK verification")
-    aapt = Path(sdk) / "build-tools/35.0.0" / ("aapt.exe" if os.name == "nt" else "aapt")
+    aapt = Path(sdk) / "build-tools" / versions(root)["buildTools"] / ("aapt.exe" if os.name == "nt" else "aapt")
     verified = []
     for product, apk in find_apks(root, products, config.configuration):
         metadata = subprocess.check_output([str(aapt), "dump", "badging", str(apk)], text=True, encoding="utf-8")
         manifest = subprocess.check_output([str(aapt), "dump", "xmltree", str(apk), "AndroidManifest.xml"], text=True, encoding="utf-8")
         entry = verify_apk(apk, product, config, metadata, manifest)
+        entry["verified_jni_classes"] = verify_jni(apk, product, sdk)
+        if config.configuration == "Release":
+            variant = product.flavor + "Release" if product.flavor else "release"
+            mapping = root / "android" / product.module / "build/outputs/mapping" / variant / "mapping.txt"
+            require(mapping.is_file() and mapping.stat().st_size > 0, f"{product.key}: missing R8 mapping")
+            entry["r8_mapping_sha256"] = hashlib.sha256(mapping.read_bytes()).hexdigest()
         entry["file"] = apk.relative_to(root).as_posix()
         verified.append((product, apk, entry))
     report["products"] = [p.key for p in products]

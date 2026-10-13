@@ -207,7 +207,17 @@ class RtcPeer(
             if (track is VideoTrack) {
                 renderer?.let { remoteVideo?.removeSink(it) }; frameProbe?.let { remoteVideo?.removeSink(it) }
                 remoteVideo = track; renderer?.let { track.addSink(it) }
-                frameProbe = VideoSink { submit { if (epoch == transportGeneration && !receivedFrame) { receivedFrame = true; status("first_frame") } } }
+                frameProbe = object : VideoSink {
+                    private val delivered = AtomicBoolean(false)
+                    override fun onFrame(frame: VideoFrame) {
+                        if (delivered.compareAndSet(false, true)) submit {
+                            if (epoch != transportGeneration || remoteVideo !== track || frameProbe !== this) return@submit
+                            track.removeSink(this)
+                            frameProbe = null
+                            if (!receivedFrame) { receivedFrame = true; status("first_frame") }
+                        }
+                    }
+                }
                 track.addSink(frameProbe)
             }
             track?.setEnabled(true)
@@ -251,14 +261,18 @@ class RtcPeer(
         playback?.stop()
         worker.removeCallbacksAndMessages(null)
         worker.post {
+            // Covers close racing an initialize/startCapture action already on this worker.
+            playback?.stop()
             runCatching { renderer?.let { remoteVideo?.removeSink(it) } }
             runCatching { frameProbe?.let { remoteVideo?.removeSink(it) } }
-            runCatching { capture?.stopCapture(); capture?.dispose() }
-            runCatching { peer?.close(); peer?.dispose() }
-            runCatching { videoTrack?.dispose(); audioTrack?.dispose(); videoSource?.dispose(); audioSource?.dispose() }
-            runCatching { texture?.dispose(); factory?.dispose(); audio?.release(); playback?.release() }
+            runCatching { capture?.stopCapture() }; runCatching { capture?.dispose() }
+            runCatching { peer?.close() }; runCatching { peer?.dispose() }
+            runCatching { videoTrack?.dispose() }; runCatching { audioTrack?.dispose() }
+            runCatching { videoSource?.dispose() }; runCatching { audioSource?.dispose() }
+            runCatching { texture?.dispose() }; runCatching { factory?.dispose() }
+            runCatching { audio?.release() }; runCatching { playback?.release() }
             // A receiver renderer belongs to this instance and is replaced before the next session.
-            runCatching { renderer?.release(); egl.release() }
+            runCatching { renderer?.release() }; runCatching { egl.release() }
             thread.quitSafely()
         }
     }

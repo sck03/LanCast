@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import unittest
 import zipfile
 
-from scripts.android_artifacts import find_apks, verify_apk, verify_elf
+from scripts.android_artifacts import find_apks, jni_contracts, verify_apk, verify_elf, verify_jni_listing
 from scripts.android_products import PRODUCTS, SELECTION_LABELS, gradle_tasks, selected_products
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,7 +58,7 @@ class AndroidProductsTests(unittest.TestCase):
     def test_selection_limits_tasks_and_native_features(self):
         sender = selected_products("sender", environ={})
         self.assertEqual([p.key for p in sender], ["sender"])
-        self.assertEqual(gradle_tasks(sender, "Release"), [":app-sender:assembleRelease", ":app-sender:lintRelease", ":control-bridge:testReleaseUnitTest"])
+        self.assertEqual(gradle_tasks(sender, "Release"), [":app-sender:assembleRelease", ":app-sender:lintRelease", ":control-bridge:testReleaseUnitTest", ":app-sender:testReleaseUnitTest"])
         receivers = selected_products("receivers", environ={})
         self.assertEqual(len(receivers), 3)
         self.assertFalse(any("sender" in p.features for p in receivers))
@@ -144,6 +144,17 @@ class AndroidProductsTests(unittest.TestCase):
             verify_elf(malformed, "arm64-v8a")
         with self.assertRaisesRegex(ValueError, "program headers"):
             verify_elf(elf("arm64-v8a")[:-1], "arm64-v8a")
+
+    def test_jni_verification_rejects_renamed_methods_and_wrong_descriptors(self):
+        expected = {"onTs([B)I"}
+        verify_jni_listing("Sink", expected, ".method public abstract onTs([B)I\n.end method\n")
+        for listing in (".method public a([B)I", ".method public onTs([B)V", 'const-string v0, "onTs([B)I"'):
+            with self.assertRaisesRegex(ValueError, "missing or renamed JNI"):
+                verify_jni_listing("Sink", expected, listing)
+        sender = jni_contracts(PRODUCTS[0])
+        self.assertIn("dev.lancast.sender.TsMux$Sink", sender)
+        self.assertNotIn("dev.lancast.airplay.NativeEngine", sender)
+        self.assertIn("dev.lancast.airplay.NativeEngine", jni_contracts(PRODUCTS[3]))
 
 
 if __name__ == "__main__":

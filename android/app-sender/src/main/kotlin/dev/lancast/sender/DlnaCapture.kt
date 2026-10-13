@@ -66,22 +66,20 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                 val codec = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.firstOrNull {
                     it.isEncoder && it.isHardwareAccelerated && it.supportedTypes.any { t -> t.equals(MediaFormat.MIMETYPE_VIDEO_AVC, true) } && it.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).isFormatSupported(format)
                 } ?: error("H264_HARDWARE_UNAVAILABLE")
-                video = MediaCodec.createByCodecName(codec.name).also { encoder ->
+                // Publish ownership before configure/start can fail.
+                video = MediaCodec.createByCodecName(codec.name)
+                video!!.let { encoder ->
                     encoder.setCallback(object : MediaCodec.Callback() {
                         override fun onInputBufferAvailable(codec: MediaCodec, index: Int) {}
                         override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
-                            config = listOf("csd-0", "csd-1").flatMap { key ->
-                                format.getByteBuffer(key)?.duplicate()?.let { b -> ByteArray(b.remaining()).also { b.get(it) }.toList() } ?: emptyList()
-                            }.toByteArray()
+                            config = codecConfiguration(format.getByteBuffer("csd-0"), format.getByteBuffer("csd-1"))
                         }
                         override fun onError(codec: MediaCodec, error: MediaCodec.CodecException) { fail("H264_ENCODER_FAILED") }
                         override fun onOutputBufferAvailable(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
                             try {
                                 if (!closed.get() && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                                    val buffer = checkNotNull(codec.getOutputBuffer(index)).duplicate()
-                                    buffer.position(info.offset); buffer.limit(info.offset + info.size)
-                                    var bytes = ByteArray(info.size).also { buffer.get(it) }
-                                    if (info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0) bytes = config + bytes
+                                    val prefix = config.takeIf { info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0 }
+                                    val bytes = encodedFrame(checkNotNull(codec.getOutputBuffer(index)), info.offset, info.size, prefix)
                                     mux?.video(bytes, (info.presentationTimeUs - baseUs).coerceAtLeast(0))
                                 }
                             } catch (_: Exception) { fail("TS_VIDEO_FAILED") }
@@ -156,16 +154,27 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                     }
                     var output = encoder.dequeueOutputBuffer(info, 0)
                     while (output >= 0) {
-                        if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                            val buffer = checkNotNull(encoder.getOutputBuffer(output)).duplicate(); buffer.position(info.offset); buffer.limit(info.offset + info.size)
-                            val bytes = ByteArray(info.size).also { buffer.get(it) }; val pts = info.presentationTimeUs
-                            check(pending.tryAcquire()) { "AUDIO_BACKPRESSURE" }
-                            worker.post { try { if (!closed.get()) mux?.audio(bytes, pts) } catch (_: Exception) { fail("TS_AUDIO_FAILED") } finally { pending.release() } }
-                        }
-                        encoder.releaseOutputBuffer(output, false); output = encoder.dequeueOutputBuffer(info, 0)
+                        try {
+                            if (!closed.get() && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                                check(pending.tryAcquire()) { "AUDIO_BACKPRESSURE" }
+                                val bytes = encodedFrame(checkNotNull(encoder.getOutputBuffer(output)), info.offset, info.size)
+                                val pts = info.presentationTimeUs
+                                if (!worker.post { try { if (!closed.get()) mux?.audio(bytes, pts) } catch (_: Exception) { fail("TS_AUDIO_FAILED") } finally { pending.release() } }) {
+                                    pending.release()
+                                    error("AUDIO_SINK_CLOSED")
+                                }
+                            }
+                        } finally { encoder.releaseOutputBuffer(output, false) }
+                        output = encoder.dequeueOutputBuffer(info, 0)
                     }
                 }
             } catch (e: Exception) { fail(e.message ?: "AUDIO_FAILED") }
+            finally {
+                // The I/O thread keeps ownership even if the stop join times out.
+                runCatching { encoder.stop() }; runCatching { encoder.release() }
+                runCatching { recorder?.stop() }; runCatching { recorder?.release() }
+                record = null
+            }
         }, "lancast-playback-aac").apply { start() }
     }
     override fun close() {
@@ -173,11 +182,12 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
         // AudioRecord.stop unblocks the only reader before the worker waits for its exit.
         runCatching { record?.stop() }
         worker.post {
-            audioThread?.join(2000)
+            runCatching { audioThread?.join(2000) }
             runCatching { probeFrames?.close() }
             runCatching { display?.release() }; runCatching { surface?.release() }; runCatching { projection?.stop() }
             runCatching { video?.stop() }; runCatching { video?.release() }
-            if (audioThread?.isAlive != true) { runCatching { audio?.stop() }; runCatching { audio?.release() }; runCatching { record?.release() } }
+            // Before the I/O thread starts, partially initialized audio belongs here.
+            if (audioThread == null) { runCatching { audio?.stop() }; runCatching { audio?.release() }; runCatching { record?.release() } }
             runCatching { mux?.close() }
             worker.removeCallbacksAndMessages(null); thread.quitSafely()
         }

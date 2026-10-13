@@ -7,6 +7,7 @@ import subprocess
 import sys
 from android_artifacts import verify_and_package
 from android_products import SELECTION_LABELS, gradle_tasks, selected_products, selection_key
+from android_toolchain import versions
 from build_config import ROOT, add_arguments, from_args, record
 
 
@@ -20,6 +21,7 @@ def main():
     key = selection_key(args.product)
     products = selected_products(key)
     report = record(config)
+    report["toolchain"] = versions()
     env = dict(os.environ, **config.environment(), LC_ANDROID_PRODUCT=key)
     mode = config.configuration
     if args.native:
@@ -38,7 +40,7 @@ def main():
         if product.flavor == "legacy" or product.role == "sender":
             if "androidx.media3" in dependencies:
                 raise RuntimeError(f"Media3 leaked into {product.key}")
-        elif "media3-common:1.11.1" not in dependencies:
+        elif f"media3-common:{report['toolchain']['media3']}" not in dependencies:
             raise RuntimeError(f"{product.key}: Media3 version mismatch")
         if ("project :airplay-receiver" in dependencies) != product.airplay:
             raise RuntimeError(f"{product.key}: AirPlay dependency isolation failed")

@@ -58,6 +58,9 @@ jobs:
         env:
           LC_ANDROID_PRODUCT: ${{ inputs.product }}
         run: python scripts/android_products.py --github
+      - name: Read pinned Android toolchain
+        id: toolchain
+        run: python scripts/android_toolchain.py --github
       - name: Test build input validation
         run: |
           python scripts/check-architecture.py
@@ -70,9 +73,12 @@ jobs:
         with:
           cache-provider: basic
       - name: Use runner SDK and install pinned components
+        env:
+          LC_COMPILE_SDK: ${{ steps.toolchain.outputs.compile_sdk }}
+          LC_BUILD_TOOLS: ${{ steps.toolchain.outputs.build_tools }}
         run: |
           yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0" "ndk;${LC_ANDROID_NDK_VERSION}"
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-${LC_COMPILE_SDK}" "build-tools;${LC_BUILD_TOOLS}" "ndk;${LC_ANDROID_NDK_VERSION}"
       - run: rustup toolchain install 1.98.1 --profile minimal
       - uses: actions/cache/restore@v6
         id: native-cache
@@ -108,6 +114,7 @@ jobs:
       - name: Build lint verify and package selected products
         run: |
           chmod +x android/gradlew
+          android/gradlew -p android --version
           python scripts/build-android.py
       - run: python scripts/package-native-evidence.py android
         if: steps.products.outputs.sender == 'true'
@@ -161,6 +168,7 @@ jobs:
             android/*/build/reports/
             android/*-dependencies.txt
             android/*/build/test-results/
+            android/app-*/build/outputs/mapping/
             dist/reports/build-android.json
             .cache/ffmpeg-install-*/build-manifest.json
           compression-level: 9

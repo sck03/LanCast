@@ -23,6 +23,7 @@ class PlaybackAudio(private val onError: (String) -> Unit) : JavaAudioDeviceModu
     private var silentBuffers = 0
     private var warned = false
     @SuppressLint("MissingPermission")
+    @Synchronized
     fun start(projection: MediaProjection) {
         check(!closed.get() && record == null)
         val configuration = AudioPlaybackCaptureConfiguration.Builder(projection)
@@ -33,9 +34,14 @@ class PlaybackAudio(private val onError: (String) -> Unit) : JavaAudioDeviceModu
             .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                 .setSampleRate(48000).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build())
             .setBufferSizeInBytes(maxOf(9600, AudioRecord.getMinBufferSize(48000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT))).build()
-        check(audio.state == AudioRecord.STATE_INITIALIZED) { "AUDIO_NOT_CAPTURABLE" }
-        record = audio
-        audio.startRecording()
+        try {
+            check(audio.state == AudioRecord.STATE_INITIALIZED) { "AUDIO_NOT_CAPTURABLE" }
+            audio.startRecording()
+            record = audio
+        } catch (failure: Throwable) {
+            runCatching { audio.release() }.exceptionOrNull()?.let { if (it !== failure) failure.addSuppressed(it) }
+            throw failure
+        }
     }
     override fun onBuffer(buffer: ByteBuffer, format: Int, channels: Int, rate: Int, bytesRead: Int, captureTimeNs: Long): Long {
         val audio = record
@@ -68,6 +74,11 @@ class PlaybackAudio(private val onError: (String) -> Unit) : JavaAudioDeviceModu
         else 0L
     }
     /** Stop unblocks READ_BLOCKING; release only after WebRTC's callback thread has joined. */
-    fun stop() { closed.set(true); runCatching { record?.stop() } }
-    fun release() { stop(); record?.release(); record = null }
+    @Synchronized fun stop() { closed.set(true); runCatching { record?.stop() } }
+    @Synchronized fun release() {
+        stop()
+        val audio = record
+        record = null
+        audio?.release()
+    }
 }
