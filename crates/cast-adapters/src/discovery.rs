@@ -1,15 +1,69 @@
 use crate::{
     auth,
     dlna::{self, Renderer},
+    events::{Events, event},
 };
 use anyhow::ensure;
+use futures_util::{Stream, StreamExt, stream};
 use std::{
     collections::HashMap,
+    future::Future,
     net::{IpAddr, Ipv4Addr},
     time::Duration,
 };
+use tokio::{task::JoinHandle, time::Instant};
+
+const SCAN_WINDOW: Duration = Duration::from_secs(4);
+const MAX_DEVICES: usize = 64;
+
+/// Owns the one mDNS search for a host; replacing or stopping it joins cancellation.
+#[derive(Default)]
+pub(crate) struct ScanTask(Option<JoinHandle<()>>);
+impl ScanTask {
+    pub async fn start(&mut self, events: Events, generation: serde_json::Value) {
+        self.replace(async move {
+            let body = match scan_lancast().await {
+                Ok(devices) => serde_json::json!({"devices":devices,"scanGeneration":generation}),
+                Err(_) => serde_json::json!({"devices":[],"scanGeneration":generation,"error":"DISCOVERY_FAILED"}),
+            };
+            event(&events, "devices", body);
+        })
+        .await;
+    }
+    async fn replace(&mut self, work: impl Future<Output = ()> + Send + 'static) {
+        self.stop().await;
+        self.0 = Some(tokio::spawn(work));
+    }
+    pub async fn stop(&mut self) {
+        if let Some(task) = self.0.take() {
+            task.abort();
+            let _ = task.await;
+        }
+    }
+}
+impl Drop for ScanTask {
+    fn drop(&mut self) {
+        if let Some(task) = &self.0 {
+            task.abort();
+        }
+    }
+}
+
+/// Shutdown also runs after browse/register errors or cancellation of an async search.
+struct MdnsDaemon(mdns_sd::ServiceDaemon);
+impl MdnsDaemon {
+    fn new() -> anyhow::Result<Self> {
+        Ok(Self(mdns_sd::ServiceDaemon::new()?))
+    }
+}
+impl Drop for MdnsDaemon {
+    fn drop(&mut self) {
+        let _ = self.0.shutdown();
+    }
+}
+
 pub struct Advertisement {
-    daemon: mdns_sd::ServiceDaemon,
+    daemon: MdnsDaemon,
     name: String,
 }
 impl Advertisement {
@@ -21,7 +75,7 @@ impl Advertisement {
         variant: &str,
         fingerprint: &str,
     ) -> anyhow::Result<Self> {
-        let daemon = mdns_sd::ServiceDaemon::new()?;
+        let daemon = MdnsDaemon::new()?;
         let pairing_version = auth::PAIRING_VERSION.to_string();
         let bound_address = ip.to_string();
         let info = mdns_sd::ServiceInfo::new(
@@ -41,25 +95,30 @@ impl Advertisement {
             .as_slice(),
         )?;
         let name = info.get_fullname().to_string();
-        daemon.register(info)?;
+        daemon.0.register(info)?;
         Ok(Self { daemon, name })
     }
 }
 impl Drop for Advertisement {
     fn drop(&mut self) {
-        let _ = self.daemon.unregister(&self.name);
-        let _ = self.daemon.shutdown();
+        let _ = self.daemon.0.unregister(&self.name);
     }
 }
-pub fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
-    let daemon = mdns_sd::ServiceDaemon::new()?;
-    let events = daemon.browse("_lancast._tcp.local.")?;
-    let until = std::time::Instant::now() + Duration::from_secs(4);
+pub async fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
+    let daemon = MdnsDaemon::new()?;
+    let events = daemon.0.browse("_lancast._tcp.local.")?;
+    let until = Instant::now() + SCAN_WINDOW;
     let mut found = HashMap::new();
-    while std::time::Instant::now() < until {
-        if let Ok(mdns_sd::ServiceEvent::ServiceResolved(info)) =
-            events.recv_timeout(Duration::from_millis(250))
-        {
+    while found.len() < MAX_DEVICES && Instant::now() < until {
+        let Ok(Ok(message)) = tokio::time::timeout_at(until, events.recv_async()).await else {
+            break;
+        };
+        // flume can remain ready under a multicast burst; let abort/stop run too.
+        tokio::task::consume_budget().await;
+        if Instant::now() >= until {
+            break;
+        }
+        if let mdns_sd::ServiceEvent::ServiceResolved(info) = message {
             let id = info
                 .get_property_val_str("deviceId")
                 .unwrap_or(info.get_fullname())
@@ -82,8 +141,6 @@ pub fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
             found.insert(id.clone(),serde_json::json!({"id":id,"name":info.get_fullname(),"addresses":addresses,"port":info.get_port(),"fingerprint":fingerprint,"kind":"lancast_receiver","verification":"unverified"}));
         }
     }
-    let _ = daemon.stop_browse("_lancast._tcp.local.");
-    let _ = daemon.shutdown();
     Ok(found.into_values().collect())
 }
 // Public discovery hints are never a trust decision. The sender must compare the
@@ -110,15 +167,15 @@ pub async fn scan_dlna(interface: Ipv4Addr) -> anyhow::Result<Vec<Renderer>> {
     socket.set_multicast_ttl_v4(2)?;
     let request=b"M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: urn:schemas-upnp-org:device:MediaRenderer:1\r\n\r\n";
     socket.send_to(request, "239.255.255.250:1900").await?;
-    let end = tokio::time::Instant::now() + Duration::from_secs(4);
+    let end = Instant::now() + SCAN_WINDOW;
     let mut locations = HashMap::new();
     let mut buffer = [0; 8192];
-    while let Ok(Ok((size, source))) =
-        tokio::time::timeout_at(end, socket.recv_from(&mut buffer)).await
-    {
-        if locations.len() >= 64 {
+    while locations.len() < MAX_DEVICES && Instant::now() < end {
+        let Ok(Ok((size, source))) =
+            tokio::time::timeout_at(end, socket.recv_from(&mut buffer)).await
+        else {
             break;
-        }
+        };
         let Ok(text) = std::str::from_utf8(&buffer[..size]) else {
             continue;
         };
@@ -127,9 +184,7 @@ pub async fn scan_dlna(interface: Ipv4Addr) -> anyhow::Result<Vec<Renderer>> {
         }
     }
     let client = dlna::client()?;
-    let mut found = HashMap::new();
     // Bounded concurrency keeps one malicious/slow device from delaying every result.
-    use futures_util::{StreamExt, stream};
     let jobs = stream::iter(locations)
         .map(|(url, ip)| {
             let client = client.clone();
@@ -140,13 +195,28 @@ pub async fn scan_dlna(interface: Ipv4Addr) -> anyhow::Result<Vec<Renderer>> {
             }
         })
         .buffer_unordered(8);
+    Ok(collect_renderers(jobs, end + SCAN_WINDOW).await)
+}
+
+async fn collect_renderers(
+    jobs: impl Stream<Item = anyhow::Result<Renderer>>,
+    deadline: Instant,
+) -> Vec<Renderer> {
+    let mut found = HashMap::new();
     tokio::pin!(jobs);
-    while let Some(result) = jobs.next().await {
+    // One deadline covers every batch and drops unfinished requests on return.
+    while Instant::now() < deadline {
+        let Ok(Some(result)) = tokio::time::timeout_at(deadline, jobs.next()).await else {
+            break;
+        };
+        if Instant::now() >= deadline {
+            break;
+        }
         if let Ok(renderer) = result {
             found.insert(renderer.id.clone(), renderer);
         }
     }
-    Ok(found.into_values().collect())
+    found.into_values().collect()
 }
 pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
     ensure!(
@@ -172,6 +242,110 @@ pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::oneshot;
+    use tokio_util::sync::CancellationToken;
+
+    #[tokio::test]
+    async fn replacement_joins_old_scan_and_stop_is_idempotent() {
+        let mut scan = ScanTask::default();
+        let mut previous: Option<CancellationToken> = None;
+        for _ in 0..8 {
+            let finished = CancellationToken::new();
+            let guard = finished.clone().drop_guard();
+            let (started, ready) = oneshot::channel();
+            let old = previous.clone();
+            scan.replace(async move {
+                let _guard = guard;
+                assert!(old.is_none_or(|old| old.is_cancelled()));
+                started.send(()).unwrap();
+                std::future::pending::<()>().await;
+            })
+            .await;
+            ready.await.unwrap();
+            previous = Some(finished);
+        }
+        scan.stop().await;
+        assert!(previous.unwrap().is_cancelled());
+        scan.stop().await;
+    }
+
+    #[tokio::test]
+    async fn dropping_scan_owner_cancels_pending_work() {
+        let mut scan = ScanTask::default();
+        let finished = CancellationToken::new();
+        let guard = finished.clone().drop_guard();
+        let (started, ready) = oneshot::channel();
+        scan.replace(async move {
+            let _guard = guard;
+            started.send(()).unwrap();
+            std::future::pending::<()>().await;
+        })
+        .await;
+        ready.await.unwrap();
+        drop(scan);
+        tokio::time::timeout(Duration::from_secs(1), finished.cancelled())
+            .await
+            .unwrap();
+    }
+
+    fn renderer() -> Renderer {
+        Renderer {
+            id: "tv".into(),
+            name: "Living room".into(),
+            ip: "192.168.1.2".parse().unwrap(),
+            transport: dlna::Service {
+                kind: "AVTransport:1".into(),
+                control: "http://192.168.1.2/control".into(),
+            },
+            rendering: None,
+            connection: None,
+            signature: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn description_deadline_keeps_results_and_drops_pending_requests() {
+        let finished = CancellationToken::new();
+        let guard = finished.clone().drop_guard();
+        let jobs = stream::iter([Ok(renderer()), Err(anyhow::anyhow!("DEVICE_OFFLINE"))]).chain(
+            stream::once(async move {
+                let _guard = guard;
+                std::future::pending::<anyhow::Result<Renderer>>().await
+            }),
+        );
+        let found = tokio::time::timeout(
+            Duration::from_secs(1),
+            collect_renderers(jobs, Instant::now() + Duration::from_millis(100)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, "tv");
+        assert!(finished.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn expired_description_deadline_does_not_start_more_requests() {
+        let started = std::sync::atomic::AtomicBool::new(false);
+        let jobs = stream::once(async {
+            started.store(true, std::sync::atomic::Ordering::Relaxed);
+            Err(anyhow::anyhow!("SHOULD_NOT_START"))
+        });
+        assert!(collect_renderers(jobs, Instant::now()).await.is_empty());
+        assert!(!started.load(std::sync::atomic::Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn ready_description_cannot_revive_an_expired_deadline() {
+        let jobs = stream::once(async {
+            // Deliberately stall this executor: timeout_at polls work before its timer.
+            std::thread::sleep(Duration::from_millis(60));
+            Ok(renderer())
+        });
+        let found = collect_renderers(jobs, Instant::now() + Duration::from_millis(20)).await;
+        assert!(found.is_empty());
+    }
+
     #[test]
     fn discovery_requires_current_pairing_and_full_pin() {
         let resolved = vec!["192.168.1.2".to_owned(), "10.0.0.2".to_owned()];

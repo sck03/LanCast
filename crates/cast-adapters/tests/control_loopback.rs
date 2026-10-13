@@ -3,6 +3,32 @@ use cast_adapters::runtime::Engine;
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
+#[test]
+fn stopped_discovery_cannot_deliver_late_results() {
+    let engine = Engine::new().unwrap();
+    engine
+        .command(json!({"op":"scan","scanGeneration":17}))
+        .unwrap();
+    // Let discovery enter its receive wait before stopping the owner.
+    std::thread::sleep(Duration::from_millis(200));
+    engine.command(json!({"op":"stop"})).unwrap();
+    event(&engine, "stopped");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut late = None;
+    while Instant::now() < deadline {
+        if let Some(text) = engine.poll() {
+            let value: Value = serde_json::from_str(&text).unwrap();
+            if value["type"] == "devices" {
+                late = Some(value);
+                break;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    engine.close();
+    assert!(late.is_none(), "discovery outlived stop: {late:?}");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn sender_rejects_previous_receiver_before_sending_code() {
     use cast_adapters::{auth, protocol::Message};

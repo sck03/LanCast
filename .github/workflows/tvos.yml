@@ -51,7 +51,7 @@ jobs:
       - uses: actions/cache/restore@v6
         id: apple-cache
         with:
-          key: apple-tvos-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'scripts/apple_build.py') }}
+          key: apple-tvos-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'core/Cargo.toml', 'crates/**', 'core/src/**', 'rust-toolchain.toml', 'scripts/apple_build.py') }}
           restore-keys: apple-tvos-
           path: |
             target/

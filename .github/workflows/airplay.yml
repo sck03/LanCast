@@ -25,8 +25,8 @@ jobs:
           path: |
             airplay-native/target/
             ~/.cargo/registry/
-          key: airplay-linux-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.rs') }}
-          restore-keys: airplay-linux-
+          key: airplay-linux-v2-${{ hashFiles('airplay-native/Cargo.lock', 'airplay-native/**/*.toml', 'airplay-native/**/*.rs', 'airplay-native/**/*.c', 'airplay-native/**/*.h', 'rust-toolchain.toml') }}
+          restore-keys: airplay-linux-v2-
       - run: cargo fmt --manifest-path airplay-native/Cargo.toml --all --check
       - run: cargo clippy --manifest-path airplay-native/Cargo.toml --workspace --all-targets --locked -- -D warnings
       - run: cargo test --manifest-path airplay-native/Cargo.toml --workspace --locked

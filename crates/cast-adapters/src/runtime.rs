@@ -101,6 +101,7 @@ impl Engine {
                         server: None,
                         client: None,
                         tasks: Vec::new(),
+                        scan: discovery::ScanTask::default(),
                         resources: Vec::new(),
                         renderers: HashMap::new(),
                         dlna_playing: None,
@@ -223,6 +224,7 @@ struct Runtime {
     server: Option<Arc<Server>>,
     client: Option<Client>,
     tasks: Vec<JoinHandle<()>>,
+    scan: discovery::ScanTask,
     resources: Vec<Arc<Resource>>,
     renderers: HashMap<String, dlna::Renderer>,
     dlna_playing: Option<(dlna::Controller, String)>,
@@ -308,14 +310,9 @@ impl Runtime {
                     .await;
             }
             "scan" => {
-                let events = self.events.clone();
-                let scan_generation = c["scanGeneration"].clone();
-                self.tasks.push(tokio::spawn(async move {
-                    match tokio::task::spawn_blocking(discovery::scan_lancast).await {
-                        Ok(Ok(devices)) => event(&events, "devices", json!({"devices":devices,"scanGeneration":scan_generation})),
-                        _ => event(&events, "devices", json!({"devices":[],"scanGeneration":scan_generation,"error":"DISCOVERY_FAILED"})),
-                    }
-                }));
+                self.scan
+                    .start(self.events.clone(), c["scanGeneration"].clone())
+                    .await;
             }
             "connect" => {
                 ensure!(
@@ -347,6 +344,7 @@ impl Runtime {
                 }
             }
             "stop" => {
+                self.scan.stop().await;
                 #[cfg(feature = "legacy")]
                 for bridge in self.bridges.drain(..) {
                     bridge.revoke();
@@ -385,6 +383,7 @@ impl Runtime {
             "dlna.scan" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let interface = string(&c, "interface")?.parse()?;
+                self.renderers.clear();
                 let devices = match discovery::scan_dlna(interface).await {
                     Ok(devices) => devices,
                     Err(error) => {

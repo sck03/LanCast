@@ -43,8 +43,8 @@ jobs:
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
       - uses: actions/cache@v6
         with:
-          key: rust-core-windows-2022-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
-          restore-keys: rust-core-windows-2022-
+          key: rust-core-v2-windows-2022-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'core/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
+          restore-keys: rust-core-v2-windows-2022-
           path: |
             target/
             ~/.cargo/registry/
@@ -133,7 +133,7 @@ jobs:
       - run: rustup toolchain install 1.98.1 --profile minimal
       - uses: actions/cache@v6
         with:
-          key: rust-windows-static-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
+          key: rust-windows-static-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'core/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
           restore-keys: rust-windows-static-
           path: |
             target/

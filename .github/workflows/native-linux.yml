@@ -21,8 +21,8 @@ jobs:
           persist-credentials: false
       - uses: actions/cache@v6
         with:
-          key: rust-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
-          restore-keys: rust-native-
+          key: rust-native-v2-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'core/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**') }}
+          restore-keys: rust-native-v2-
           path: |
             target/
             ~/.cargo/registry/
