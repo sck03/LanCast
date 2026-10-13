@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def versions(root=ROOT):
     catalog = tomllib.loads((Path(root) / "android/gradle/libs.versions.toml").read_text(encoding="utf-8"))
     values = catalog["versions"]
-    for key in ("agp", "kotlin", "buildTools", "media3", "desugar"):
+    for key in ("agp", "kotlin", "buildTools", "ndk", "media3", "desugar"):
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", values[key]):
             raise ValueError(f"Pin a stable Android toolchain version: {key}")
     if not re.fullmatch(r"[1-9][0-9]+", values["compileSdk"]):
@@ -28,6 +28,8 @@ def main():
     if args.github:
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
             stream.write(f"compile_sdk={values['compileSdk']}\nbuild_tools={values['buildTools']}\n")
+        with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as stream:
+            stream.write(f"LC_ANDROID_NDK_VERSION={values['ndk']}\n")
     print(json.dumps(values, indent=2))
 
 

@@ -2,6 +2,7 @@ plugins { alias(libs.plugins.android.application) }
 android {
     namespace = "dev.lancast.sender"
     compileSdk = libs.versions.compileSdk.get().toInt()
+    ndkVersion = libs.versions.ndk.get()
     buildToolsVersion = libs.versions.buildTools.get()
     defaultConfig {
         applicationId = "dev.lancast.sender"

@@ -39,8 +39,6 @@ jobs:
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 80
-    env:
-      LC_ANDROID_NDK_VERSION: '27.2.12479018'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -165,6 +163,7 @@ jobs:
         with:
           name: android-build-reports-${{ steps.build-config.outputs.label }}
           path: |
+            android/build/reports/
             android/*/build/reports/
             android/*-dependencies.txt
             android/*/build/test-results/

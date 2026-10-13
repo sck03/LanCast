@@ -2,6 +2,7 @@ plugins { alias(libs.plugins.android.library) }
 android {
     namespace = "dev.lancast.player.api"
     compileSdk = libs.versions.compileSdk.get().toInt()
+    ndkVersion = libs.versions.ndk.get()
     buildToolsVersion = libs.versions.buildTools.get()
     defaultConfig { minSdk = 21 }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }

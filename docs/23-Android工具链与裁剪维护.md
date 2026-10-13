@@ -10,6 +10,8 @@ Gradle发行包SHA-256为`dce76f55f8e251a3a1f130eb120f30b3d271de2b76c9b0729d316b
 
 按照[内置Kotlin迁移指南](https://developer.android.com/build/migrate-to-built-in-kotlin)，Android模块删除`org.jetbrains.kotlin.android`插件与重复JVM工具链设置，由AGP按Java17目标编译；纯JVM `receiver-contracts`仍使用Kotlin JVM插件。额外变体目录通过`AndroidSourceSet.kotlin`注册。Media3实现归入实际的`player-standard`模块，删除旧`player-media3`跨目录引用。
 
+AGP9默认只为被测试构建类型（通常Debug）创建单元测试任务。本工程保留Debug/Release各自测试合同，因此显式设置`android.onlyEnableUnitTestForTheTestedBuildType=false`；每次脚本仍只运行所选配置的测试。Gradle完整弃用诊断与根项目Problems报告随CI归档，便于后续版本升级审阅。
+
 ## 维护边界
 
 | 位置 | 职责 |
@@ -18,11 +20,14 @@ Gradle发行包SHA-256为`dce76f55f8e251a3a1f130eb120f30b3d271de2b76c9b0729d316b
 | Gradle wrapper | 固定Gradle发行包、网络超时及SHA-256；标准启动脚本 |
 | `scripts/android_toolchain.py` | 读取并校验稳定版本，向Actions提供SDK安装参数 |
 | `scripts/android_products.py` | 产品身份、角色、构建/lint及所需JVM测试任务 |
+| `scripts/android_dependencies.py` | 兼容Gradle8/9的项目依赖记法，检查实际解析的Media3版本和可选模块隔离 |
 | `scripts/android_artifacts.py` | 实际APK身份/服务/库/ABI/ELF、JNI签名和R8映射校验；归档与体积组成 |
 | `CodecBuffers` | 纯ByteBuffer范围复制与编码配置拼接，不依赖Android、UI或传输 |
 | `DlnaCapture` / `PlaybackAudio` / `RtcPeer` | 平台资源生命周期与对应媒体通路；不改变共享控制协议 |
 
 新增产品继续扩展产品清单；新增JNI入口同时更新所属模块保留规则和验证合同。不得把可选AirPlay模块反向引入基础产品，也不为几个共享函数增加通用插件框架。
+
+NDK版本也由版本目录提供给Actions和Android模块，避免AGP默认NDK版本与已安装版本不同导致跳过原生符号处理。依赖检查兼容Gradle9带引号的`project ':name'`输出，并检查版本选择箭头右侧的实际解析值；类似项目名、报告说明文字或仅请求了正确版本均不能冒充通过。
 
 ## 资源回收与复制
 

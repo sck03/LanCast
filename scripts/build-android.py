@@ -6,6 +6,7 @@ import platform
 import subprocess
 import sys
 from android_artifacts import verify_and_package
+from android_dependencies import verify_dependencies
 from android_products import SELECTION_LABELS, gradle_tasks, selected_products, selection_key
 from android_toolchain import versions
 from build_config import ROOT, add_arguments, from_args, record
@@ -29,21 +30,14 @@ def main():
             subprocess.run([sys.executable, str(ROOT / f"scripts/build-android-{component}.py")], cwd=ROOT, env=env, check=True)
     wrapper = "gradlew.bat" if platform.system() == "Windows" else "./gradlew"
     tasks = gradle_tasks(products, mode)
-    subprocess.run([wrapper, *tasks, "--stacktrace"], cwd=ROOT / "android", env=env, check=True)
+    subprocess.run([wrapper, *tasks, "--stacktrace", "--warning-mode", "all"], cwd=ROOT / "android", env=env, check=True)
     for product in products:
         path = ROOT / "android" / f"{product.key}-dependencies.txt"
         runtime = product.flavor + mode if product.flavor else mode.lower()
         with path.open("w", encoding="utf-8") as output:
             subprocess.run([wrapper, f":{product.module}:dependencies", "--configuration", f"{runtime}RuntimeClasspath"],
                            cwd=ROOT / "android", env=env, stdout=output, check=True)
-        dependencies = path.read_text(encoding="utf-8")
-        if product.flavor == "legacy" or product.role == "sender":
-            if "androidx.media3" in dependencies:
-                raise RuntimeError(f"Media3 leaked into {product.key}")
-        elif f"media3-common:{report['toolchain']['media3']}" not in dependencies:
-            raise RuntimeError(f"{product.key}: Media3 version mismatch")
-        if ("project :airplay-receiver" in dependencies) != product.airplay:
-            raise RuntimeError(f"{product.key}: AirPlay dependency isolation failed")
+        verify_dependencies(product, path.read_text(encoding="utf-8"), report["toolchain"]["media3"])
     verify_and_package(ROOT, config, products, report)
 
 

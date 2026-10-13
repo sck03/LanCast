@@ -3,6 +3,7 @@ agp = "9.4.1"
 kotlin = "2.4.21"
 compileSdk = "36"
 buildTools = "36.0.0"
+ndk = "27.2.12479018"
 desugar = "2.1.5"
 media3 = "1.11.1"
 
