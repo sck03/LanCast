@@ -17,6 +17,7 @@ def main():
     add_arguments(parser)
     parser.add_argument("--product", choices=SELECTION_LABELS)
     parser.add_argument("--native", action="store_true", help="Build selected JNI libraries first (requires ANDROID_NDK_HOME)")
+    parser.add_argument("--stacktrace", action="store_true", help="Include full Gradle call stacks when diagnosing a failed build")
     args = parser.parse_args()
     config = from_args("android", args)
     key = selection_key(args.product)
@@ -30,7 +31,10 @@ def main():
             subprocess.run([sys.executable, str(ROOT / f"scripts/build-android-{component}.py")], cwd=ROOT, env=env, check=True)
     wrapper = "gradlew.bat" if platform.system() == "Windows" else "./gradlew"
     tasks = gradle_tasks(products, mode)
-    subprocess.run([wrapper, *tasks, "--stacktrace", "--warning-mode", "all"], cwd=ROOT / "android", env=env, check=True)
+    gradle_options = ["--warning-mode", "all"]
+    if args.stacktrace:
+        gradle_options.append("--stacktrace")
+    subprocess.run([wrapper, *tasks, *gradle_options], cwd=ROOT / "android", env=env, check=True)
     for product in products:
         path = ROOT / "android" / f"{product.key}-dependencies.txt"
         runtime = product.flavor + mode if product.flavor else mode.lower()

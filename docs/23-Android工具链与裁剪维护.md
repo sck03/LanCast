@@ -10,7 +10,9 @@ Gradle发行包SHA-256为`dce76f55f8e251a3a1f130eb120f30b3d271de2b76c9b0729d316b
 
 按照[内置Kotlin迁移指南](https://developer.android.com/build/migrate-to-built-in-kotlin)，Android模块删除`org.jetbrains.kotlin.android`插件与重复JVM工具链设置，由AGP按Java17目标编译；纯JVM `receiver-contracts`仍使用Kotlin JVM插件。额外变体目录通过`AndroidSourceSet.kotlin`注册。Media3实现归入实际的`player-standard`模块，删除旧`player-media3`跨目录引用。
 
-AGP9默认只为被测试构建类型（通常Debug）创建单元测试任务。本工程保留Debug/Release各自测试合同，因此显式设置`android.onlyEnableUnitTestForTheTestedBuildType=false`；每次脚本仍只运行所选配置的测试。Gradle完整弃用诊断与根项目Problems报告随CI归档，便于后续版本升级审阅。
+AGP9默认只为被测试构建类型（通常Debug）创建单元测试任务。本工程保留Debug/Release各自测试合同，因此显式设置`android.onlyEnableUnitTestForTheTestedBuildType=false`；每次脚本仍只运行所选配置的测试。日常构建输出弃用诊断摘要并归档根项目Problems报告；故障分析可给`build-android.py`追加`--stacktrace`，避免成功构建反复打印完整调用栈。
+
+Gradle8.13的过期提示已通过升级消除。AGP9.4.1内部仍调用`Configuration.setVisible`等已弃用Gradle API，诊断保留并归档；这类上游兼容项不能通过删除应用代码修复，也没有声称本轮清除了所有第三方警告。
 
 ## 维护边界
 
