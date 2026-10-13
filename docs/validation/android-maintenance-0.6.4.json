@@ -1,0 +1,939 @@
+{
+  "schema": 1,
+  "date": "2026-10-13",
+  "version": "0.6.4",
+  "build_number": 12,
+  "program_commit": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+  "baseline_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+  "validation_scope": "Android toolchain migration, encoded-buffer handling, media resource ownership and Release shrinking. Existing GitHub workflows build the products. No physical-device, CPU/RSS, latency, long-session or production-signing acceptance is claimed.",
+  "toolchain": {
+    "gradle": "9.8.1",
+    "agp": "9.4.1",
+    "kotlin": "2.4.21",
+    "compileSdk": "36",
+    "buildTools": "36.0.0",
+    "ndk": "27.2.12479018",
+    "desugar": "2.1.5",
+    "media3": "1.11.1",
+    "distribution_sha256": "dce76f55f8e251a3a1f130eb120f30b3d271de2b76c9b0729d316b5a1b6dc01f",
+    "wrapper_jar_sha256": "3b8a25775a69158b5ad2b1d17a80a88dc7b40a352a73eb27d06c612a7ce68e98"
+  },
+  "local": {
+    "python_tests": 33,
+    "architecture": "passed",
+    "actionlint": "passed",
+    "documentation_file_links_verified": 165
+  },
+  "workflows": [
+    {
+      "workflow": "windows.yml",
+      "run": 38365816337,
+      "sha": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/38365816337",
+      "jobs": [
+        {
+          "id": 115190556085,
+          "name": "windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 115190556468,
+          "name": "core",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "android.yml",
+      "run": 38365816356,
+      "sha": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/38365816356",
+      "jobs": [
+        {
+          "id": 115190556873,
+          "name": "android",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "android.yml",
+      "run": 38365959381,
+      "sha": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/38365959381",
+      "jobs": [
+        {
+          "id": 115191032605,
+          "name": "android",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 38365816343,
+      "sha": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/38365816343",
+      "jobs": [
+        {
+          "id": 115190556336,
+          "name": "build",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 38365816418,
+      "sha": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/38365816418",
+      "jobs": [
+        {
+          "id": 115190556824,
+          "name": "build",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 38365816457,
+      "sha": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/38365816457",
+      "jobs": [
+        {
+          "id": 115190556885,
+          "name": "build",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 38365816350,
+      "sha": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/38365816350",
+      "jobs": [
+        {
+          "id": 115190556315,
+          "name": "core",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "unchanged_checks_not_run": [
+    {
+      "workflow": "native-linux.yml",
+      "reason": "Native media, Rust source/toolchain and this workflow are unchanged from the D18 source commit; the existing D18 record retains its original scope."
+    },
+    {
+      "workflow": "airplay.yml",
+      "reason": "The independent AirPlay Rust workspace/toolchain and this workflow are unchanged from D18. Android AirPlay compilation, JVM tests and APK checks did run in both configurations."
+    }
+  ],
+  "android_builds": [
+    {
+      "configuration": "Debug",
+      "run": 38365816356,
+      "source_commit": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "report_sha256": "f92ee4e6c8eabbb4adf2013234539d892266fa5bfb69a71622420c099908f179",
+      "jvm_tests": 22,
+      "jvm_suites": [
+        {
+          "name": "dev.lancast.airplay.ResourceSetupTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "5e546460d28c524a37144262881b44fd8d143cef6e356dc2d2630ca7b95c380e"
+        },
+        {
+          "name": "dev.lancast.sender.CodecBuffersTest",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "21f42e4d429b2e00da9f7eefd65b138480793cd1842140b66987ec79f4a70fb1"
+        },
+        {
+          "name": "dev.lancast.control.ConnectionHintsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "07a71d29513f70e60d755c772386116f44d4c8645afbc14a7cd262f4b4cf839c"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.MediaQueueTest",
+          "tests": "9",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "7e8de409bbacb0e0540a8a9d21ce262a908a70d84c27b522a8506d2b95134cdb"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "0a1986453b90cd21bf28b79d5d8d1459563bc6bc3fe2987ddfab1e1f1a83e6d2"
+        }
+      ],
+      "artifacts": [
+        {
+          "product": "sender",
+          "bytes": 35175112,
+          "sha256": "f8824971ba20090c303b0d23aab1ace09ba42a1fe7492cefcc895b9e570ce800",
+          "dex_bytes": 4739736,
+          "native_bytes": 30325388,
+          "resource_bytes": 1404,
+          "verified_jni_classes": [
+            "dev.lancast.control.NativeCore",
+            "dev.lancast.sender.TsMux",
+            "dev.lancast.sender.TsMux$Sink"
+          ]
+        },
+        {
+          "product": "receiver-standard",
+          "bytes": 34202055,
+          "sha256": "1c6e77c2a6986bdf926f6663bc996357d389059709a7c255751e427bb462ee6d",
+          "dex_bytes": 15373076,
+          "native_bytes": 27241152,
+          "resource_bytes": 376518,
+          "verified_jni_classes": [
+            "dev.lancast.control.NativeCore"
+          ]
+        },
+        {
+          "product": "receiver-legacy",
+          "bytes": 30354890,
+          "sha256": "fbbc4fcd25d670c98bb80a0911642f6a34704d437964945b3ac622248763e6ea",
+          "dex_bytes": 7143980,
+          "native_bytes": 27363928,
+          "resource_bytes": 8080,
+          "verified_jni_classes": [
+            "dev.lancast.control.NativeCore"
+          ]
+        },
+        {
+          "product": "receiver-airplay",
+          "bytes": 38837329,
+          "sha256": "3a252c302b7322c20777b58abe1214c23a380cd28140c6153d8142ebf335d653",
+          "dex_bytes": 15485632,
+          "native_bytes": 31791220,
+          "resource_bytes": 376518,
+          "verified_jni_classes": [
+            "dev.lancast.airplay.NativeEngine",
+            "dev.lancast.control.NativeCore"
+          ]
+        }
+      ]
+    },
+    {
+      "configuration": "Release",
+      "run": 38365959381,
+      "source_commit": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+      "report_sha256": "c98ba2ef116a4c21b4a047f24fd6100df63f7ec0c409397835a62c92d7cd1b1f",
+      "jvm_tests": 22,
+      "jvm_suites": [
+        {
+          "name": "dev.lancast.airplay.ResourceSetupTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "16e4f858fcfdd0266c36a687b683dfc84216afb66ca2269d5601ccd9aa804976"
+        },
+        {
+          "name": "dev.lancast.sender.CodecBuffersTest",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "6f53cba2d12142252c9043a5a284c83957b324910186ff1ef79741724a63cb84"
+        },
+        {
+          "name": "dev.lancast.control.ConnectionHintsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "5e0e35ac05cf813ef83de28131a2084f09131d7dc8ff37affe3e9f63633e546b"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.MediaQueueTest",
+          "tests": "9",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "261a54dd3fc5f3eaeb13e6280fe0e631ccca825907db66f7383091ec8848bc4c"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "sha256": "d4b49126d18a0d921dbfff095e7212bb0a17c9d41a64a401d7ac02348375020d"
+        }
+      ],
+      "artifacts": [
+        {
+          "product": "sender",
+          "bytes": 30894478,
+          "sha256": "9815a6487761a1db5d673e00ca0cf35d76bfd910d5b51f5cb129af1afa464c42",
+          "dex_bytes": 471728,
+          "native_bytes": 30325388,
+          "resource_bytes": 1388,
+          "verified_jni_classes": [
+            "dev.lancast.control.NativeCore",
+            "dev.lancast.sender.TsMux",
+            "dev.lancast.sender.TsMux$Sink"
+          ],
+          "r8_mapping_sha256": "cdfddee71b536a4894d2d8dca7e0410012d27ef4ac9119b735e5541624060e11"
+        },
+        {
+          "product": "receiver-standard",
+          "bytes": 28651742,
+          "sha256": "4761a5316463c54ed592396ef644a45adea1430a9b1847967117dbc4c47999fa",
+          "dex_bytes": 2181064,
+          "native_bytes": 27241152,
+          "resource_bytes": 279901,
+          "verified_jni_classes": [
+            "dev.lancast.control.NativeCore"
+          ],
+          "r8_mapping_sha256": "4bb2af756ba0f36e09275ad72001b75a2543ad4ba749c844d00933fcc0532ade"
+        },
+        {
+          "product": "receiver-legacy",
+          "bytes": 27740832,
+          "sha256": "70ddb064aac59e7e52bc6b327440dad4134a72c084573da15edc32b2b039650a",
+          "dex_bytes": 710004,
+          "native_bytes": 27363928,
+          "resource_bytes": 7777,
+          "verified_jni_classes": [
+            "dev.lancast.control.NativeCore"
+          ],
+          "r8_mapping_sha256": "8ff060f527c963a1a6b1ad4d3d150c0bce9a6776e15564465c7d3f7dc1f61e48"
+        },
+        {
+          "product": "receiver-airplay",
+          "bytes": 33268270,
+          "sha256": "d7326f5ad32250d43f892a92e8a08987b6efc7acd3061873a5ea9d1d930b3ad1",
+          "dex_bytes": 2222652,
+          "native_bytes": 31791220,
+          "resource_bytes": 279901,
+          "verified_jni_classes": [
+            "dev.lancast.airplay.NativeEngine",
+            "dev.lancast.control.NativeCore"
+          ],
+          "r8_mapping_sha256": "79946d09a9462e389ee1342f81a7cd2ddf2730e87c5ecc64c81a0fc24cd6b570"
+        }
+      ]
+    }
+  ],
+  "release_baseline": {
+    "run": 38362112365,
+    "workflow_sha": "ed537778a1746bedee8141847d78f96af7a612eb",
+    "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+    "configuration": "Release",
+    "abis": [
+      "armeabi-v7a",
+      "arm64-v8a"
+    ]
+  },
+  "release_comparison": [
+    {
+      "product": "sender",
+      "baseline_apk_bytes": 44910260,
+      "apk_bytes": 30894478,
+      "reduction_percent": 31.21,
+      "baseline_dex_bytes": 3693292,
+      "dex_bytes": 471728,
+      "baseline_native_bytes": 41104336,
+      "native_bytes": 30325388,
+      "unchanged_webrtc_binaries": true
+    },
+    {
+      "product": "receiver-standard",
+      "baseline_apk_bytes": 35534856,
+      "apk_bytes": 28651742,
+      "reduction_percent": 19.37,
+      "baseline_dex_bytes": 11038708,
+      "dex_bytes": 2181064,
+      "baseline_native_bytes": 30799436,
+      "native_bytes": 27241152,
+      "unchanged_webrtc_binaries": true
+    },
+    {
+      "product": "receiver-legacy",
+      "baseline_apk_bytes": 32589290,
+      "apk_bytes": 27740832,
+      "reduction_percent": 14.88,
+      "baseline_dex_bytes": 4318956,
+      "dex_bytes": 710004,
+      "baseline_native_bytes": 30995284,
+      "native_bytes": 27363928,
+      "unchanged_webrtc_binaries": true
+    },
+    {
+      "product": "receiver-airplay",
+      "baseline_apk_bytes": 42215764,
+      "apk_bytes": 33268270,
+      "reduction_percent": 21.19,
+      "baseline_dex_bytes": 11121740,
+      "dex_bytes": 2222652,
+      "baseline_native_bytes": 37416028,
+      "native_bytes": 31791220,
+      "unchanged_webrtc_binaries": true
+    }
+  ],
+  "independent_apk_validation": {
+    "scope": "All eight baseline/current Release APK hashes, manifest source identities, native ELF architecture/alignment and payload sizes. Current APKs additionally verified configuration/version, library role/ABI sets and AirPlay license isolation. JNI method declarations were checked by CI; R8 mapping hashes and test XML were independently matched locally.",
+    "baseline": [
+      {
+        "product": "sender",
+        "bytes": 44910260,
+        "sha256": "015e09b0cf045095f5d71351521ef7311d65ace4d91ce0e9c98b7a324929a1e9",
+        "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+        "dex_bytes": 3693292,
+        "native_bytes": 41104336,
+        "resource_bytes": 1388,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 7162688,
+            "sha256": "eb463fb2e117402684cc1fc195683c3fd1d2687aa29395844e2989eb694ddc0b"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_media.so",
+            "bytes": 5411112,
+            "sha256": "043a6249e61a791d7c0d55eee7c09c239c36eaf3cc442b1db90ed6335d285eda"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 4956628,
+            "sha256": "e63c01c77c92497455856ef39893d91cf5179ef6532fb80b06bed9ff458d4c2e"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_media.so",
+            "bytes": 4477192,
+            "sha256": "7246f2ea269ec75ccfebd53bde943d084660f901938b39fd64df6f5e7c4d562c"
+          }
+        ]
+      },
+      {
+        "product": "receiver-standard",
+        "bytes": 35534856,
+        "sha256": "88a8f64ef84ea91e1e24f5585aa901face79940cc3eeefeb2a3b4d48e576784d",
+        "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+        "dex_bytes": 11038708,
+        "native_bytes": 30799436,
+        "resource_bytes": 373579,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 6924136,
+            "sha256": "212db805989fa214dd442be2b19aa10dcb2c79839eb1e719fd379649fe4a985b"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 4778584,
+            "sha256": "e99dd05fa55ac646e8759bfe27333163677e4dc07e984f4e2e7497a2396c1beb"
+          }
+        ]
+      },
+      {
+        "product": "receiver-legacy",
+        "bytes": 32589290,
+        "sha256": "156c20498d3b2475314f9639907ada7a5e09dd11a81958726d808c8b69cd59bb",
+        "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+        "dex_bytes": 4318956,
+        "native_bytes": 30995284,
+        "resource_bytes": 7777,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 7034568,
+            "sha256": "9a6226b3022e53b913d63396a86aa0612ea3698a7c538a91b609dba4595acc4c"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 4864000,
+            "sha256": "f7cfab1ac546ec430668288072965ea99a0b660f390989b74b9e6b528830bdc9"
+          }
+        ]
+      },
+      {
+        "product": "receiver-airplay",
+        "bytes": 42215764,
+        "sha256": "3ef9e3b7fef7d5e4d1b384ffc4b29de3b065219b862194cb77549941f5e4eb8e",
+        "source_commit": "737479aea82e9a2d3b7902b64d9601c3122823c6",
+        "dex_bytes": 11121740,
+        "native_bytes": 37416028,
+        "resource_bytes": 373579,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_airplay.so",
+            "bytes": 3774360,
+            "sha256": "a2b042d37c840f2f541a90d05c521aa6376075be36f7400caa124086de1fe125"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 6924136,
+            "sha256": "212db805989fa214dd442be2b19aa10dcb2c79839eb1e719fd379649fe4a985b"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_airplay.so",
+            "bytes": 2842232,
+            "sha256": "5addafe7723ae510685150beee27540a39ec9a33ec724076937fbc078b51abe1"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 4778584,
+            "sha256": "e99dd05fa55ac646e8759bfe27333163677e4dc07e984f4e2e7497a2396c1beb"
+          }
+        ]
+      }
+    ],
+    "current": [
+      {
+        "product": "sender",
+        "bytes": 30894478,
+        "sha256": "9815a6487761a1db5d673e00ca0cf35d76bfd910d5b51f5cb129af1afa464c42",
+        "source_commit": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+        "dex_bytes": 471728,
+        "native_bytes": 30325388,
+        "resource_bytes": 1388,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 5091384,
+            "sha256": "52543432b932edbda5669603c749af884b75ff2cc1d34cbc29090b011f4cab20"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_media.so",
+            "bytes": 1517208,
+            "sha256": "9c5dd24210ce3ae7eeefe3fdf789c4e82942d041820b8ead6c69610648f3202d"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 3344908,
+            "sha256": "042d582c0ff8bc30e8005afa1a82254b07b5e8f255b920bdcd7af83454070a1b"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_media.so",
+            "bytes": 1275172,
+            "sha256": "178382d087ca161a58f5a27cc81f237a07bc090a9ce8d8bf856b4010ad923f21"
+          }
+        ]
+      },
+      {
+        "product": "receiver-standard",
+        "bytes": 28651742,
+        "sha256": "4761a5316463c54ed592396ef644a45adea1430a9b1847967117dbc4c47999fa",
+        "source_commit": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+        "dex_bytes": 2181064,
+        "native_bytes": 27241152,
+        "resource_bytes": 279901,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 4919448,
+            "sha256": "1272a6b0d5810a3f3211800b8950a76511e67f2eebb2064c63fc081e51305dc2"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 3224988,
+            "sha256": "91b1886bcaffecca3ac439c6bf0c77b6a366dd561e1d2ea93985090e8259514e"
+          }
+        ]
+      },
+      {
+        "product": "receiver-legacy",
+        "bytes": 27740832,
+        "sha256": "70ddb064aac59e7e52bc6b327440dad4134a72c084573da15edc32b2b039650a",
+        "source_commit": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+        "dex_bytes": 710004,
+        "native_bytes": 27363928,
+        "resource_bytes": 7777,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 4990936,
+            "sha256": "69df87476030a0cf413892840c48a5d21273e0612d06efa1e3b097c25b8a9f72"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 3276276,
+            "sha256": "f7de00d15b7f16f541161db6c41c7ef1a5a30234a823438ce099b8a9754cafd9"
+          }
+        ]
+      },
+      {
+        "product": "receiver-airplay",
+        "bytes": 33268270,
+        "sha256": "d7326f5ad32250d43f892a92e8a08987b6efc7acd3061873a5ea9d1d930b3ad1",
+        "source_commit": "42d01485142a9a2a4ae284cbaeba50736abd4c43",
+        "dex_bytes": 2222652,
+        "native_bytes": 31791220,
+        "resource_bytes": 279901,
+        "native_libraries": [
+          {
+            "name": "lib/arm64-v8a/libjingle_peerconnection_so.so",
+            "bytes": 12287312,
+            "sha256": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_airplay.so",
+            "bytes": 2621520,
+            "sha256": "94b1374084916346107793a297301b57aa0641a10362efc6fc44bebaa156bbc3"
+          },
+          {
+            "name": "lib/arm64-v8a/liblancast_core.so",
+            "bytes": 4919448,
+            "sha256": "1272a6b0d5810a3f3211800b8950a76511e67f2eebb2064c63fc081e51305dc2"
+          },
+          {
+            "name": "lib/armeabi-v7a/libjingle_peerconnection_so.so",
+            "bytes": 6809404,
+            "sha256": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_airplay.so",
+            "bytes": 1928548,
+            "sha256": "c70d33aa0a6a771f0df16ee66791ad205a4c2289d74ae8eb8dfbbe6c485b2f42"
+          },
+          {
+            "name": "lib/armeabi-v7a/liblancast_core.so",
+            "bytes": 3224988,
+            "sha256": "91b1886bcaffecca3ac439c6bf0c77b6a366dd561e1d2ea93985090e8259514e"
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": {
+    "raw_logs": [
+      {
+        "job": 113606150722,
+        "file": "ci-113606150722.log",
+        "bytes": 345168,
+        "sha256": "37260c55fa380de0d7dd3b03d5fa9269c0394a2a61f35523a8ce59634b03bc55"
+      },
+      {
+        "job": 115178515541,
+        "file": "ci-115178515541.log",
+        "bytes": 227923,
+        "sha256": "0bf8b8f08188af55aa405a01c149cb90e4b2617a3fd7d068a65495f857b58f45"
+      },
+      {
+        "job": 115180303634,
+        "file": "ci-115180303634.log",
+        "bytes": 238147,
+        "sha256": "4b14c36ab81174cf93bdacf7a1af4f3575bd562096ed245b24ae8219a30689bf"
+      },
+      {
+        "job": 115180320582,
+        "file": "ci-115180320582.log",
+        "bytes": 214209,
+        "sha256": "05d0c2d16f81ce657a730400d138ce8b4ce6a659204f744819d7ba9e8dab9cc7"
+      },
+      {
+        "job": 115186584176,
+        "file": "ci-115186584176.log",
+        "bytes": 1845551,
+        "sha256": "1a45f28d4d5b1dcba522d01957e09f875530cc6ea07a1346f959f0f1576a3130"
+      },
+      {
+        "job": 115186602168,
+        "file": "ci-115186602168.log",
+        "bytes": 1848757,
+        "sha256": "ec0f7e6346ffe8d3bf62854e4d0a7542e7aa6abaebf55721dce0e7da96570f5e"
+      },
+      {
+        "job": 115190556873,
+        "file": "ci-115190556873.log",
+        "bytes": 345037,
+        "sha256": "1a6b200bcacf2b5b236e0414d856241948e81fe5e7abbf5b3392f86357344634"
+      },
+      {
+        "job": 115191032605,
+        "file": "ci-115191032605.log",
+        "bytes": 348268,
+        "sha256": "1017d4cf8b8d8e45db2ec5235f3ce789a319b78b99b45e2cd6623d64afc2e159"
+      }
+    ],
+    "upstream_deprecations": [
+      "The Configuration.setVisible(boolean) method has been deprecated. This is scheduled to be removed in Gradle 11. Consult the upgrading guide for further information: https://docs.gradle.org/9.8.1/userguide/upgrading_version_9.html#deprecate-visible-property"
+    ],
+    "wrapper_jar_sha256": "3b8a25775a69158b5ad2b1d17a80a88dc7b40a352a73eb27d06c612a7ce68e98",
+    "main_android_logs": [
+      {
+        "run": 38365816356,
+        "job": 115190556873,
+        "sha256": "1a6b200bcacf2b5b236e0414d856241948e81fe5e7abbf5b3392f86357344634",
+        "gradle_9_8_1_confirmed": true,
+        "outdated_gradle_notice": false,
+        "lines": 3850
+      },
+      {
+        "run": 38365959381,
+        "job": 115191032605,
+        "sha256": "1017d4cf8b8d8e45db2ec5235f3ce789a319b78b99b45e2cd6623d64afc2e159",
+        "gradle_9_8_1_confirmed": true,
+        "outdated_gradle_notice": false,
+        "lines": 3872
+      }
+    ],
+    "gradle_8_13_outdated_notice_removed": true,
+    "remaining_upstream_deprecations": true
+  },
+  "migration_attempts": [
+    {
+      "run": 38362660172,
+      "source_commit": "1cfd4844bc916db02e1b3c03daa76239a087455a",
+      "configuration": "Debug",
+      "conclusion": "failure",
+      "detail": "Compilation, lint and 22 JVM tests passed; dependency validation rejected Gradle 9's quoted project notation. Fixed by android_dependencies.py."
+    },
+    {
+      "run": 38362665361,
+      "source_commit": "1cfd4844bc916db02e1b3c03daa76239a087455a",
+      "configuration": "Release",
+      "conclusion": "failure",
+      "detail": "AGP 9 did not create Release unit-test tasks by default. Explicitly restored both tested build types."
+    },
+    {
+      "run": 38364595274,
+      "source_commit": "f5ecacdd65448f2db320dea1bbc2621cb84ae0ce",
+      "configuration": "Debug",
+      "conclusion": "success"
+    },
+    {
+      "run": 38364600713,
+      "source_commit": "f5ecacdd65448f2db320dea1bbc2621cb84ae0ce",
+      "configuration": "Release",
+      "conclusion": "success"
+    }
+  ],
+  "branches": {
+    "local": [
+      "main"
+    ],
+    "remote": [
+      "main"
+    ],
+    "deleted": [
+      "maintenance/android-gradle-9"
+    ],
+    "verification": "Both local and remote maintenance heads were ancestors of main before deletion; origin/HEAD is a symbolic alias for origin/main."
+  },
+  "cleanup": {
+    "directory": "E:/cast/待手动删除-LanCast-0.6.4-20261013",
+    "operation": "move_for_manual_deletion",
+    "files": 467,
+    "bytes": 388973124,
+    "disk_space_freed": false,
+    "verification": "File counts and bytes match before and after every move.",
+    "moves": [
+      {
+        "source": "scripts\\__pycache__",
+        "destination": "scripts\\__pycache__",
+        "files": 10,
+        "bytes": 83322
+      },
+      {
+        "source": "scripts\\tests\\__pycache__",
+        "destination": "scripts\\tests\\__pycache__",
+        "files": 7,
+        "bytes": 46366
+      },
+      {
+        "source": ".cache\\artifacts\\38362112365",
+        "destination": "cache\\artifacts\\38362112365",
+        "files": 70,
+        "bytes": 155961531
+      },
+      {
+        "source": ".cache\\artifacts\\38362660172",
+        "destination": "cache\\artifacts\\38362660172",
+        "files": 55,
+        "bytes": 932243
+      },
+      {
+        "source": ".cache\\artifacts\\38364595274",
+        "destination": "cache\\artifacts\\38364595274",
+        "files": 56,
+        "bytes": 1072104
+      },
+      {
+        "source": ".cache\\artifacts\\38364600713",
+        "destination": "cache\\artifacts\\38364600713",
+        "files": 92,
+        "bytes": 51866562
+      },
+      {
+        "source": ".cache\\artifacts\\38365816356",
+        "destination": "cache\\artifacts\\38365816356",
+        "files": 56,
+        "bytes": 1072108
+      },
+      {
+        "source": ".cache\\artifacts\\38365959381",
+        "destination": "cache\\artifacts\\38365959381",
+        "files": 113,
+        "bytes": 172525828
+      },
+      {
+        "source": ".cache\\ci-113606150722.log",
+        "destination": "logs\\ci-113606150722.log",
+        "files": 1,
+        "bytes": 345168
+      },
+      {
+        "source": ".cache\\ci-115178515541.log",
+        "destination": "logs\\ci-115178515541.log",
+        "files": 1,
+        "bytes": 227923
+      },
+      {
+        "source": ".cache\\ci-115180303634.log",
+        "destination": "logs\\ci-115180303634.log",
+        "files": 1,
+        "bytes": 238147
+      },
+      {
+        "source": ".cache\\ci-115180320582.log",
+        "destination": "logs\\ci-115180320582.log",
+        "files": 1,
+        "bytes": 214209
+      },
+      {
+        "source": ".cache\\ci-115186584176.log",
+        "destination": "logs\\ci-115186584176.log",
+        "files": 1,
+        "bytes": 1845551
+      },
+      {
+        "source": ".cache\\ci-115186602168.log",
+        "destination": "logs\\ci-115186602168.log",
+        "files": 1,
+        "bytes": 1848757
+      },
+      {
+        "source": ".cache\\ci-115190556873.log",
+        "destination": "logs\\ci-115190556873.log",
+        "files": 1,
+        "bytes": 345037
+      },
+      {
+        "source": ".cache\\ci-115191032605.log",
+        "destination": "logs\\ci-115191032605.log",
+        "files": 1,
+        "bytes": 348268
+      }
+    ],
+    "reason": "Automatic approval rejected deletion with 'blocked by policy'; the user then explicitly requested one folder for manual deletion.",
+    "inventory_files_excluded_from_totals": true
+  },
+  "pending_acceptance": [
+    "Physical phone/TV interoperability and Release JNI runtime paths",
+    "API21 Legacy installation/playback and ARM32/ARM64 capture revocation",
+    "Actual CPU/RSS, end-to-end latency, audible synchronization and two-hour stability",
+    "Production signing, custom-source WebRTC reproduction and full binary release audit"
+  ]
+}
