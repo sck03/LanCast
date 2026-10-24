@@ -13,7 +13,6 @@ pub enum State {
     Loading,
     Streaming,
     Playing,
-    Reconnecting,
     Stopped,
 }
 
@@ -24,7 +23,6 @@ pub struct Session {
     pub mode: String,
     pub negotiation: Option<Uuid>,
     pub rtc_recovery: bool,
-    disconnected: Option<Instant>,
     cache: VecDeque<(Instant, Uuid, Message)>,
 }
 impl Session {
@@ -41,7 +39,6 @@ impl Session {
             mode: mode.into(),
             negotiation: None,
             rtc_recovery: false,
-            disconnected: None,
             cache: VecDeque::new(),
         })
     }
@@ -80,30 +77,6 @@ impl Session {
         self.state = State::Negotiating;
         Ok(())
     }
-    pub fn disconnect(&mut self, now: Instant) {
-        if self.state != State::Stopped && self.disconnected.is_none() {
-            self.disconnected = Some(now);
-            self.state = State::Reconnecting;
-        }
-    }
-    pub fn resume(&mut self, now: Instant) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            self.state == State::Reconnecting && !self.expired(now),
-            "SESSION_EXPIRED"
-        );
-        self.disconnected = None;
-        self.negotiation = None;
-        self.state = if self.mode == "mirror" {
-            State::Negotiating
-        } else {
-            State::Loading
-        };
-        Ok(())
-    }
-    pub fn expired(&self, now: Instant) -> bool {
-        self.disconnected
-            .is_some_and(|t| now.saturating_duration_since(t) >= Duration::from_secs(15))
-    }
     pub fn stop(&mut self) {
         self.state = State::Stopped;
         self.cache.clear();
@@ -127,26 +100,6 @@ impl Session {
     }
 }
 
-pub struct RetryBudget {
-    started: Instant,
-    attempts: usize,
-}
-impl RetryBudget {
-    pub fn new(now: Instant) -> Self {
-        Self {
-            started: now,
-            attempts: 0,
-        }
-    }
-    pub fn next_delay(&mut self, now: Instant) -> Option<Duration> {
-        let delay = Duration::from_secs(*[1, 2, 4].get(self.attempts)?);
-        if now.duration_since(self.started) + delay >= Duration::from_secs(15) {
-            return None;
-        }
-        self.attempts += 1;
-        Some(delay)
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,22 +125,8 @@ mod tests {
         let mut s = Session::new(user, "mirror").unwrap();
         assert!(s.authorize(Uuid::new_v4(), Some(s.id)).is_err());
         s.ready().unwrap();
-        let now = Instant::now();
-        s.disconnect(now);
-        // Further failures must not extend the original deadline.
-        s.disconnect(now + Duration::from_secs(14));
-        assert!(s.resume(now + Duration::from_secs(15)).is_err());
         s.stop();
         s.stop();
         assert!(s.ready().is_err());
-    }
-    #[test]
-    fn retries_are_bounded() {
-        let now = Instant::now();
-        let mut r = RetryBudget::new(now);
-        for n in [1, 2, 4] {
-            assert_eq!(r.next_delay(now), Some(Duration::from_secs(n)));
-        }
-        assert_eq!(r.next_delay(now), None);
     }
 }

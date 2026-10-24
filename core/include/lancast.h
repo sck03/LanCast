@@ -6,19 +6,28 @@
 extern "C" {
 #endif
 typedef uint64_t LancastHandle;
-typedef struct LancastBuffer { uint8_t* data; size_t len; } LancastBuffer;
+typedef struct LancastBuffer {
+    uint8_t *data;
+    size_t len;
+} LancastBuffer;
 LancastHandle lancast_create(void);
-typedef struct LancastConfig { uint32_t size, abi_version; uint64_t flags; } LancastConfig;
+typedef struct LancastConfig {
+    uint32_t size, abi_version;
+    uint64_t flags;
+} LancastConfig;
 /* ABI 2, flags=0. create() remains for ABI 1 hosts. Unknown required flags fail closed. */
-LancastHandle lancast_create_v2(const LancastConfig* config);
+LancastHandle lancast_create_v2(const LancastConfig *config);
 uint32_t lancast_abi_version(void);
 /* Nonblocking. Continue polling until shutdown.completed, then destroy off the UI thread. */
 int32_t lancast_shutdown(LancastHandle handle);
 /* Sender only; <=65424 bytes, multiple of 188. Copies once; never waits for a TV. */
-int32_t lancast_write_ts(LancastHandle handle, const uint8_t* data, size_t len);
-int32_t lancast_command(LancastHandle handle, const uint8_t* utf8, size_t len);
+int32_t lancast_write_ts(LancastHandle handle, const uint8_t *data, size_t len);
+int32_t lancast_command(LancastHandle handle, const uint8_t *utf8, size_t len);
 /* Poll on the platform control thread. The returned allocation belongs to Rust. */
 LancastBuffer lancast_poll(LancastHandle handle);
+/* Worker-only wait, timeout clamped to 1000 ms. Shutdown wakes it immediately.
+   Free returned buffers exactly as for poll; existing ABI 2 entry points remain valid. */
+LancastBuffer lancast_wait_poll(LancastHandle handle, uint32_t timeout_ms);
 void lancast_free_buffer(LancastBuffer buffer);
 void lancast_destroy(LancastHandle handle);
 #ifdef __cplusplus

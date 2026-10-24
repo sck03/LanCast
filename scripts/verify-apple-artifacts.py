@@ -13,6 +13,7 @@ import plistlib
 import struct
 import zipfile
 from apple_products import PRODUCTS
+from artifact_checks import require
 
 CPU = {0x01000007: "x86_64", 0x0100000C: "arm64"}
 
@@ -21,27 +22,27 @@ def architectures(data):
     magic = data[:4]
     if magic in (b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf"):
         count = struct.unpack_from(">I", data, 4)[0]
-        assert 0 < count <= 8, "Invalid Mach-O architecture count"
+        require(0 < count <= 8, "Invalid Mach-O architecture count")
         stride = 20 if magic[-1] == 0xBE else 32
         return sorted(CPU[struct.unpack_from(">I", data, 8 + n * stride)[0]] for n in range(count))
-    assert magic == b"\xcf\xfa\xed\xfe", "Expected a 64-bit Mach-O executable"
+    require(magic == b"\xcf\xfa\xed\xfe", "Expected a 64-bit Mach-O executable")
     return [CPU[struct.unpack_from("<I", data, 4)[0]]]
 
 
 def find_builds(roots):
     found = {}
     for root in roots:
-        assert root.is_dir(), f"Missing artifact directory: {root}"
+        require(root.is_dir(), f"Missing artifact directory: {root}")
         root_found = False
         for path in root.rglob("build-report.json"):
             data = json.loads(path.read_text(encoding="utf-8"))
             platform = data.get("platform")
             if platform in ("macos", "ios", "tvos"):
                 root_found = True
-                assert platform not in found, "Multiple builds for one platform; select exact run directories"
+                require(platform not in found, "Multiple builds for one platform; select exact run directories")
                 found[platform] = path.parent
-        assert root_found, f"No Apple build report in requested directory: {root}"
-    assert found, "No Apple build reports found"
+        require(root_found, f"No Apple build report in requested directory: {root}")
+    require(found, "No Apple build reports found")
     return found
 
 
@@ -53,65 +54,65 @@ def verify(*roots):
             continue
         directory = found[platform]
         report = json.loads((directory / "build-report.json").read_text(encoding="utf-8"))
-        assert report["platform"] == platform
+        require(report["platform"] == platform, 'Artifact validation failed')
         definition = PRODUCTS[platform]
         if "role" in report:
-            assert report["role"] == definition.role, "Product role mismatch"
-            assert report["rustFeatures"] == definition.rust_features.split(","), "Product feature mismatch"
+            require(report["role"] == definition.role, "Product role mismatch")
+            require(report["rustFeatures"] == definition.rust_features.split(","), "Product feature mismatch")
         reports.append(report)
-        assert len(report["artifacts"]) == (1 if platform == "macos" else 2)
+        require(len(report["artifacts"]) == (1 if platform == "macos" else 2), 'Artifact validation failed')
         if "role" in report:
             expected_products = {name for name, _ in definition.directories(report["buildConfig"]["configuration"])}
-            assert {entry["product"] for entry in report["artifacts"]} == expected_products, "Missing or duplicate device/simulator archive"
-            assert {entry["product"] for entry in report["binaries"]} == expected_products, "Binary target mismatch"
+            require({entry["product"] for entry in report["artifacts"]} == expected_products, "Missing or duplicate device/simulator archive")
+            require({entry["product"] for entry in report["binaries"]} == expected_products, "Binary target mismatch")
         for entry in report["artifacts"]:
             path = directory / entry["file"]
-            assert path.resolve().is_relative_to(directory.resolve())
-            assert path.stat().st_size == entry["bytes"]
-            assert hashlib.sha256(path.read_bytes()).hexdigest() == entry["sha256"]
+            require(path.resolve().is_relative_to(directory.resolve()), 'Artifact validation failed')
+            require(path.stat().st_size == entry["bytes"], 'Artifact validation failed')
+            require(hashlib.sha256(path.read_bytes()).hexdigest() == entry["sha256"], 'Artifact validation failed')
             with zipfile.ZipFile(path) as archive:
                 names = archive.namelist()
-                assert not any(".xctest/" in name for name in names), "Test bundle in app archive"
+                require(not any(".xctest/" in name for name in names), "Test bundle in app archive")
                 base = f"{scheme}.app/" + ("Contents/" if platform == "macos" else "")
                 info = plistlib.loads(archive.read(base + "Info.plist"))
-                assert info["CFBundleIdentifier"] == definition.bundle_id, "Application identity mismatch"
+                require(info["CFBundleIdentifier"] == definition.bundle_id, "Application identity mismatch")
                 if "buildConfig" in report:
                     config = report["buildConfig"]
-                    assert info["CFBundleShortVersionString"] == config["version"], "Application version mismatch"
-                    assert str(info["CFBundleVersion"]) == str(config["build_number"]), "Application build number mismatch"
-                    assert report["commit"] == config["source_commit"], "Source provenance mismatch"
-                assert info.get("LSMinimumSystemVersion", info.get("MinimumOSVersion")) == minimum
-                assert info["NSLocalNetworkUsageDescription"]
-                assert "_lancast._tcp" in info["NSBonjourServices"]
+                    require(info["CFBundleShortVersionString"] == config["version"], "Application version mismatch")
+                    require(str(info["CFBundleVersion"]) == str(config["build_number"]), "Application build number mismatch")
+                    require(report["commit"] == config["source_commit"], "Source provenance mismatch")
+                require(info.get("LSMinimumSystemVersion", info.get("MinimumOSVersion")) == minimum, 'Artifact validation failed')
+                require(info["NSLocalNetworkUsageDescription"], 'Artifact validation failed')
+                require("_lancast._tcp" in info["NSBonjourServices"], 'Artifact validation failed')
                 executable = base + ("MacOS/" if platform == "macos" else "") + scheme
                 arch = architectures(archive.read(executable))
                 product = entry.get("product") or entry["file"].removeprefix(scheme + "-").removesuffix(".zip")
                 expected = next(b["architectures"] for b in report["binaries"] if b["product"] == product)
-                assert arch == sorted(expected)
+                require(arch == sorted(expected), 'Artifact validation failed')
                 if platform == "macos":
-                    assert arch == ["arm64", "x86_64"]
+                    require(arch == ["arm64", "x86_64"], 'Artifact validation failed')
                 else:
-                    assert arch == ["arm64"]
+                    require(arch == ["arm64"], 'Artifact validation failed')
                     simulator = product.endswith("simulator")
                     supported = ("iPhoneSimulator" if simulator else "iPhoneOS") if platform == "ios" else ("AppleTVSimulator" if simulator else "AppleTVOS")
-                    assert info["CFBundleSupportedPlatforms"] == [supported], "Device/simulator target mismatch"
+                    require(info["CFBundleSupportedPlatforms"] == [supported], "Device/simulator target mismatch")
                     if platform == "tvos":
-                        assert info["UIDeviceFamily"] == [3], "tvOS must target Apple TV"
-                        assert not any(".appex/" in name for name in names), "Broadcast extension in tvOS receiver"
+                        require(info["UIDeviceFamily"] == [3], "tvOS must target Apple TV")
+                        require(not any(".appex/" in name for name in names), "Broadcast extension in tvOS receiver")
                 framework = base + "Frameworks/LiveKitWebRTC.framework/" + ("Versions/A/" if platform == "macos" else "") + "LiveKitWebRTC"
-                assert set(arch) <= set(architectures(archive.read(framework)))
+                require(set(arch) <= set(architectures(archive.read(framework))), 'Artifact validation failed')
                 if platform == "ios":
                     extension = plistlib.loads(archive.read(base + "PlugIns/LanCastBroadcast.appex/Info.plist"))
-                    assert extension["LanCastAppGroup"] == info["LanCastAppGroup"]
-                    assert extension["CFBundleShortVersionString"] == info["CFBundleShortVersionString"]
-                    assert extension["CFBundleVersion"] == info["CFBundleVersion"]
-                    assert extension["NSExtension"]["NSExtensionPointIdentifier"] == "com.apple.broadcast-services-upload"
-                    assert extension["NSExtension"]["RPBroadcastProcessMode"] == "RPBroadcastProcessModeSampleBuffer"
+                    require(extension["LanCastAppGroup"] == info["LanCastAppGroup"], 'Artifact validation failed')
+                    require(extension["CFBundleShortVersionString"] == info["CFBundleShortVersionString"], 'Artifact validation failed')
+                    require(extension["CFBundleVersion"] == info["CFBundleVersion"], 'Artifact validation failed')
+                    require(extension["NSExtension"]["NSExtensionPointIdentifier"] == "com.apple.broadcast-services-upload", 'Artifact validation failed')
+                    require(extension["NSExtension"]["RPBroadcastProcessMode"] == "RPBroadcastProcessModeSampleBuffer", 'Artifact validation failed')
                 packages.append({"file": entry["file"], "architectures": arch, "minimumOS": minimum,
                     "version": info.get("CFBundleShortVersionString"), "buildNumber": info.get("CFBundleVersion"),
                     "bytes": entry["bytes"], "sha256": entry["sha256"], "metadataAndFramework": "passed", "testBundleAbsent": True})
     commits = {report["commit"] for report in reports}
-    assert len(commits) == 1, "Mixed source commits"
+    require(len(commits) == 1, "Mixed source commits")
     return {"commit": commits.pop(), "scope": "Offline archive verification; no runtime or signing acceptance", "packages": packages, "buildReports": reports}
 
 

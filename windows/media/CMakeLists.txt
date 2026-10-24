@@ -17,7 +17,7 @@ FetchContent_MakeAvailable(datachannel opus)
 # Opus 1.5.2 overrides the parent runtime setting with /MDd in Debug.
 # Set the actual target property after creation to match our pinned static TLS input.
 set_target_properties(opus PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
-add_library(lancast_rtc SHARED backend.cpp capture.cpp encoder.cpp audio.cpp rtc_channel.cpp ts_output.cpp h264_metadata.cpp)
+add_library(lancast_rtc SHARED backend.cpp capture.cpp encoder.cpp audio.cpp rtc_channel.cpp ts_output.cpp h264_metadata.cpp video_pool.cpp)
 target_include_directories(lancast_rtc PRIVATE ../../media-native/include)
 target_compile_definitions(lancast_rtc PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00)
 target_compile_options(lancast_rtc PRIVATE /W4 /utf-8 /EHsc)
@@ -38,6 +38,12 @@ target_compile_definitions(media_abi_contract PRIVATE NOMINMAX WIN32_LEAN_AND_ME
 target_compile_options(media_abi_contract PRIVATE /W4 /utf-8 /EHsc)
 add_test(NAME media_abi_contract COMMAND media_abi_contract $<TARGET_FILE:lancast_rtc>)
 set_tests_properties(media_abi_contract PROPERTIES TIMEOUT 45)
+add_executable(video_pool_contract video_pool_contract.cpp video_pool.cpp)
+target_compile_definitions(video_pool_contract PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00)
+target_compile_options(video_pool_contract PRIVATE /W4 /utf-8 /EHsc)
+target_link_libraries(video_pool_contract PRIVATE d3d11 mfplat mfuuid ole32)
+add_test(NAME video_pool_contract COMMAND video_pool_contract)
+set_tests_properties(video_pool_contract PROPERTIES TIMEOUT 15)
 add_custom_command(TARGET media_abi_contract POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_SOURCE_DIR}/../.cache/ts-windows/lancast_ts.dll" "$<TARGET_FILE_DIR:media_abi_contract>")
 add_executable(media_probe probe.cpp)

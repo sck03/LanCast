@@ -198,7 +198,7 @@ mod tests {
         use tokio::io::AsyncReadExt;
         let (stream, mut unresponsive_peer) = tokio::io::duplex(16);
         let ws = WebSocketStream::from_raw_socket(stream, Role::Client, Some(wire_config())).await;
-        let (events, output) = std::sync::mpsc::sync_channel(16);
+        let (events, output) = crate::events::channel(16, CancellationToken::new());
         let client = Client::spawn(ws, events);
         client
             .send(Message::new("session.start", json!({"mode":"file"})))

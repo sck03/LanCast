@@ -52,7 +52,8 @@ def find_apks(root, products, mode):
 def jni_contracts(product):
     """Project-owned native lookups that must survive R8, including callback descriptors."""
     contracts = {"dev.lancast.control.NativeCore": {
-        "create()J", "command(JLjava/lang/String;)I", "poll(J)Ljava/lang/String;", "destroy(J)V", "writeTs(J[B)I",
+        "create()J", "command(JLjava/lang/String;)I", "poll(J)Ljava/lang/String;",
+        "waitPoll(JI)Ljava/lang/String;", "shutdown(J)V", "destroy(J)V", "writeTs(J[B)I",
     }}
     if product.role == "sender":
         contracts.update({

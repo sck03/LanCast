@@ -5,11 +5,12 @@ import android.media.*
 import android.os.Build
 import android.view.Surface
 import dev.lancast.receiver.contracts.MediaQueue
+import dev.lancast.receiver.contracts.WorkerCompletion
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.pow
 
-/** Each worker exclusively owns its codec. Shutdown interrupts scheduling and joins both workers. */
+/** Workers own their codecs; shutdown interrupts scheduling and reports actual release asynchronously. */
 internal class MediaPipeline(
     context: Context, private val surface: Surface,
     private val firstFrame: () -> Unit, private val failed: (String) -> Unit
@@ -25,13 +26,25 @@ internal class MediaPipeline(
     private val audioManager = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val running = AtomicBoolean(true)
     private val reported = AtomicBoolean(false)
+    private val completion = WorkerCompletion(2)
+    private val videoFinished = completion.participant()
+    private val audioFinished = completion.participant()
     @Volatile private var volume = 1f
     fun setVolume(db: Float) { if (db.isFinite()) volume = if (db <= -144f) 0f else 10.0.pow(db.coerceIn(-30f, 0f) / 20.0).toFloat() }
     private val videoQueue = MediaQueue<VideoWork>(24, 8 * 1024 * 1024, 300_000)
     private val audioQueue = MediaQueue<AudioWork>(64, 1024 * 1024, 500_000)
     private val unixToMonotonicUs = System.nanoTime() / 1000 - System.currentTimeMillis() * 1000
-    private val videoWorker = Thread(::videoLoop, "airplay-video").apply { start() }
-    private val audioWorker = Thread(::audioLoop, "airplay-audio").apply { start() }
+    private val videoWorker = Thread(::videoLoop, "airplay-video")
+    private val audioWorker = Thread(::audioLoop, "airplay-audio")
+    init {
+        try { videoWorker.start(); audioWorker.start() }
+        catch (failure: Throwable) {
+            close()
+            if (videoWorker.state == Thread.State.NEW) videoFinished()
+            if (audioWorker.state == Thread.State.NEW) audioFinished()
+            throw failure
+        }
+    }
 
     fun videoConfig(w: Int, h: Int, sps: ByteArray, pps: ByteArray) = running.get() && videoQueue.offer(VideoWork.Format(w, h, sps, pps), sps.size + pps.size, 0)
     fun video(pts: Long, key: Boolean, data: ByteArray) = running.get() && videoQueue.offer(VideoWork.Frame(pts, key, data), data.size, pts)
@@ -75,7 +88,10 @@ internal class MediaPipeline(
                             ?: throw IllegalStateException("电视不支持此 H.264 格式")
                         codec = MediaCodec.createByCodecName(name).configureOrRelease({ it.release() }) {
                             it.configure(format, surface, null, 0); it.start()
-                            it.setOnFrameRenderedListener({ _, _, _ -> if (running.get() && reported.compareAndSet(false, true)) firstFrame() }, android.os.Handler(android.os.Looper.getMainLooper()))
+                            if (!reported.get()) it.setOnFrameRenderedListener({ rendered, _, _ ->
+                                runCatching { rendered.setOnFrameRenderedListener(null, null) }
+                                if (running.get() && reported.compareAndSet(false, true)) firstFrame()
+                            }, android.os.Handler(android.os.Looper.getMainLooper()))
                         }
                         needKey = true
                     }
@@ -107,7 +123,7 @@ internal class MediaPipeline(
             }
         } catch (_: InterruptedException) { /* explicit stop */ }
         catch (e: Exception) { error(e.message ?: "视频播放失败") }
-        finally { releaseDecoder(codec); videoQueue.close() }
+        finally { releaseDecoder(codec); videoQueue.close(); videoFinished() }
     }
 
     @Suppress("DEPRECATION")
@@ -226,13 +242,14 @@ internal class MediaPipeline(
                 if (Build.VERSION.SDK_INT >= 26 && focus != null) audioManager.abandonAudioFocusRequest(focus!!) else audioManager.abandonAudioFocus(focusListener)
             }
             audioQueue.close()
+            audioFinished()
         }
     }
     override fun close() {
         running.set(false); videoQueue.close(); audioQueue.close()
         videoWorker.interrupt(); audioWorker.interrupt()
-        videoWorker.join(); audioWorker.join()
     }
+    fun whenClosed(callback: () -> Unit) = completion.whenComplete(callback)
     companion object {
         private const val DECODER_POLL_MS = 10L
         private fun releaseDecoder(codec: MediaCodec?) {

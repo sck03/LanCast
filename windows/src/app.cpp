@@ -191,9 +191,29 @@ class DesktopApp {
             file_pending = false;
             pending_session.clear();
             profile_pending = false;
-            if (media || live_pending || !shared_file.is_null())
+            if (body.value("terminal", false)) {
                 stop();
-            status("操作未完成：" + body.value("code", "ERROR") + "。请检查电视和网络后重试。");
+                const auto previous = core;
+                core = create_core();
+                release_core(previous);
+                stopping = false;
+                scanning = scan_lancast_pending = scan_dlna_pending = false;
+                catalog.clear();
+                selected_key.clear();
+                dlna_id.clear();
+                dlna_ip.clear();
+                receiver_address.clear();
+                receiver_fingerprint.clear();
+                SetWindowTextW(invitation, L"");
+                refresh_devices();
+                if (core)
+                    open_profiles();
+            } else if (media || live_pending || !shared_file.is_null())
+                stop();
+            status(body.value("terminal", false)
+                       ? "控制服务已停止，分享已结束。请重新选择电视并连接。"
+                       : "操作未完成：" + body.value("code", "ERROR") +
+                             "。请检查电视和网络后重试。");
         } else if (type == "live.created") {
             if (!live_pending || body.value("generation", uint64_t{0}) != generation)
                 return;
@@ -663,6 +683,7 @@ class DesktopApp {
     bool manual_network = false, media_available = false, exiting = false;
     ULONGLONG scan_started = 0, exit_started = 0;
     uint64_t scan_generation = 0;
+    UINT poll_interval = 0;
     bool busy() const {
         return media || live_pending || profile_pending || file_pending ||
                !pending_session.empty() || !shared_file.is_null() || !session.empty() || stopping;
@@ -671,6 +692,11 @@ class DesktopApp {
         if (!ready)
             return;
         const bool active = busy();
+        const UINT interval = active || connected || pairing || scanning || exiting ? 50 : 500;
+        if (poll_interval != interval) {
+            poll_interval = interval;
+            SetTimer(main_window, 1, interval, nullptr);
+        }
         for (int id : {1, 16, 17, MainView::devices, MainView::invitation})
             EnableWindow(view.get(id), !active && !connected && !pairing && !scanning && !exiting);
         EnableWindow(view.get(4), !active && !connected && !pairing && !scanning && !exiting &&
@@ -817,7 +843,7 @@ class DesktopApp {
         tray.show();
         exiting = true;
         exit_started = GetTickCount64();
-        if (pairing) {
+        if (pairing || !core) {
             destroy();
             return;
         } // shutdown interrupts an in-flight handshake.
@@ -884,7 +910,7 @@ class DesktopApp {
         media_available = MediaSender::available();
         ready = true;
         refresh_windows();
-        SetTimer(main_window, 1, 50, nullptr);
+        update_controls();
         ShowWindow(main_window, show);
         try {
             scan();

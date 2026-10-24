@@ -57,34 +57,3 @@ pub struct RoutePlan {
     pub decision: Decision,
     pub reason: &'static str,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Phase {
-    Idle,
-    Preparing,
-    Authorizing,
-    Probing,
-    Starting,
-    Active,
-    Stopping,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Error {
-    Busy,
-    InvalidState,
-    StaleGeneration,
-    ConsentRequired,
-    Unsupported,
-    MediaFailed,
-}
-
-/// The platform owns the grant and releases it when stop is called. A grant is session-local.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Grant {
-    pub generation: u64,
-    pub platform_handle: u64,
-}
-
-pub trait MediaSessionPort {
-    fn start(&mut self, route: Route, grant: Option<Grant>) -> Result<(), Error>;
-    fn stop(&mut self);
-}

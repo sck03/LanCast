@@ -43,6 +43,12 @@ pub fn poll(handle: u64) -> Option<String> {
     let engine = engines().lock().ok()?.get(&handle).cloned()?;
     engine.poll()
 }
+pub fn wait_poll(handle: u64, timeout_ms: u32) -> Option<String> {
+    let engine = engines().lock().ok()?.get(&handle).cloned()?;
+    engine.wait_poll(std::time::Duration::from_millis(u64::from(
+        timeout_ms.min(1000),
+    )))
+}
 pub fn destroy(handle: u64) {
     let engine = engines().lock().ok().and_then(|mut e| e.remove(&handle));
     if let Some(engine) = engine {
@@ -143,26 +149,28 @@ pub struct Buffer {
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn lancast_poll(handle: u64) -> Buffer {
-    catch_unwind(|| {
-        if let Some(text) = poll(handle) {
-            let mut bytes = text.into_bytes().into_boxed_slice();
-            let result = Buffer {
-                data: bytes.as_mut_ptr(),
-                len: bytes.len(),
-            };
-            std::mem::forget(bytes);
-            result
-        } else {
-            Buffer {
-                data: std::ptr::null_mut(),
-                len: 0,
-            }
+    catch_unwind(|| buffer(poll(handle))).unwrap_or_else(|_| buffer(None))
+}
+/// Wait on a host worker only. Shutdown interrupts the wait; the registry is not held.
+#[unsafe(no_mangle)]
+pub extern "C" fn lancast_wait_poll(handle: u64, timeout_ms: u32) -> Buffer {
+    catch_unwind(|| buffer(wait_poll(handle, timeout_ms))).unwrap_or_else(|_| buffer(None))
+}
+fn buffer(text: Option<String>) -> Buffer {
+    if let Some(text) = text {
+        let mut bytes = text.into_bytes().into_boxed_slice();
+        let result = Buffer {
+            data: bytes.as_mut_ptr(),
+            len: bytes.len(),
+        };
+        std::mem::forget(bytes);
+        result
+    } else {
+        Buffer {
+            data: std::ptr::null_mut(),
+            len: 0,
         }
-    })
-    .unwrap_or(Buffer {
-        data: std::ptr::null_mut(),
-        len: 0,
-    })
+    }
 }
 /// # Safety
 /// Pass exactly a non-freed buffer returned by lancast_poll, once.
@@ -185,6 +193,40 @@ pub extern "C" fn lancast_destroy(handle: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn waiting_does_not_hold_registry_and_shutdown_wakes_the_host() {
+        let id = create();
+        let (ready, started) = std::sync::mpsc::channel();
+        let waiter = std::thread::spawn(move || {
+            ready.send(()).unwrap();
+            let result = lancast_wait_poll(id, 1000);
+            assert!(!result.data.is_null());
+            let text = unsafe { std::slice::from_raw_parts(result.data, result.len) };
+            let value: serde_json::Value = serde_json::from_slice(text).unwrap();
+            assert_eq!(value["type"], "route.plan");
+            unsafe { lancast_free_buffer(result) };
+        });
+        started.recv().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        assert_eq!(
+            command(
+                id,
+                r#"{"op":"route.plan","intent":"file","device":{"receiver":false,"rtc":"unknown","receiverFile":"unknown","dlna":false,"dlnaFile":"unknown","dlnaLive":"unknown","systemGuide":false},"backend":{"rtc":false,"ts":false,"file":false}}"#
+            ),
+            0
+        );
+        waiter.join().unwrap();
+        let waiting = std::thread::spawn(move || wait_poll(id, 1000));
+        assert_eq!(lancast_shutdown(id), 0);
+        if let Some(text) = waiting.join().unwrap() {
+            let event: serde_json::Value = serde_json::from_str(&text).unwrap();
+            assert!(matches!(
+                event["type"].as_str(),
+                Some("stopped" | "shutdown.completed")
+            ));
+        }
+        destroy(id);
+    }
     #[test]
     fn invalid_handles_and_shutdown_are_safe() {
         assert_eq!(command(u64::MAX, "{}"), -1);

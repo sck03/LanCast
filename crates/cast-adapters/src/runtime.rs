@@ -2,7 +2,7 @@ use crate::{
     auth::Identity,
     control::{Client, Server},
     discovery, dlna,
-    events::{Events, event},
+    events::{self, EventInbox, Events, event},
     media_http::{self, Resource},
     protocol::Message,
 };
@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr},
-    sync::{Arc, Mutex as StdMutex, mpsc as std_mpsc},
+    sync::{Arc, Mutex as StdMutex},
     time::Duration,
 };
 use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
@@ -57,7 +57,7 @@ impl QueuedCommand {
 }
 pub struct Engine {
     command: mpsc::Sender<QueuedCommand>,
-    events: StdMutex<std_mpsc::Receiver<String>>,
+    events: EventInbox,
     thread: StdMutex<Option<std::thread::JoinHandle<()>>>,
     shutdown: CancellationToken,
     stop: Arc<tokio::sync::Notify>,
@@ -69,8 +69,8 @@ impl Engine {
     pub fn new() -> anyhow::Result<Self> {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let (command, mut receiver) = mpsc::channel::<QueuedCommand>(32);
-        let (events, output) = std_mpsc::sync_channel(256);
         let shutdown = CancellationToken::new();
+        let (events, output) = events::channel(256, shutdown.clone());
         let shutdown_worker = shutdown.clone();
         let stop = Arc::new(tokio::sync::Notify::new());
         let stop_worker = stop.clone();
@@ -83,16 +83,30 @@ impl Engine {
         let thread = std::thread::Builder::new()
             .name("lancast-control".into())
             .spawn(move || {
-                let runtime = tokio::runtime::Builder::new_multi_thread()
+                let runtime = match tokio::runtime::Builder::new_multi_thread()
                     .worker_threads(2)
                     .enable_all()
                     .build()
-                    .expect("runtime");
+                {
+                    Ok(runtime) => runtime,
+                    Err(_) => {
+                        event(
+                            &events,
+                            "error",
+                            json!({"code":"RUNTIME_FAILED","terminal":true}),
+                        );
+                        return;
+                    }
+                };
                 runtime.block_on(async move {
                     let identity = match Identity::create() {
                         Ok(v) => Arc::new(v),
                         Err(_) => {
-                            event(&events, "error", json!({"code":"IDENTITY_FAILED"}));
+                            event(
+                                &events,
+                                "error",
+                                json!({"code":"IDENTITY_FAILED","terminal":true}),
+                            );
                             return;
                         }
                     };
@@ -167,7 +181,7 @@ impl Engine {
             })?;
         Ok(Self {
             command,
-            events: StdMutex::new(output),
+            events: output,
             thread: StdMutex::new(Some(thread)),
             shutdown,
             stop,
@@ -195,7 +209,10 @@ impl Engine {
             .map_err(|_| anyhow::anyhow!("COMMAND_QUEUE_FULL_OR_CLOSED"))
     }
     pub fn poll(&self) -> Option<String> {
-        self.events.lock().ok()?.try_recv().ok()
+        self.events.try_recv().ok()
+    }
+    pub fn wait_poll(&self, timeout: Duration) -> Option<String> {
+        self.events.recv_timeout(timeout).ok()
     }
     pub fn close(&self) {
         self.shutdown();
@@ -207,6 +224,7 @@ impl Engine {
     }
     pub fn shutdown(&self) {
         self.shutdown.cancel();
+        self.events.wake();
     }
     #[cfg(feature = "sender")]
     pub fn write_ts(&self, data: &[u8]) -> anyhow::Result<()> {

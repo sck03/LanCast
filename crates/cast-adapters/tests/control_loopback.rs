@@ -4,6 +4,83 @@ use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
 #[test]
+fn a_stalled_host_gets_a_terminal_error_and_remote_session_is_revoked() {
+    let receiver = Engine::new().unwrap();
+    let sender = Engine::new().unwrap();
+    receiver
+        .command(json!({"op":"listen","address":"127.0.0.1:0","advertise":false}))
+        .unwrap();
+    let ready = event(&receiver, "receiver.ready");
+    sender.command(json!({"op":"connect","address":ready["address"],"fingerprint":ready["fingerprint"],"invite":ready["invite"]})).unwrap();
+    let approval = event(&receiver, "pair.request");
+    receiver
+        .command(json!({"op":"approve","connectionId":approval["connectionId"],"accept":true}))
+        .unwrap();
+    event(&sender, "connected");
+    signal(
+        &sender,
+        "session.start",
+        &Value::Null,
+        json!({"mode":"file"}),
+    );
+    event(&receiver, "session.started");
+    message(&sender, "session.accepted");
+    let filler = json!({"op":"route.plan","intent":"file",
+        "device":{"receiver":false,"rtc":"unknown","receiverFile":"unknown","dlna":false,"dlnaFile":"unknown","dlnaLive":"unknown","systemGuide":false},
+        "backend":{"rtc":false,"ts":false,"file":false}});
+    // Deliberately do not poll the sender. Native teardown must not depend on UI progress.
+    let deadline = Instant::now() + Duration::from_secs(8);
+    let mut submitted = 0;
+    while submitted < 300 && Instant::now() < deadline {
+        match sender.command(filler.clone()) {
+            Ok(()) => submitted += 1,
+            Err(error) if error.to_string() == "ENGINE_CLOSED" => break,
+            Err(_) => {} // Retry a temporarily full command queue on a loaded runner.
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let failure = event(&sender, "error");
+    assert_eq!(failure["code"], "HOST_EVENT_QUEUE_OVERFLOW");
+    assert_eq!(failure["terminal"], true);
+    assert_eq!(
+        event(&receiver, "session.closed")["reason"],
+        "control_disconnected"
+    );
+    assert!(sender.command(json!({"op":"scan"})).is_err());
+    sender.close();
+    receiver.close();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[cfg(feature = "sender")]
+async fn stop_revokes_shared_file_and_allows_a_fresh_share() {
+    let file = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(file.path(), b"synthetic lifecycle fixture").unwrap();
+    let engine = Engine::new().unwrap();
+    let share = json!({"op":"file.share","path":file.path(),"address":"127.0.0.1:0","allowedIp":"127.0.0.1","encrypted":false});
+    engine.command(share.clone()).unwrap();
+    let old = event(&engine, "file.shared")["url"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    assert_eq!(client.get(&old).send().await.unwrap().status(), 200);
+    engine.command(json!({"op":"stop"})).unwrap();
+    event(&engine, "stopped");
+    engine.command(share).unwrap();
+    let next = event(&engine, "file.shared")["url"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_ne!(old, next);
+    assert_eq!(client.get(&next).send().await.unwrap().status(), 200);
+    if let Ok(response) = client.get(&old).send().await {
+        assert_ne!(response.status(), 200);
+    }
+    engine.close();
+}
+
+#[test]
 fn stopped_discovery_cannot_deliver_late_results() {
     let engine = Engine::new().unwrap();
     engine

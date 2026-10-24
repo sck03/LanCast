@@ -218,7 +218,7 @@ bool Encoder::input(ComPtr<IMFSample> sample) {
     drain();
     return true;
 }
-bool Encoder::video(ID3D11Texture2D *texture, int64_t pts_us, bool keyframe, uint32_t bitrate) {
+bool Encoder::video(IMFSample *sample, int64_t pts_us, bool keyframe, uint32_t bitrate) {
     drain();
     if (asynchronous_ && !input_slots_)
         return false;
@@ -228,12 +228,6 @@ bool Encoder::video(ID3D11Texture2D *texture, int64_t pts_us, bool keyframe, uin
         configure_codec(CODECAPI_AVEncCommonMeanBitRate, bitrate);
         bitrate_ = bitrate;
     }
-    ComPtr<IMFMediaBuffer> buffer;
-    check(MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), texture, 0, FALSE, &buffer),
-          "GPU_SAMPLE_FAILED");
-    ComPtr<IMFSample> sample;
-    check(MFCreateSample(&sample), "SAMPLE_FAILED");
-    sample->AddBuffer(buffer.Get());
     sample->SetSampleTime(pts_us * 10);
     sample->SetSampleDuration(10000000 / fps_);
     return input(sample);

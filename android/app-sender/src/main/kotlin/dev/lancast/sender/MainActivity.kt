@@ -171,7 +171,7 @@ class MainActivity : Activity() {
             "probe.saved" -> state.text = if (body.optBoolean("passed")) "测试档案已保存。现在可点击开始 DLNA 屏幕直播，再授权分享内容。" else "此配置未通过；仍可尝试 MP4 文件播放。"
             "connected" -> state.text = "安全连接已建立"
             "disconnected" -> state.text = "连接已断开，屏幕采集已停止；请重新配对"
-            "error" -> state.text = body.optString("code")
+            "error" -> state.text = if (body.optBoolean("terminal")) "控制服务已停止，分享已结束，请重新连接电视" else body.optString("code")
             "media.status" -> if (!body.optString("status").startsWith("statistics:")) state.text = body.optString("status")
             "devices", "dlna.devices", "discovery.updated" -> if (!SenderRuntime.scanning) state.text = if (SenderRuntime.catalog.devices.isEmpty()) "未发现电视，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" else "请选择电视，将自动获取地址和指纹"
             "dlna.state" -> state.text = "DLNA 指令已返回，实际画面请以电视为准"

@@ -49,6 +49,26 @@ pub extern "system" fn Java_dev_lancast_control_NativeCore_poll(
         .unwrap_or(std::ptr::null_mut())
 }
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lancast_control_NativeCore_waitPoll(
+    env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+    timeout_ms: jint,
+) -> jstring {
+    crate::ffi::wait_poll(handle as u64, timeout_ms.clamp(0, 1000) as u32)
+        .and_then(|s| env.new_string(s).ok())
+        .map(|s| s.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lancast_control_NativeCore_shutdown(
+    _: JNIEnv,
+    _: JClass,
+    handle: jlong,
+) {
+    crate::ffi::lancast_shutdown(handle as u64);
+}
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lancast_control_NativeCore_destroy(
     _: JNIEnv,
     _: JClass,

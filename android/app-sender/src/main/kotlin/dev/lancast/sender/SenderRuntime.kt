@@ -152,7 +152,13 @@ object SenderRuntime {
             }
             "probe.saved" -> stop()
             "live.failed" -> { stop(); observer?.invoke(JSONObject().put("type", "error").put("body", body)) }
-            "error" -> { connecting = false; filePending = false; if (captureGate.pending || peer != null || liveCapture != null || grant != null || probing) stop() }
+            "error" -> {
+                val wasConnecting = connecting
+                connecting = false
+                if (body.optBoolean("terminal") || wasConnecting) close()
+                else if (busy) stop()
+                filePending = false
+            }
             "connected" -> { connected = true; connecting = false }
             "disconnected" -> { connected = false; connecting = false; stopCapture(); if (!stopping) { core?.close(); core = null; catalog.clear(); selectedDevice = null; dlnaId = null; dlnaIp = null } }
             "stopped" -> { stopping = false }
@@ -189,8 +195,7 @@ object SenderRuntime {
                     "rtc.answer" -> peer?.receiveAnswer(data.getString("sdp"), data.getString("negotiationId"))
                     "rtc.ice" -> peer?.ice(data)
                     "rtc.restart" -> if (body.optString("sessionId") == sessionId) peer?.restart(data.getString("negotiationId"))
-                    "session.stop" -> stopCapture()
-                    "error" -> { stopCapture() }
+                    "session.stop", "error" -> stop()
                 }
             }
         }
@@ -199,16 +204,18 @@ object SenderRuntime {
     private fun stopCapture() { generation++; captureGate.cancel(); activeCapture = null; pendingSession = null; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
     fun stop() {
         if (connecting) { close(); return }
-        sessionId?.let { core?.send("session.stop", it, JSONObject().put("reason", "sender_stopped")) }
-        core?.command("stop")
         stopping = core != null; filePending = false
         connected = false
         stopCapture()
+        // Stop revokes both capture and native file/live grants. A remote end uses this
+        // same path; clearing UI state alone leaves the old HTTPS resource reachable.
+        runCatching { core?.command("stop") }.onFailure { close() }
     }
     fun close() {
-        val pairing = connecting; connecting = false
-        if (!pairing) stop() else stopCapture()
-        connected = false; core?.close(); core = null; stopping = false; filePending = false
+        connecting = false; connected = false
+        stopCapture()
+        val previous = core; core = null; previous?.close()
+        stopping = false; filePending = false
         scanGeneration++; scanning = false; releaseMulticast(); catalog.clear(); selectedDevice = null; dlnaId = null; dlnaIp = null; receiverAddress = ""
     }
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Package actual source inputs, library notices, hashes and LGPL relinking sources."""
 import argparse
+from artifact_checks import require
 import hashlib
 import json
 from pathlib import Path
@@ -22,7 +23,7 @@ ffmpeg = root / ".cache/ffmpeg-8.0.1.tar.xz"
 if not ffmpeg.is_file():
     ffmpeg.parent.mkdir(parents=True, exist_ok=True)
     urllib.request.urlretrieve("https://ffmpeg.org/releases/ffmpeg-8.0.1.tar.xz", ffmpeg)
-assert hashlib.sha256(ffmpeg.read_bytes()).hexdigest() == "05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
+require(hashlib.sha256(ffmpeg.read_bytes()).hexdigest() == "05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41", 'Artifact validation failed')
 with zipfile.ZipFile(destination / "ffmpeg-relink.zip", "w", zipfile.ZIP_DEFLATED) as archive:
     archive.write(ffmpeg, ffmpeg.name)
     for name in ("COPYING.LGPLv2.1", "COPYING.LGPLv3", "LICENSE.md"):
@@ -36,7 +37,7 @@ if args.platform == "windows":
     directories = [root / "windows/build/_deps/datachannel-src", root / "windows/build/_deps/opus-src", root / "windows/build/_deps/json-src", root / ".cache/mbedtls"]
     directories += [root / "windows/build/_deps/datachannel-src/deps" / name for name in ("libjuice", "libsrtp", "usrsctp", "plog")]
     for directory in directories:
-        assert directory.is_dir(), f"Missing dependency source: {directory}"
+        require(directory.is_dir(), f"Missing dependency source: {directory}")
         revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=directory, text=True).strip()
         output = destination / (directory.name + "-source.tar.gz")
         subprocess.run(["git", "archive", "--format=tar.gz", "-o", str(output), "HEAD"], cwd=directory, check=True)

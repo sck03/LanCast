@@ -1,6 +1,7 @@
 #include "capture.h"
 #include "audio.h"
 #include "encoder.h"
+#include "video_pool.h"
 #include <algorithm>
 #include <cmath>
 #include <d3d11_4.h>
@@ -55,11 +56,11 @@ struct Apartment {
 class Converter {
   public:
     Converter(ID3D11Device *device, ID3D11DeviceContext *context, const CaptureConfig &c)
-        : device_(device), config_(c) {
+        : config_(c), output_(device, c) {
         check(device->QueryInterface(IID_PPV_ARGS(&video_)), "GPU_VIDEO_UNAVAILABLE");
         check(context->QueryInterface(IID_PPV_ARGS(&context_)), "GPU_VIDEO_CONTEXT_FAILED");
     }
-    ComPtr<ID3D11Texture2D> convert(ID3D11Texture2D *input, unsigned width, unsigned height) {
+    ComPtr<IMFSample> convert(ID3D11Texture2D *input, unsigned width, unsigned height) {
         D3D11_TEXTURE2D_DESC source{};
         input->GetDesc(&source);
         width = std::min(width, source.Width);
@@ -67,6 +68,7 @@ class Converter {
         if (!processor_ || input_width_ != source.Width || input_height_ != source.Height) {
             enumerator_.Reset();
             processor_.Reset();
+            inputs_.clear();
             input_width_ = source.Width;
             input_height_ = source.Height;
             D3D11_VIDEO_PROCESSOR_CONTENT_DESC desc{};
@@ -83,28 +85,23 @@ class Converter {
             check(video_->CreateVideoProcessor(enumerator_.Get(), 0, &processor_),
                   "GPU_CONVERTER_FAILED");
         }
-        D3D11_TEXTURE2D_DESC desc{};
-        desc.Width = config_.width;
-        desc.Height = config_.height;
-        desc.MipLevels = 1;
-        desc.ArraySize = 1;
-        desc.Format = DXGI_FORMAT_NV12;
-        desc.SampleDesc.Count = 1;
-        desc.Usage = D3D11_USAGE_DEFAULT;
-        desc.BindFlags = D3D11_BIND_RENDER_TARGET;
-        ComPtr<ID3D11Texture2D> output;
-        check(device_->CreateTexture2D(&desc, nullptr, &output), "NV12_TEXTURE_FAILED");
-        D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC iv{};
-        iv.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
+        auto output = output_.acquire(enumerator_.Get());
+        if (!output.sample)
+            return {};
         ComPtr<ID3D11VideoProcessorInputView> input_view;
-        check(video_->CreateVideoProcessorInputView(input, enumerator_.Get(), &iv, &input_view),
-              "GPU_INPUT_VIEW_FAILED");
-        D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC ov{};
-        ov.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
-        ComPtr<ID3D11VideoProcessorOutputView> output_view;
-        check(video_->CreateVideoProcessorOutputView(output.Get(), enumerator_.Get(), &ov,
-                                                     &output_view),
-              "GPU_OUTPUT_VIEW_FAILED");
+        const auto cached = std::find_if(inputs_.begin(), inputs_.end(),
+                                         [&](const auto &v) { return v.texture.Get() == input; });
+        if (cached != inputs_.end())
+            input_view = cached->view;
+        else {
+            D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC iv{};
+            iv.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
+            check(video_->CreateVideoProcessorInputView(input, enumerator_.Get(), &iv, &input_view),
+                  "GPU_INPUT_VIEW_FAILED");
+            if (inputs_.size() == 3)
+                inputs_.erase(inputs_.begin());
+            inputs_.push_back({input, input_view});
+        }
         const double scale =
             std::min(double(config_.width) / width, double(config_.height) / height);
         const LONG w = static_cast<LONG>(width * scale) / 2 * 2,
@@ -130,14 +127,19 @@ class Converter {
         D3D11_VIDEO_PROCESSOR_STREAM stream{};
         stream.Enable = TRUE;
         stream.pInputSurface = input_view.Get();
-        check(context_->VideoProcessorBlt(processor_.Get(), output_view.Get(), 0, 1, &stream),
+        check(context_->VideoProcessorBlt(processor_.Get(), output.view.Get(), 0, 1, &stream),
               "GPU_CONVERSION_FAILED");
-        return output;
+        return output.sample;
     }
 
   private:
-    ComPtr<ID3D11Device> device_;
     CaptureConfig config_;
+    VideoFramePool output_;
+    struct InputView {
+        ComPtr<ID3D11Texture2D> texture;
+        ComPtr<ID3D11VideoProcessorInputView> view;
+    };
+    std::vector<InputView> inputs_;
     unsigned input_width_ = 0, input_height_ = 0;
     ComPtr<ID3D11VideoDevice> video_;
     ComPtr<ID3D11VideoContext> context_;
@@ -166,8 +168,8 @@ struct Capture::State {
             ComPtr<ID3D11Multithread> protection;
             check(context.As(&protection), "GPU_MULTITHREAD_FAILED");
             protection->SetMultithreadProtected(TRUE);
-            Encoder video(device.Get(), config, sink);
             Converter converter(device.Get(), context.Get(), config);
+            Encoder video(device.Get(), config, sink);
             GraphicsCaptureItem item{nullptr};
             Direct3D11CaptureFramePool pool{nullptr};
             GraphicsCaptureSession session{nullptr};
@@ -302,8 +304,8 @@ struct Capture::State {
                         // Consume the borrowed frame before closing it. The NV12 output has
                         // independent ownership.
                         auto converted = converter.convert(texture.Get(), width, height);
-                        if (video.video(converted.Get(), now - origin, keyframe.load(),
-                                        bitrate.load()))
+                        if (converted && video.video(converted.Get(), now - origin, keyframe.load(),
+                                                     bitrate.load()))
                             keyframe = false;
                         last_frame = now;
                         texture.Reset();
@@ -314,8 +316,8 @@ struct Capture::State {
                     }
                     if (texture) {
                         auto converted = converter.convert(texture.Get(), width, height);
-                        if (video.video(converted.Get(), now - origin, keyframe.load(),
-                                        bitrate.load()))
+                        if (converted && video.video(converted.Get(), now - origin, keyframe.load(),
+                                                     bitrate.load()))
                             keyframe = false;
                         last_frame = now;
                     }

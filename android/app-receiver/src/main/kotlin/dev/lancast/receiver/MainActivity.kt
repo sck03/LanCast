@@ -121,12 +121,14 @@ class MainActivity : Activity() {
             }
             "session.closed", "stopped" -> stopMedia()
             "error" -> {
-                if (!connectionInfo.has("fingerprint")) {
+                if (body.optBoolean("terminal") || !connectionInfo.has("fingerprint")) {
+                    clearApproval(); stopMedia()
                     core?.close(); core = null; address.isEnabled = true
+                    connectionInfo = JSONObject(); codeLabel.text = ""; invitation.text = ""
                     multicast?.let { if (it.isHeld) it.release() }; multicast = null
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
-                state.text = body.optString("code")
+                state.text = if (body.optBoolean("terminal")) "控制服务已停止，请重新启动接收" else body.optString("code")
             }
         }
     }

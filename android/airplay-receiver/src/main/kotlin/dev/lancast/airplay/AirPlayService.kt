@@ -29,6 +29,7 @@ class AirPlayService : Service() {
     private var lease: Lease? = null
     @Volatile private var engine: NativeEngine? = null
     @Volatile private var media: MediaPipeline? = null
+    private var retiringMedia: MediaPipeline? = null
     @Volatile private var mediaSession = 0L
     @Volatile private var epoch = 0L
     private var destroyed = false
@@ -158,8 +159,24 @@ class AirPlayService : Service() {
         mediaSession = 0
         val player = media; media = null
         val held = lease; lease = null
+        val retiredEpoch = epoch
         update(state.copy(request = null, playing = false, message = message, videoWidth = 0, videoHeight = 0))
-        worker.execute { player?.close(); ReceiverOwnership.leases.release(held) }
+        if (player == null) { ReceiverOwnership.leases.release(held); return }
+        retiringMedia = player
+        player.whenClosed {
+            ReceiverOwnership.leases.release(held)
+            main.post {
+                if (retiringMedia === player) retiringMedia = null
+                if (!destroyed && epoch == retiredEpoch && state.enabled && media == null && state.request == null && state.message.startsWith("正在等待媒体驱动"))
+                    update(state.copy(message = message))
+            }
+        }
+        // Codec release stays on its owner. A stuck driver cannot block native/discovery cleanup.
+        player.close()
+        main.postDelayed({
+            if (!destroyed && ReceiverOwnership.leases.owns(held))
+                update(state.copy(message = "正在等待媒体驱动释放资源，暂不能开始新的投屏"))
+        }, 2_000)
     }
     private fun retireEngine(done: (Boolean) -> Unit) {
         epoch++
@@ -167,16 +184,20 @@ class AirPlayService : Service() {
         val callbacks = mutableListOf(done); retirement = callbacks
         val publisher = discovery; discovery = null
         val previous = engine; engine = null
-        finishSession("正在切换接收网络…")
         var nativeDone = false
+        var mediaDone = false
         var discoveryDone: Boolean? = null
         var completed = false
         fun complete() {
-            if (completed || destroyed || !nativeDone || discoveryDone == null) return
+            if (completed || destroyed || !nativeDone || !mediaDone || discoveryDone == null) return
             completed = true
             retirement = null
             callbacks.toList().forEach { it(discoveryDone == true) }
         }
+        finishSession("正在切换接收网络…")
+        val pendingMedia = retiringMedia
+        if (pendingMedia == null) mediaDone = true
+        else pendingMedia.whenClosed { main.post { mediaDone = true; complete() } }
         if (publisher == null) discoveryDone = true else publisher.close { discoveryDone = it; complete() }
         worker.execute { previous?.close(); main.post { nativeDone = true; complete() } }
     }
@@ -208,7 +229,9 @@ class AirPlayService : Service() {
         watcher?.close(); discovery?.close(); main.removeCallbacksAndMessages(null)
         val previous = engine; engine = null; val player = media; media = null
         val held = lease; lease = null
-        worker.execute { previous?.close(); player?.close(); ReceiverOwnership.leases.release(held); multicast?.let { if (it.isHeld) it.release() } }
+        if (player == null) ReceiverOwnership.leases.release(held)
+        else { player.whenClosed { ReceiverOwnership.leases.release(held) }; player.close() }
+        worker.execute { previous?.close(); multicast?.let { if (it.isHeld) it.release() } }
         worker.shutdown(); observers.clear(); super.onDestroy()
     }
     companion object {

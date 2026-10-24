@@ -17,7 +17,7 @@ class Encoder {
     Encoder(ID3D11Device *device, const CaptureConfig &config, PacketSink sink);
     Encoder(PacketSink sink); // AAC-LC, PCM16 stereo 48 kHz
     ~Encoder();
-    bool video(ID3D11Texture2D *nv12, int64_t pts_us, bool keyframe, uint32_t bitrate);
+    bool video(IMFSample *sample, int64_t pts_us, bool keyframe, uint32_t bitrate);
     void audio(std::span<const int16_t> pcm, int64_t pts_us);
     void drain();
 

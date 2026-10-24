@@ -21,11 +21,11 @@ class AppleArtifactPathsTests(unittest.TestCase):
             tvos.mkdir()
             (tvos / "build-report.json").write_text(json.dumps({"platform": "tvos"}), encoding="utf-8")
             self.assertEqual(VERIFIER.find_builds((tvos,)), {"tvos": tvos})
-            with self.assertRaisesRegex(AssertionError, "Missing artifact directory"):
+            with self.assertRaisesRegex(ValueError, "Missing artifact directory"):
                 VERIFIER.find_builds((tvos, root / "unfinished-macos-download"))
             empty = root / "empty"
             empty.mkdir()
-            with self.assertRaisesRegex(AssertionError, "No Apple build report in requested"):
+            with self.assertRaisesRegex(ValueError, "No Apple build report in requested"):
                 VERIFIER.find_builds((tvos, empty))
 
     def test_duplicate_platform_reports_are_rejected(self):
@@ -34,7 +34,7 @@ class AppleArtifactPathsTests(unittest.TestCase):
             for root in roots:
                 root.mkdir()
                 (root / "build-report.json").write_text(json.dumps({"platform": "tvos"}), encoding="utf-8")
-            with self.assertRaisesRegex(AssertionError, "Multiple builds for one platform"):
+            with self.assertRaisesRegex(ValueError, "Multiple builds for one platform"):
                 VERIFIER.find_builds(roots)
 
 

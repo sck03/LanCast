@@ -19,6 +19,19 @@ final class FrameProbe: NSObject, LKRTCVideoRenderer {
 }
 
 final class RtcIntegrationTests: XCTestCase {
+    func testFirstFrameProbeSignalsOnlyOnceAcrossConcurrentCallbacks() throws {
+        var pixel: CVPixelBuffer?
+        XCTAssertEqual(CVPixelBufferCreate(nil, 16, 16, kCVPixelFormatType_32BGRA, nil, &pixel), kCVReturnSuccess)
+        let buffer = try XCTUnwrap(pixel)
+        let frame = LKRTCVideoFrame(buffer: LKRTCCVPixelBuffer(pixelBuffer: buffer), rotation: ._0, timeStampNs: 0)
+        let lock = NSLock()
+        var count = 0
+        let probe = RtcFrameProbe { lock.lock(); count += 1; lock.unlock() }
+        probe.renderFrame(nil)
+        DispatchQueue.concurrentPerform(iterations: 100) { _ in probe.renderFrame(frame) }
+        XCTAssertEqual(count, 1)
+    }
+
     func testH264SyntheticFramesCrossIceDtlsSrtpAndDecode() throws {
         let decoded = expectation(description: "received H264 video frame")
         let recovered = expectation(description: "decoded H264 after replacing both transports")

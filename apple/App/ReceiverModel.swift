@@ -142,8 +142,8 @@ final class ReceiverModel: ObservableObject {
             }
         case "session.closed": clearMedia(); status = "会话已结束"
         case "error":
-            if !listening { stop() } else if session != nil { stopMedia() }
-            status = body.string("code")
+            if body["terminal"] as? Bool == true || !listening { stop() } else if session != nil { stopMedia() }
+            status = body["terminal"] as? Bool == true ? "控制服务已停止，请重新启动接收" : body.string("code")
         default: break
         }
     }

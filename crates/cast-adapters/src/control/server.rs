@@ -435,7 +435,7 @@ mod tests {
 
     #[tokio::test]
     async fn saturated_signal_queue_cannot_prevent_local_stop() {
-        let (events, _output) = std::sync::mpsc::sync_channel(16);
+        let (events, _output) = crate::events::channel(16, CancellationToken::new());
         let server = Server::new(Arc::new(Identity::create().unwrap()), "standard", events);
         let owner = Uuid::new_v4();
         let session = Session::new(owner, "file").unwrap();

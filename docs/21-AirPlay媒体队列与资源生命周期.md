@@ -1,6 +1,6 @@
 # 21 AirPlay媒体队列与资源生命周期
 
-日期：2026-10-08；D17维护，开发版本0.6.2 / 10。对应程序提交、构建结果与测试证据见[08](08-实施进度与审阅入口.md)。本文件负责接收队列、解码资源及播放线程的实现合同；协议、启用周期和单路仲裁仍见[20](20-AirPlay实现与审阅指南.md)。
+日期：2026-10-25；保留D17队列合同，D21更新实际线程退出与租约释放。对应程序提交、构建结果与测试证据见[08](08-实施进度与审阅入口.md)。本文件负责接收队列、解码资源及播放线程的实现合同；协议、启用周期和单路仲裁仍见[20](20-AirPlay实现与审阅指南.md)。
 
 ## 修复依据
 
@@ -16,7 +16,8 @@
 |---|---|---|
 | [MediaQueue](../android/receiver-contracts/src/main/kotlin/dev/lancast/receiver/contracts/MediaQueue.kt) | 帧数/字节/时间跨度、等待通知、原子关闭 | 纯Kotlin/JDK，不依赖Android、网络或解码器；保留FIFO消费顺序 |
 | [ResourceSetup](../android/airplay-receiver/src/main/kotlin/dev/lancast/airplay/ResourceSetup.kt) | 初始化成功转移所有权、失败回收 | 模块内的内联函数，可用普通资源替身测试；不创建平台线程 |
-| [MediaPipeline](../android/airplay-receiver/src/main/kotlin/dev/lancast/airplay/MediaPipeline.kt) | 解码、调度、音频焦点和工作线程 | 每个解码器及音频输出只由所属工作线程操作；生命周期线程关闭队列并等待退出 |
+| [MediaPipeline](../android/airplay-receiver/src/main/kotlin/dev/lancast/airplay/MediaPipeline.kt) | 解码、调度、音频焦点和工作线程 | 所属工作线程回收解码器及声音输出，完成后异步通知；生命周期执行器不join驱动线程 |
+| [WorkerCompletion](../android/receiver-contracts/src/main/kotlin/dev/lancast/receiver/contracts/WorkerCompletion.kt) | 并发、幂等的实际退出通知 | 租约仅在所有资源所有者退出后释放，不将发出取消等同于已释放 |
 | [android_products](../scripts/android_products.py) | 按所选产品/Debug或Release执行测试 | 接收产品运行队列契约；包含AirPlay时追加资源初始化测试 |
 
 `ResourceSetup`没有引入运行依赖。后续新增媒体格式应复用队列和资源所有权合同；具体解码/输出能力放在平台媒体适配中。若改为异步解码回调，须重新验证输出缓冲归还、关闭等待和迟到回调，不能把平台API放入契约层。
@@ -36,7 +37,7 @@
 
 ## 播放与释放
 
-停止及播放失败先关闭两条队列，再由各线程的`finally`回收资源；显式关闭还会中断调度等待并等待两个工作线程退出。解码器的`stop`失败仍尝试`release`。音频格式变化回收旧输出，同一次播放只申请一次音频焦点，退出时释放已取得的焦点。
+停止及播放失败先关闭两条队列并中断调度等待，再由各线程的finally回收资源，全部实际退出后通过WorkerCompletion释放接收租约。生命周期执行器继续关闭原生引擎和发现；两秒未完成则显示等待驱动释放，并保留旧租约。网络重启须等媒体/原生/发现三方完成，不强杀线程或提前移交Surface。解码器stop失败仍尝试release；音频焦点在退出时释放。D21同时在首帧成功后撤销MediaCodec监听，详见[25](25-宿主事件与媒体生命周期维护.md)。
 
 音量应用使用一次读取的快照，同时记录实际提交给AudioTrack的值。若网络线程在平台调用期间更新音量，下一次输出仍能检测到变化，避免把尚未应用的新值误记为已应用。
 

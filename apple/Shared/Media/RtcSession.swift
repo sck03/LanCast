@@ -3,11 +3,20 @@ import CoreMedia
 import LiveKitWebRTC
 import LanCastContracts
 
-private final class RtcFrameProbe: NSObject, LKRTCVideoRenderer {
+final class RtcFrameProbe: NSObject, LKRTCVideoRenderer {
     let frame: () -> Void
+    private let lock = NSLock()
+    private var delivered = false
     init(frame: @escaping () -> Void) { self.frame = frame }
     func setSize(_ size: CGSize) {}
-    func renderFrame(_ value: LKRTCVideoFrame?) { if value != nil { frame() } }
+    func renderFrame(_ value: LKRTCVideoFrame?) {
+        guard value != nil else { return }
+        lock.lock()
+        let first = !delivered
+        delivered = true
+        lock.unlock()
+        if first { frame() }
+    }
 }
 
 /// All SDP/ICE and lifetime mutations run here. Capture queues only submit bounded samples.
@@ -275,6 +284,8 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
                 let probe = RtcFrameProbe { [weak self] in
                     self?.submit {
                         guard let self, self.transportGeneration == current, !self.receivedFrame else { return }
+                        if let probe = self.frameProbe { self.remoteVideo?.remove(probe) }
+                        self.frameProbe = nil
                         self.receivedFrame = true; self.status("first_frame")
                     }
                 }

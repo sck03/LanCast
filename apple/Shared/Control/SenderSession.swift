@@ -74,7 +74,7 @@ final class SenderSession {
                 default: break
                 }
             }
-        case "error": terminate(body.string("code"))
+        case "error": terminate(body["terminal"] as? Bool == true ? "控制服务已停止，分享已结束，请重新连接接收端" : body.string("code"))
         case "disconnected": terminate("控制连接已断开，请重新授权分享")
         default: break
         }

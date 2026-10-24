@@ -5,6 +5,7 @@ Runs on a Mac with Xcode. No paid SDK, cloud media service or signing secret is 
 Device outputs are unsigned development builds; installation requires user signing.
 """
 import argparse
+from artifact_checks import require
 import hashlib
 import json
 import os
@@ -80,7 +81,7 @@ def main(target):
         libraries += ["-library", str(output), "-headers", str(ROOT / "core/include")]
     framework = DEPS / "LanCastCore.xcframework"
     if framework.exists():
-        assert framework.resolve().is_relative_to(DEPS.resolve())
+        require(framework.resolve().is_relative_to(DEPS.resolve()), 'Artifact validation failed')
         shutil.rmtree(framework)
     run("xcodebuild", "-create-xcframework", *libraries, "-output", framework)
     run(generator, "generate", "--spec", "project.yml", cwd=APPLE)

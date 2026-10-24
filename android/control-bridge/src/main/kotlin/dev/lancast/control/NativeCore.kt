@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal object NativeCore {
@@ -14,26 +14,40 @@ internal object NativeCore {
     external fun create(): Long
     external fun command(handle: Long, json: String): Int
     external fun poll(handle: Long): String?
+    external fun waitPoll(handle: Long, timeoutMs: Int): String?
+    external fun shutdown(handle: Long)
     external fun destroy(handle: Long)
     external fun writeTs(handle: Long, bytes: ByteArray): Int
 }
 
-/** The UI receives immutable JSON events; media frames never cross JNI here. */
+/** One native waiter and at most one UI batch. Closing wakes both waits before destruction. */
 class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
     private val handle = NativeCore.create().also { check(it != 0L) { "无法启动控制核心" } }
     private val closed = AtomicBoolean(false)
     private val main = Handler(Looper.getMainLooper())
-    private val worker = Executors.newSingleThreadScheduledExecutor()
+    private val worker = Executors.newSingleThreadExecutor()
+    private val delivery = Semaphore(1)
     init {
-        worker.scheduleWithFixedDelay({
-            if (!closed.get()) {
-                repeat(32) {
-                    val raw = NativeCore.poll(handle) ?: return@scheduleWithFixedDelay
-                    val event = JSONObject(raw)
-                    main.post { if (!closed.get()) onEvent(event) }
+        worker.execute {
+            try {
+                while (!closed.get()) {
+                    delivery.acquire()
+                    if (closed.get()) break
+                    val first = NativeCore.waitPoll(handle, 1000)
+                    if (first == null) { delivery.release(); continue }
+                    val batch = ArrayList<JSONObject>(32)
+                    batch.add(JSONObject(first))
+                    for (n in 1 until 32) {
+                        val raw = NativeCore.poll(handle) ?: break
+                        batch.add(JSONObject(raw))
+                    }
+                    if (!main.post {
+                        try { for (event in batch) { if (closed.get()) break; onEvent(event) } }
+                        finally { delivery.release() }
+                    }) { delivery.release(); break }
                 }
-            }
-        }, 0, 30, TimeUnit.MILLISECONDS)
+            } finally { NativeCore.destroy(handle) }
+        }
     }
     fun command(op: String, body: JSONObject = JSONObject()) {
         if (closed.get()) return
@@ -50,7 +64,9 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
     fun writeTs(bytes: ByteArray): Int = if (closed.get()) -1 else NativeCore.writeTs(handle, bytes)
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        worker.execute { NativeCore.destroy(handle) }
+        NativeCore.shutdown(handle)
+        delivery.release()
+        main.removeCallbacksAndMessages(null)
         worker.shutdown()
     }
 }
