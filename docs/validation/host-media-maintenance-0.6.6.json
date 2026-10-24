@@ -1,0 +1,1535 @@
+{
+  "schema": 1,
+  "date": "2026-10-25",
+  "application": {
+    "version": "0.6.6",
+    "build_number": 14
+  },
+  "sources": {
+    "shared_implementation": "d27faf7b8b3ada53c4d4615c10af1937fad85654",
+    "android_command_rejection_fix": "26b2ab373bfe79765ad44ca2a86a2c45692abfdd",
+    "windows_capability_test_fix": "292d62a5a136ef82ffa1ec4035200f03e5589897",
+    "changes_after_shared": [
+      "android/control-bridge/src/main/kotlin/dev/lancast/control/NativeCore.kt",
+      "docs/25-宿主事件与媒体生命周期维护.md"
+    ],
+    "changes_after_android": [
+      "docs/25-宿主事件与媒体生命周期维护.md",
+      "windows/media/CMakeLists.txt",
+      "windows/media/video_pool_contract.cpp"
+    ],
+    "mapping": "Apple/Linux/AirPlay use d27faf7; Android Debug/Release use 26b2ab3; Windows uses 292d62a. Later changes do not alter the other platforms runtime/build inputs."
+  },
+  "local_validation": {
+    "rust_workspace_tests_all_features": 52,
+    "rust_workspace_tests_no_default_features": 42,
+    "rust_workspace_tests_no_default_features_legacy": 43,
+    "python_tests_each_normal_and_optimized": 43,
+    "jvm_logic_tests_local": 21,
+    "jvm_local_toolchain": "existing Kotlin 2.0.20 / JDK 17; CI uses the repository pinned toolchain",
+    "checks": [
+      "strict Clippy all workspace/targets/features",
+      "cargo fmt check",
+      "architecture contracts",
+      "Windows C++ syntax checks",
+      "hardware NV12 bounded pool, in-flight sample isolation and reuse"
+    ],
+    "hardware_contract_sha256": "5b771d6be98c30a40e1a41904e2bd37a1c17240aa886bd475f6121fd6d083f65",
+    "hardware_contract_stdout": "PASS: bounded NV12 pool, retained-sample isolation and reuse",
+    "local_document_links_final": 130
+  },
+  "github": [
+    {
+      "id": 40115322322,
+      "head_sha": "292d62a5a136ef82ffa1ec4035200f03e5589897",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40115322322",
+      "run_attempt": 1,
+      "workflow": "windows.yml",
+      "jobs": [
+        {
+          "id": 120935298475,
+          "name": "core",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "abf8e13ce3d20f0eb280a703fa6f1f7f71edb840c56da7a09ecf1e8224548030",
+          "log_bytes": 52272,
+          "validation_lines": [
+            "2026-10-24T17:16:08.5792774Z Ran 43 tests in 3.176s",
+            "2026-10-24T17:16:47.0805167Z PASS: Rust manifest/source boundaries, isolated WSS control, Apple contracts/media and platform player dependencies",
+            "2026-10-24T17:17:08.3430420Z test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.08s",
+            "2026-10-24T17:17:14.1826077Z test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.83s",
+            "2026-10-24T17:17:16.2299788Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s",
+            "2026-10-24T17:17:16.2397334Z test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:16.2474655Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:16.2797965Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+            "2026-10-24T17:17:16.5723176Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:16.6106119Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:16.6698097Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:16.7510744Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:31.1652486Z test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.06s",
+            "2026-10-24T17:17:36.7511603Z test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.57s",
+            "2026-10-24T17:17:36.7610668Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:36.7667428Z test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:36.7716640Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:36.8037180Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+            "2026-10-24T17:17:37.0380902Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:37.0771304Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:37.1444022Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:37.2200226Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:48.5208542Z test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s",
+            "2026-10-24T17:17:54.1081250Z test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.58s",
+            "2026-10-24T17:17:56.1704908Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s",
+            "2026-10-24T17:17:56.1773798Z test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:56.1823427Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:56.2155186Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+            "2026-10-24T17:17:56.4850185Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:56.5262906Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:56.5945537Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T17:17:56.6743459Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+          ]
+        },
+        {
+          "id": 120935298681,
+          "name": "windows",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "d3c2a83f83fc8e0d839ab03d96a3a4303f3bc1c13ee6fa10fb77706b9eba080b",
+          "log_bytes": 115727,
+          "validation_lines": [
+            "2026-10-24T17:23:39.1244753Z 6/6 Test #6: video_pool_contract ..............***Skipped   0.01 sec",
+            "2026-10-24T17:23:39.1250788Z 100% tests passed, 0 tests failed out of 6",
+            "2026-10-24T17:23:40.7246840Z PASS: package SHA-256, x64 PE imports, runtime dependencies and Release TS symbol policy"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12568641233,
+          "name": "LanCast-Windows-x64-0.6.6-14-Release",
+          "size_in_bytes": 5014483,
+          "expired": false
+        },
+        {
+          "id": 12568511845,
+          "name": "windows-native-relink-sources",
+          "size_in_bytes": 86900478,
+          "expired": false
+        },
+        {
+          "id": 12568467114,
+          "name": "windows-synthetic-diagnostic-0.6.6-14-Release",
+          "size_in_bytes": 140000,
+          "expired": false
+        },
+        {
+          "id": 12567234500,
+          "name": "dependencies-windows-2022",
+          "size_in_bytes": 114489,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40114478312,
+      "head_sha": "26b2ab373bfe79765ad44ca2a86a2c45692abfdd",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40114478312",
+      "run_attempt": 1,
+      "workflow": "android.yml",
+      "jobs": [
+        {
+          "id": 120932821111,
+          "name": "android",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "5c28d586d00b34175c4be62d5e14bd28a81ce9b5aa51a4c9cab4c186734dcf61",
+          "log_bytes": 225966,
+          "validation_lines": [
+            "2026-10-24T17:04:51.6367574Z PASS: Rust manifest/source boundaries, isolated WSS control, Apple contracts/media and platform player dependencies",
+            "2026-10-24T17:04:53.2920094Z Ran 43 tests in 1.506s",
+            "2026-10-24T17:06:37.1002438Z BUILD SUCCESSFUL in 1m 3s"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12568335451,
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.6-14-Debug",
+          "size_in_bytes": 38889314,
+          "expired": false
+        },
+        {
+          "id": 12568136336,
+          "name": "LanCast-Android-Sender-0.6.6-14-Debug",
+          "size_in_bytes": 35192925,
+          "expired": false
+        },
+        {
+          "id": 12568101564,
+          "name": "android-sender-native-relink-sources-0.6.6-14-Debug",
+          "size_in_bytes": 12237396,
+          "expired": false
+        },
+        {
+          "id": 12567564169,
+          "name": "airplay-source-and-dependencies-0.6.6-14-Debug",
+          "size_in_bytes": 57751958,
+          "expired": false
+        },
+        {
+          "id": 12567514231,
+          "name": "android-build-reports-0.6.6-14-Debug",
+          "size_in_bytes": 226230,
+          "expired": false
+        },
+        {
+          "id": 12567419653,
+          "name": "LanCast-Android-Receiver-Standard-0.6.6-14-Debug",
+          "size_in_bytes": 34218749,
+          "expired": false
+        },
+        {
+          "id": 12567359914,
+          "name": "LanCast-Android-Receiver-Legacy-0.6.6-14-Debug",
+          "size_in_bytes": 30372345,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40114589012,
+      "head_sha": "26b2ab373bfe79765ad44ca2a86a2c45692abfdd",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40114589012",
+      "run_attempt": 1,
+      "workflow": "android.yml",
+      "jobs": [
+        {
+          "id": 120933143441,
+          "name": "android",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "1ef54260cf8a80de5b9ed7d45aeb25bd4afe88aae5d0419026e0e4172b5995e7",
+          "log_bytes": 229279,
+          "validation_lines": [
+            "2026-10-24T17:06:19.3694400Z PASS: Rust manifest/source boundaries, isolated WSS control, Apple contracts/media and platform player dependencies",
+            "2026-10-24T17:06:21.2730108Z Ran 43 tests in 1.703s",
+            "2026-10-24T17:10:38.2931975Z BUILD SUCCESSFUL in 3m 34s"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12568440172,
+          "name": "LanCast-Android-Receiver-Standard-0.6.6-14-Release",
+          "size_in_bytes": 28668496,
+          "expired": false
+        },
+        {
+          "id": 12568440164,
+          "name": "airplay-source-and-dependencies-0.6.6-14-Release",
+          "size_in_bytes": 57748922,
+          "expired": false
+        },
+        {
+          "id": 12567852464,
+          "name": "LanCast-Android-Receiver-Legacy-0.6.6-14-Release",
+          "size_in_bytes": 27758347,
+          "expired": false
+        },
+        {
+          "id": 12567837243,
+          "name": "LanCast-Android-Sender-0.6.6-14-Release",
+          "size_in_bytes": 30912357,
+          "expired": false
+        },
+        {
+          "id": 12567812303,
+          "name": "android-build-reports-0.6.6-14-Release",
+          "size_in_bytes": 10026023,
+          "expired": false
+        },
+        {
+          "id": 12567463276,
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.6-14-Release",
+          "size_in_bytes": 33320302,
+          "expired": false
+        },
+        {
+          "id": 12567338786,
+          "name": "android-sender-native-relink-sources-0.6.6-14-Release",
+          "size_in_bytes": 12237392,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40113664809,
+      "head_sha": "d27faf7b8b3ada53c4d4615c10af1937fad85654",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40113664809",
+      "run_attempt": 1,
+      "workflow": "macos.yml",
+      "jobs": [
+        {
+          "id": 120930392438,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "55d09b0c2c0ab5861f7014af5374031d11e59a64a6548fb1d5fae8740aac15db",
+          "log_bytes": 407920,
+          "validation_lines": [
+            "2026-10-24T16:54:08.8239660Z Ran 43 tests in 1.045s",
+            "2026-10-24T16:58:13.8996220Z \t Executed 3 tests, with 0 failures (0 unexpected) in 0.009 (0.010) seconds",
+            "2026-10-24T16:58:13.9007450Z \t Executed 4 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds",
+            "2026-10-24T16:58:13.9008530Z \t Executed 7 tests, with 0 failures (0 unexpected) in 0.013 (0.015) seconds",
+            "2026-10-24T16:58:13.9009430Z \t Executed 7 tests, with 0 failures (0 unexpected) in 0.013 (0.018) seconds",
+            "2026-10-24T16:59:24.7216150Z \t Executed 3 tests, with 0 failures (0 unexpected) in 0.019 (0.020) seconds",
+            "2026-10-24T16:59:26.0256890Z \t Executed 2 tests, with 0 failures (0 unexpected) in 1.277 (1.278) seconds",
+            "2026-10-24T16:59:26.0625490Z \t Executed 6 tests, with 0 failures (0 unexpected) in 1.309 (1.314) seconds",
+            "2026-10-24T16:59:26.0627200Z \t Executed 6 tests, with 0 failures (0 unexpected) in 1.309 (1.315) seconds",
+            "2026-10-24T16:59:26.4896820Z ** TEST SUCCEEDED **",
+            "2026-10-24T16:59:59.4768400Z ** BUILD SUCCEEDED **"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12567681738,
+          "name": "LanCast-macOS-Sender-Receiver-0.6.6-14-Release",
+          "size_in_bytes": 22235922,
+          "expired": false
+        },
+        {
+          "id": 12566789839,
+          "name": "apple-macos-build-reports-0.6.6-14-Release",
+          "size_in_bytes": 76053,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40113664758,
+      "head_sha": "d27faf7b8b3ada53c4d4615c10af1937fad85654",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40113664758",
+      "run_attempt": 1,
+      "workflow": "ios.yml",
+      "jobs": [
+        {
+          "id": 120930392403,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "45d7fac899f9f01082d1238a5825db4bce2e2510764bbd42a7a9a9576e2f73b1",
+          "log_bytes": 416367,
+          "validation_lines": [
+            "2026-10-24T16:54:07.9083110Z Ran 43 tests in 0.837s",
+            "2026-10-24T16:59:37.0994670Z ** BUILD SUCCEEDED **",
+            "2026-10-24T17:00:05.4173000Z ** BUILD SUCCEEDED **"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12567681758,
+          "name": "apple-ios-build-reports-0.6.6-14-Debug",
+          "size_in_bytes": 15321,
+          "expired": false
+        },
+        {
+          "id": 12567422275,
+          "name": "LanCast-iOS-Sender-Receiver-0.6.6-14-Debug",
+          "size_in_bytes": 54575966,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40113664776,
+      "head_sha": "d27faf7b8b3ada53c4d4615c10af1937fad85654",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40113664776",
+      "run_attempt": 1,
+      "workflow": "tvos.yml",
+      "jobs": [
+        {
+          "id": 120930392089,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "38d00cd14b3a28f73bc93d5d40038b2507ef3829a1a7771ef396006b92d2d7ab",
+          "log_bytes": 273966,
+          "validation_lines": [
+            "2026-10-24T16:54:08.3585190Z Ran 43 tests in 1.120s",
+            "2026-10-24T16:58:33.6518660Z ** BUILD SUCCEEDED **",
+            "2026-10-24T16:59:08.6839750Z ** BUILD SUCCEEDED **"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12567612998,
+          "name": "LanCast-tvOS-Receiver-0.6.6-14-Debug",
+          "size_in_bytes": 20025162,
+          "expired": false
+        },
+        {
+          "id": 12567573037,
+          "name": "apple-tvos-build-reports-0.6.6-14-Debug",
+          "size_in_bytes": 15300,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40113664815,
+      "head_sha": "d27faf7b8b3ada53c4d4615c10af1937fad85654",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40113664815",
+      "run_attempt": 1,
+      "workflow": "core-linux.yml",
+      "jobs": [
+        {
+          "id": 120930392136,
+          "name": "core",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "ebc876cdbe7338b8e4683a4ae3faf014774acbed80dc2d8fda61ad36baba6147",
+          "log_bytes": 87631,
+          "validation_lines": [
+            "2026-10-24T16:54:03.7761446Z PASS: Rust manifest/source boundaries, isolated WSS control, Apple contracts/media and platform player dependencies",
+            "2026-10-24T16:54:05.6935886Z Ran 43 tests in 1.811s",
+            "2026-10-24T16:55:01.2644091Z test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+            "2026-10-24T16:55:07.0510571Z test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.78s",
+            "2026-10-24T16:55:07.0625790Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+            "2026-10-24T16:55:07.0644746Z test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:07.0653173Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:07.0881333Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+            "2026-10-24T16:55:07.2258371Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:07.2395838Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:07.2657028Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:07.2925492Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:13.0835337Z test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+            "2026-10-24T16:55:18.8427328Z test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.76s",
+            "2026-10-24T16:55:18.8447726Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:18.8462132Z test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:18.8472373Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:18.8710201Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+            "2026-10-24T16:55:18.9744167Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:18.9893333Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:19.0146685Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:19.0409006Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:22.8165136Z test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+            "2026-10-24T16:55:28.5572454Z test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.74s",
+            "2026-10-24T16:55:28.5686869Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+            "2026-10-24T16:55:28.5706469Z test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:28.5714554Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:28.5940272Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+            "2026-10-24T16:55:28.6953995Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:28.7103161Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:28.7352468Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:28.7618004Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:55:31.4528455Z Ran 43 tests in 1.865s"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12567900563,
+          "name": "dependencies-ubuntu-24.04",
+          "size_in_bytes": 117228,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40113664747,
+      "head_sha": "d27faf7b8b3ada53c4d4615c10af1937fad85654",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40113664747",
+      "run_attempt": 1,
+      "workflow": "native-linux.yml",
+      "jobs": [
+        {
+          "id": 120930392121,
+          "name": "native",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "cc444d98eb63248bf1de5205251b08a7c6c505508bb7a5f878f62fb5d3f0c38b",
+          "log_bytes": 145828,
+          "validation_lines": [
+            "2026-10-24T16:54:49.0407181Z 100% tests passed, 0 tests failed out of 1"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12567771915,
+          "name": "native-build-evidence",
+          "size_in_bytes": 6201,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "id": 40113666781,
+      "head_sha": "d27faf7b8b3ada53c4d4615c10af1937fad85654",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/40113666781",
+      "run_attempt": 1,
+      "workflow": "airplay.yml",
+      "jobs": [
+        {
+          "id": 120930400423,
+          "name": "protocol",
+          "status": "completed",
+          "conclusion": "success",
+          "log_sha256": "8603bb3b3d34a41b29502502751ca267542905b6d66bce5c9dbb39c9259497f5",
+          "log_bytes": 50960,
+          "validation_lines": [
+            "2026-10-24T16:54:57.7183516Z test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+            "2026-10-24T16:54:58.3135871Z test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s",
+            "2026-10-24T16:54:58.3727903Z test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s",
+            "2026-10-24T16:54:58.4119360Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+            "2026-10-24T16:54:58.6233259Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+          ]
+        }
+      ],
+      "artifacts": []
+    }
+  ],
+  "android_jvm_reports": [
+    {
+      "run": 40114478312,
+      "suites": [
+        {
+          "name": "dev.lancast.airplay.ResourceSetupTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.sender.CodecBuffersTest",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.control.ConnectionHintsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.MediaQueueTest",
+          "tests": "9",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.WorkerCompletionTest",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        }
+      ],
+      "tests": 24,
+      "failures": 0
+    },
+    {
+      "run": 40114589012,
+      "suites": [
+        {
+          "name": "dev.lancast.airplay.ResourceSetupTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.sender.CodecBuffersTest",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.control.ConnectionHintsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.MediaQueueTest",
+          "tests": "9",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "dev.lancast.receiver.contracts.WorkerCompletionTest",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        }
+      ],
+      "tests": 24,
+      "failures": 0
+    }
+  ],
+  "android_build_reports": [
+    {
+      "run": 40114478312,
+      "sha256": "f8c998a3fa22a7a032fca3677809047ccb64b8bdce3c70dff6d14fbe8d809cef",
+      "report": {
+        "platform": "android",
+        "version": "0.6.6",
+        "build_number": 14,
+        "configuration": "Debug",
+        "android_abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "source_commit": "26b2ab373bfe79765ad44ca2a86a2c45692abfdd",
+        "artifact_label": "0.6.6-14-Debug",
+        "signing": "development or unsigned; no production signing credentials used",
+        "toolchain": {
+          "agp": "9.4.1",
+          "kotlin": "2.4.21",
+          "compileSdk": "36",
+          "buildTools": "36.0.0",
+          "ndk": "27.2.12479018",
+          "desugar": "2.1.5",
+          "media3": "1.11.1"
+        },
+        "products": [
+          "sender",
+          "receiver-standard",
+          "receiver-legacy",
+          "receiver-airplay"
+        ],
+        "artifacts": [
+          {
+            "product": "sender",
+            "role": "sender",
+            "application_id": "dev.lancast.sender",
+            "minimum_sdk": 29,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 35175124,
+            "sha256": "62cb3da7e0b3d01eaa8594052d8b88b8bf1eae9304ca6c13b853f3770dd8ecb8",
+            "dex_bytes": 4740856,
+            "native_bytes": 30322100,
+            "resource_bytes": 1404,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore",
+              "dev.lancast.sender.TsMux",
+              "dev.lancast.sender.TsMux$Sink"
+            ],
+            "file": "android/app-sender/build/outputs/apk/debug/app-sender-debug.apk",
+            "package_file": "dist/android/0.6.6-14-Debug/sender/LanCast-Android-Sender-0.6.6-14-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          },
+          {
+            "product": "receiver-standard",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 34200929,
+            "sha256": "da74b38eea129285ed423e6db41dc79551ead9aaedabbbe12772b3d1b3b6ce75",
+            "dex_bytes": 15376944,
+            "native_bytes": 27237512,
+            "resource_bytes": 376518,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "file": "android/app-receiver/build/outputs/apk/standard/debug/app-receiver-standard-debug.apk",
+            "package_file": "dist/android/0.6.6-14-Debug/receiver-standard/LanCast-Android-Receiver-Standard-0.6.6-14-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          },
+          {
+            "product": "receiver-legacy",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.legacy",
+            "minimum_sdk": 21,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 30354528,
+            "sha256": "836ea5765b967d4013906f3ebe1e8e3bf3b83697220f26379c70e790cfa4989f",
+            "dex_bytes": 7147840,
+            "native_bytes": 27360880,
+            "resource_bytes": 8080,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "file": "android/app-receiver/build/outputs/apk/legacy/debug/app-receiver-legacy-debug.apk",
+            "package_file": "dist/android/0.6.6-14-Debug/receiver-legacy/LanCast-Android-Receiver-Legacy-0.6.6-14-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          },
+          {
+            "product": "receiver-airplay",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.airplay",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "GPL-3.0-only",
+            "bytes": 38836212,
+            "sha256": "e8b17e9cb67aaebe7617bce9a4b760ae1ca169ab2a4c12d2d0e1980f5bed6186",
+            "dex_bytes": 15494152,
+            "native_bytes": 31787580,
+            "resource_bytes": 376518,
+            "verified_jni_classes": [
+              "dev.lancast.airplay.NativeEngine",
+              "dev.lancast.control.NativeCore"
+            ],
+            "file": "android/app-receiver/build/outputs/apk/airplay/debug/app-receiver-airplay-debug.apk",
+            "package_file": "dist/android/0.6.6-14-Debug/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.6.6-14-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          }
+        ]
+      }
+    },
+    {
+      "run": 40114589012,
+      "sha256": "e2190dc7555c4ca38b1d7e22ce44c970d3073fc32ec49176eda9bbfed76508b5",
+      "report": {
+        "platform": "android",
+        "version": "0.6.6",
+        "build_number": 14,
+        "configuration": "Release",
+        "android_abis": [
+          "armeabi-v7a",
+          "arm64-v8a"
+        ],
+        "source_commit": "26b2ab373bfe79765ad44ca2a86a2c45692abfdd",
+        "artifact_label": "0.6.6-14-Release",
+        "signing": "development or unsigned; no production signing credentials used",
+        "toolchain": {
+          "agp": "9.4.1",
+          "kotlin": "2.4.21",
+          "compileSdk": "36",
+          "buildTools": "36.0.0",
+          "ndk": "27.2.12479018",
+          "desugar": "2.1.5",
+          "media3": "1.11.1"
+        },
+        "products": [
+          "sender",
+          "receiver-standard",
+          "receiver-legacy",
+          "receiver-airplay"
+        ],
+        "artifacts": [
+          {
+            "product": "sender",
+            "role": "sender",
+            "application_id": "dev.lancast.sender",
+            "minimum_sdk": 29,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 30894494,
+            "sha256": "a991f2fbcb14ca0e583ffc69b9f6b37e68d42287133b1e1e4579e37e4ee682d9",
+            "dex_bytes": 472260,
+            "native_bytes": 30322100,
+            "resource_bytes": 1388,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore",
+              "dev.lancast.sender.TsMux",
+              "dev.lancast.sender.TsMux$Sink"
+            ],
+            "r8_mapping_sha256": "97d8bc6c22ad7339eaf1058c7223bb1d94898c7c5405d72ac0d106b1018d9ead",
+            "file": "android/app-sender/build/outputs/apk/release/app-sender-release-unsigned.apk",
+            "package_file": "dist/android/0.6.6-14-Release/sender/LanCast-Android-Sender-0.6.6-14-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          },
+          {
+            "product": "receiver-standard",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 28650614,
+            "sha256": "146fe68e450d27ef10de8301cc95875c2568292eec0f3e6603ed0d9b397d5dac",
+            "dex_bytes": 2181800,
+            "native_bytes": 27237512,
+            "resource_bytes": 279901,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "6ab8228fad8059f53aefc1492d7b2f8c788741ae2cf7d1e28c49e88014bcfd4e",
+            "file": "android/app-receiver/build/outputs/apk/standard/release/app-receiver-standard-release-unsigned.apk",
+            "package_file": "dist/android/0.6.6-14-Release/receiver-standard/LanCast-Android-Receiver-Standard-0.6.6-14-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          },
+          {
+            "product": "receiver-legacy",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.legacy",
+            "minimum_sdk": 21,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 27740468,
+            "sha256": "56d6db33a71a8ead484f11837692807b757edfa09e1182e6b216319ec4f5fe83",
+            "dex_bytes": 710736,
+            "native_bytes": 27360880,
+            "resource_bytes": 7777,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "f2840dda1debcc30d41a58b105e19cb416477a0d2f3f8ec48bbdb092b6afe19e",
+            "file": "android/app-receiver/build/outputs/apk/legacy/release/app-receiver-legacy-release-unsigned.apk",
+            "package_file": "dist/android/0.6.6-14-Release/receiver-legacy/LanCast-Android-Receiver-Legacy-0.6.6-14-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          },
+          {
+            "product": "receiver-airplay",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.airplay",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "GPL-3.0-only",
+            "bytes": 33267138,
+            "sha256": "f74837b4b66c70e768bbd6459e89fde58269d455302c4f025dc92a922124bea7",
+            "dex_bytes": 2226060,
+            "native_bytes": 31787580,
+            "resource_bytes": 279901,
+            "verified_jni_classes": [
+              "dev.lancast.airplay.NativeEngine",
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "c942c141c2be58e7910a51798f8c0e481743fc95a451b6b103f7b63893f4931a",
+            "file": "android/app-receiver/build/outputs/apk/airplay/release/app-receiver-airplay-release-unsigned.apk",
+            "package_file": "dist/android/0.6.6-14-Release/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.6.6-14-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          }
+        ]
+      }
+    }
+  ],
+  "initial_windows_failure": {
+    "run": 40113664842,
+    "url": "https://github.com/sck03/LanCast/actions/runs/40113664842",
+    "failure": "Hosted D3D11 device exists but QueryInterface(ID3D11VideoDevice) returns E_NOINTERFACE (0x80004002).",
+    "fix": "Preflight the video interface before sample pool construction; CTest reports missing capabilities as Skipped using return code 77. Pool/runtime failures with the interface available still fail."
+  },
+  "cleanup": {
+    "Policy": "Move only; user manually deletes this folder",
+    "CreatedUtc": "2026-10-24T17:12:59.7316792Z",
+    "Items": [
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\castbay",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\research\\castbay",
+        "Before": {
+          "Files": 430,
+          "Bytes": 25140753
+        },
+        "After": {
+          "Files": 430,
+          "Bytes": 25140753
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\rairplay",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\research\\rairplay",
+        "Before": {
+          "Files": 293,
+          "Bytes": 3051197
+        },
+        "After": {
+          "Files": 293,
+          "Bytes": 3051197
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\uxplay",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\research\\uxplay",
+        "Before": {
+          "Files": 125,
+          "Bytes": 2989842
+        },
+        "After": {
+          "Files": 125,
+          "Bytes": 2989842
+        },
+        "Verified": true
+      },
+      {
+        "Source": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast-audit-target-20261024",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\temporary-builds\\lancast-audit-target-20261024",
+        "Before": {
+          "Files": 2744,
+          "Bytes": 1560327518
+        },
+        "After": {
+          "Files": 2744,
+          "Bytes": 1560327518
+        },
+        "Verified": true
+      },
+      {
+        "Source": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast-audit-airplay-target-20261024",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\temporary-builds\\lancast-audit-airplay-target-20261024",
+        "Before": {
+          "Files": 2255,
+          "Bytes": 906693744
+        },
+        "After": {
+          "Files": 2255,
+          "Bytes": 906693744
+        },
+        "Verified": true
+      },
+      {
+        "Source": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast-audit-min-target-20261024",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\temporary-builds\\lancast-audit-min-target-20261024",
+        "Before": {
+          "Files": 1699,
+          "Bytes": 1314136477
+        },
+        "After": {
+          "Files": 1699,
+          "Bytes": 1314136477
+        },
+        "Verified": true
+      },
+      {
+        "Source": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast-audit-gpu-20261025.exe",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\lancast-audit-gpu-20261025.exe",
+        "Before": {
+          "Files": 1,
+          "Bytes": 3067673
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 3067673
+        },
+        "Verified": true
+      },
+      {
+        "Source": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast-contracts-20261025.jar",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\lancast-contracts-20261025.jar",
+        "Before": {
+          "Files": 1,
+          "Bytes": 36722
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 36722
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\artifacts",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\artifacts",
+        "Before": {
+          "Files": 172,
+          "Bytes": 64274336
+        },
+        "After": {
+          "Files": 172,
+          "Bytes": 64274336
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113253318229.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113253318229.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 242305
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 242305
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113257570424.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113257570424.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 272051
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 272051
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113277273857.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113277273857.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 24095
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 24095
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113277574258.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113277574258.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 228890
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 228890
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113325504717.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113325504717.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 45697
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 45697
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113327706354.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113327706354.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 260583
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 260583
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113328749542.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113328749542.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 197527
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 197527
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113391124024.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113391124024.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 375479
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 375479
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113391126299.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113391126299.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 32908
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 32908
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113392876261.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113392876261.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 23738
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 23738
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606149865.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606149865.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 33831
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 33831
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606149969.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606149969.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 375745
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 375745
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606150060.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606150060.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 123887
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 123887
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606150079.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606150079.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 33171
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 33171
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606150192.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606150192.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 92203
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 92203
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606150291.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606150291.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 375844
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 375844
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606150669.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606150669.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 242699
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 242699
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-113606219495.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-113606219495.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 23737
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 23737
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930392089.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930392089.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 273966
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 273966
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930392121.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930392121.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 145828
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 145828
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930392136.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930392136.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 87631
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 87631
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930392266.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930392266.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 186929
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 186929
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930392403.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930392403.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 416367
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 416367
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930392438.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930392438.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 407920
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 407920
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930392583.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930392583.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 88752
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 88752
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120930400423.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120930400423.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 50960
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 50960
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120932821111.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120932821111.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 225966
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 225966
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120933143441.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120933143441.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 229279
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 229279
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120935298475.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120935298475.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 52272
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 52272
+        },
+        "Verified": true
+      },
+      {
+        "Source": "E:\\cast\\LanCast\\.cache\\ci-120935298681.log",
+        "Destination": "E:\\cast\\待手动删除-LanCast-0.6.6-20261025\\validation\\ci-logs\\ci-120935298681.log",
+        "Before": {
+          "Files": 1,
+          "Bytes": 115727
+        },
+        "After": {
+          "Files": 1,
+          "Bytes": 115727
+        },
+        "Verified": true
+      }
+    ],
+    "total_moved_files": 7750,
+    "total_moved_bytes": 3885004249,
+    "disk_space_released_by_move": "Not claimed; folder is retained for user manual deletion",
+    "before_user_manual_delete_instruction": {
+      "removed_path": ".cache/format-tools",
+      "files": 18,
+      "bytes": 3561102
+    }
+  },
+  "not_validated": [
+    "real-device end-to-end latency and CPU/RSS",
+    "audible audio/video sync",
+    "actual device/driver fault recovery",
+    "two-hour long-running stability",
+    "production signing/release acceptance"
+  ],
+  "windows_download_verification": {
+    "command": "python -O -B scripts/verify-windows.py <downloaded final Windows package>",
+    "result": "PASS: package SHA-256, x64 PE imports, runtime dependencies and Release TS symbol policy",
+    "build_report": {
+      "platform": "windows",
+      "version": "0.6.6",
+      "build_number": 14,
+      "configuration": "Release",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "292d62a5a136ef82ffa1ec4035200f03e5589897",
+      "artifact_label": "0.6.6-14-Release",
+      "signing": "development or unsigned; no production signing credentials used"
+    },
+    "binaries": [
+      {
+        "file": "LanCast.exe",
+        "bytes": 459264,
+        "sha256": "e033a5a4b89969628c7df22660b16b4a0ab5b763e4de6324fb8631574a4a773f",
+        "imports": [
+          "lancast_core.dll",
+          "ole32.dll",
+          "shell32.dll",
+          "comdlg32.dll",
+          "comctl32.dll",
+          "iphlpapi.dll",
+          "ws2_32.dll",
+          "kernel32.dll",
+          "user32.dll",
+          "gdi32.dll"
+        ]
+      },
+      {
+        "file": "lancast_core.dll",
+        "bytes": 6404608,
+        "sha256": "a04db372337bd8b021ba6ec5b4a7870d9199cc8b3a7c3d26a60e2c687e60d3ca",
+        "imports": [
+          "kernel32.dll",
+          "ws2_32.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "ntdll.dll",
+          "bcryptprimitives.dll",
+          "iphlpapi.dll",
+          "bcrypt.dll",
+          "advapi32.dll"
+        ]
+      },
+      {
+        "file": "lancast_rtc.dll",
+        "bytes": 2862080,
+        "sha256": "1d6d8a6070108463f55fab26796abab429a698aee65009259f72d76995876337",
+        "imports": [
+          "d3d11.dll",
+          "dxgi.dll",
+          "mfplat.dll",
+          "api-ms-win-core-profile-l1-1-0.dll",
+          "api-ms-win-core-com-l1-1-0.dll",
+          "oleaut32.dll",
+          "api-ms-win-core-libraryloader-l1-2-0.dll",
+          "api-ms-win-core-string-l1-1-0.dll",
+          "api-ms-win-core-processthreads-l1-1-0.dll",
+          "api-ms-win-core-synch-l1-1-0.dll",
+          "api-ms-win-core-processenvironment-l1-1-0.dll",
+          "api-ms-win-core-console-l1-1-0.dll",
+          "ws2_32.dll",
+          "bcrypt.dll",
+          "kernel32.dll",
+          "user32.dll",
+          "api-ms-win-core-localization-l1-2-0.dll",
+          "api-ms-win-core-sysinfo-l1-2-0.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "api-ms-win-core-sysinfo-l1-1-0.dll",
+          "api-ms-win-core-rtlsupport-l1-1-0.dll",
+          "api-ms-win-core-errorhandling-l1-1-0.dll",
+          "api-ms-win-core-file-l1-1-0.dll",
+          "api-ms-win-core-processthreads-l1-1-1.dll",
+          "api-ms-win-core-util-l1-1-0.dll",
+          "api-ms-win-core-debug-l1-1-0.dll",
+          "api-ms-win-core-interlocked-l1-1-0.dll",
+          "api-ms-win-core-timezone-l1-1-0.dll",
+          "api-ms-win-core-heap-l1-1-0.dll",
+          "api-ms-win-core-fibers-l1-1-0.dll",
+          "api-ms-win-core-memory-l1-1-0.dll",
+          "api-ms-win-core-datetime-l1-1-0.dll",
+          "api-ms-win-core-winrt-l1-1-0.dll",
+          "api-ms-win-core-winrt-error-l1-1-1.dll"
+        ]
+      },
+      {
+        "file": "lancast_ts.dll",
+        "bytes": 1375232,
+        "sha256": "e68aee5a8c2b5e107e47aad9134438b18dfff241b931d80ff5dd24e2a446851f",
+        "imports": [
+          "bcrypt.dll",
+          "kernel32.dll",
+          "api-ms-win-crt-convert-l1-1-0.dll",
+          "api-ms-win-crt-environment-l1-1-0.dll",
+          "api-ms-win-crt-filesystem-l1-1-0.dll",
+          "api-ms-win-crt-heap-l1-1-0.dll",
+          "api-ms-win-crt-locale-l1-1-0.dll",
+          "api-ms-win-crt-math-l1-1-0.dll",
+          "api-ms-win-crt-private-l1-1-0.dll",
+          "api-ms-win-crt-runtime-l1-1-0.dll",
+          "api-ms-win-crt-stdio-l1-1-0.dll",
+          "api-ms-win-crt-string-l1-1-0.dll",
+          "api-ms-win-crt-time-l1-1-0.dll",
+          "api-ms-win-crt-utility-l1-1-0.dll"
+        ]
+      }
+    ],
+    "hash_manifest_sha256": "064ae0c880385e146eca59167d7022f01431621d4be1ef83d06a99915ea0c380",
+    "cpp_contracts_passed": 5,
+    "gpu_contract_ci": "Skipped: hosted D3D11 video interface unavailable; actual local hardware contract passed"
+  },
+  "branches": {
+    "local": [
+      "main"
+    ],
+    "remote": [
+      "refs/heads/main"
+    ]
+  }
+}
