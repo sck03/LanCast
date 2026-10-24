@@ -24,15 +24,16 @@ internal object NativeCore {
 class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
     private val handle = NativeCore.create().also { check(it != 0L) { "无法启动控制核心" } }
     private val closed = AtomicBoolean(false)
+    private val failed = AtomicBoolean(false)
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
     private val delivery = Semaphore(1)
     init {
         worker.execute {
             try {
-                while (!closed.get()) {
+                while (!closed.get() && !failed.get()) {
                     delivery.acquire()
-                    if (closed.get()) break
+                    if (closed.get() || failed.get()) break
                     val first = NativeCore.waitPoll(handle, 1000)
                     if (first == null) { delivery.release(); continue }
                     val batch = ArrayList<JSONObject>(32)
@@ -42,17 +43,29 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
                         batch.add(JSONObject(raw))
                     }
                     if (!main.post {
-                        try { for (event in batch) { if (closed.get()) break; onEvent(event) } }
+                        try { for (event in batch) { if (closed.get() || failed.get()) break; onEvent(event) } }
                         finally { delivery.release() }
                     }) { delivery.release(); break }
                 }
             } finally { NativeCore.destroy(handle) }
         }
     }
+    private fun fail() {
+        if (!failed.compareAndSet(false, true) || closed.get()) return
+        NativeCore.shutdown(handle)
+        delivery.release()
+        worker.shutdown()
+        // One reserved error bypasses the normal UI batch. A late media signal must
+        // not throw through an Android callback after the native engine has stopped.
+        main.post {
+            if (!closed.get()) onEvent(JSONObject().put("type", "error").put("body",
+                JSONObject().put("code", "CONTROL_COMMAND_REJECTED").put("terminal", true)))
+        }
+    }
     fun command(op: String, body: JSONObject = JSONObject()) {
-        if (closed.get()) return
+        if (closed.get() || failed.get()) return
         body.put("op", op)
-        check(NativeCore.command(handle, body.toString()) == 0) { "控制队列已满或请求无效" }
+        if (NativeCore.command(handle, body.toString()) != 0) fail()
     }
     fun send(type: String, sessionId: String?, body: JSONObject = JSONObject()): String {
         val id = UUID.randomUUID().toString()
@@ -61,7 +74,7 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
         command("send", JSONObject().put("message", message))
         return id
     }
-    fun writeTs(bytes: ByteArray): Int = if (closed.get()) -1 else NativeCore.writeTs(handle, bytes)
+    fun writeTs(bytes: ByteArray): Int = if (closed.get() || failed.get()) -1 else NativeCore.writeTs(handle, bytes)
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         NativeCore.shutdown(handle)
