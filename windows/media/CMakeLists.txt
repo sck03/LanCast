@@ -43,7 +43,7 @@ target_compile_definitions(video_pool_contract PRIVATE NOMINMAX WIN32_LEAN_AND_M
 target_compile_options(video_pool_contract PRIVATE /W4 /utf-8 /EHsc)
 target_link_libraries(video_pool_contract PRIVATE d3d11 mfplat mfuuid ole32)
 add_test(NAME video_pool_contract COMMAND video_pool_contract)
-set_tests_properties(video_pool_contract PROPERTIES TIMEOUT 15)
+set_tests_properties(video_pool_contract PROPERTIES TIMEOUT 15 SKIP_RETURN_CODE 77)
 add_custom_command(TARGET media_abi_contract POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_SOURCE_DIR}/../.cache/ts-windows/lancast_ts.dll" "$<TARGET_FILE_DIR:media_abi_contract>")
 add_executable(media_probe probe.cpp)

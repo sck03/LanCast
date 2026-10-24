@@ -17,13 +17,19 @@ int main() {
             D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
                               D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                               nullptr, 0, D3D11_SDK_VERSION, &device, nullptr, &context);
+        ComPtr<ID3D11VideoDevice> video;
+        const auto video_support = SUCCEEDED(hardware) ? device.As(&video) : hardware;
+        int result = 0;
         if (FAILED(hardware)) {
             std::cout << "SKIP: no hardware D3D11 device on this host\n";
+            result = 77;
+        } else if (video_support == E_NOINTERFACE) {
+            std::cout << "SKIP: this host's D3D11 device has no video processing interface\n";
+            result = 77;
         } else {
+            check(video_support, "VIDEO_DEVICE_FAILED");
             CaptureConfig config;
             VideoFramePool pool(device.Get(), config);
-            ComPtr<ID3D11VideoDevice> video;
-            check(device.As(&video), "VIDEO_DEVICE_FAILED");
             D3D11_VIDEO_PROCESSOR_CONTENT_DESC desc{};
             desc.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
             desc.InputWidth = desc.OutputWidth = config.width;
@@ -55,7 +61,7 @@ int main() {
         }
         MFShutdown();
         CoUninitialize();
-        return 0;
+        return result;
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         if (media_started)
