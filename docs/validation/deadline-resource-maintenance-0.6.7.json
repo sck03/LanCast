@@ -1,0 +1,574 @@
+{
+  "schema": 1,
+  "recorded_on": "2026-10-25",
+  "version": "0.6.7",
+  "build_number": 15,
+  "program_commit": "5083d6dbdb5a64a3b8ec5502209486c70e2ea96f",
+  "implementation_commit": "02274c867c9e08412b1ff6b3037ec0e1dd67ec6e",
+  "validation_scope": "Source, unit/integration/synthetic tests, platform builds and package checks. No physical-device performance or long-duration acceptance.",
+  "first_attempt": {
+    "commit": "02274c867c9e08412b1ff6b3037ec0e1dd67ec6e",
+    "windows_run": 40158780402,
+    "result": "Windows product succeeded; core job failed a wall-clock discovery deadline test under load. The two affected tests now use a virtual clock without changing production timeouts. Apple resampler priming was also corrected before the final run."
+  },
+  "local_checks": {
+    "rust": {
+      "all_features": 57,
+      "no_default_features": 45,
+      "legacy": 46,
+      "strict_clippy": "all three configurations passed",
+      "fmt": "passed"
+    },
+    "airplay": {
+      "tests": 33,
+      "strict_clippy": "passed",
+      "fmt": "passed"
+    },
+    "python": {
+      "ordinary": 50,
+      "optimized": 50,
+      "architecture": "passed"
+    },
+    "documentation_links": 130,
+    "windows": {
+      "media_adapter_repetitions": 10,
+      "negative_cases": 4,
+      "app_cpp20_syntax": "passed"
+    },
+    "android": {
+      "pure_jvm": 18,
+      "direct_sdk_compilation": "Control bridge, Legacy player and DLNA capture chain passed Android 36 type checking"
+    },
+    "apple": {
+      "audio_timeline_cpp17": "passed including source gaps, invalid timestamps and resampler priming"
+    }
+  },
+  "final_ci": [
+    {
+      "workflow": "core-linux.yml",
+      "run": 40159596240,
+      "event": "push",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159596240",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068178295,
+          "log_sha256": "087f225fde3253b335e489c900e2e465dcb5a9b553e9638d15aa2645cc779e75"
+        }
+      ],
+      "checks": {
+        "rustAllFeatures": 58,
+        "rustNoDefaultFeatures": 46,
+        "rustLegacy": 47,
+        "pythonTests": 50,
+        "pythonOptimizedTests": 50,
+        "architecture": "passed",
+        "actionlint": "passed",
+        "fmt": "passed",
+        "strictClippy": "passed",
+        "virtualClockDeadlineRegressions": "both tests passed in all three feature configurations"
+      }
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 40159596265,
+      "event": "push",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159596265",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068178310,
+          "log_sha256": "a87cf764784f640986246753a95bbf6cf2bae0fbd0bb289f9bf6f58454c0bd0a"
+        }
+      ],
+      "checks": {
+        "muxContract": "1/1 passed",
+        "tsJoinPoints": 3,
+        "tsSplitHeaderPoints": 4,
+        "http10": "passed: 1155072 TS bytes, confirmed pull, cancellation and SOAP stop",
+        "http11": "passed: 1155072 TS bytes, confirmed pull, cancellation and SOAP stop",
+        "ffmpegDecode": "passed for generated TS outputs and normalized H264",
+        "h264Bt709Metadata": "passed"
+      }
+    },
+    {
+      "workflow": "airplay.yml",
+      "run": 40159681643,
+      "event": "workflow_dispatch",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159681643",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068430832,
+          "log_sha256": "f63ac987b2700a0b1347225b0e5369274721fd8a069708782f1930e8fcb41da9"
+        }
+      ],
+      "checks": {
+        "adapterTests": 3,
+        "receiverLoopbackTests": 6,
+        "vendorTests": 24,
+        "totalTests": 33,
+        "fmt": "passed",
+        "strictClippy": "passed"
+      }
+    },
+    {
+      "workflow": "windows.yml",
+      "run": 40159596246,
+      "event": "push",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159596246",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068178275,
+          "name": "windows",
+          "log_sha256": "b09c392f9bbb3db0059e2b2853496bd7f210fa0666ba955b5366f8e4dab1e491"
+        },
+        {
+          "id": 121068178461,
+          "name": "core",
+          "log_sha256": "01940f7eaefc08252e6256bfc533069462fe3724d8970a8332b1f44eaaf1e948"
+        }
+      ],
+      "checks": {
+        "pythonUnitTests": [
+          "50"
+        ],
+        "cargo": [
+          {
+            "command": "cargo test --workspace --all-features --locked",
+            "passed": 57,
+            "failed": 0,
+            "ignored": 0
+          },
+          {
+            "command": "cargo test --workspace --no-default-features --locked",
+            "passed": 45,
+            "failed": 0,
+            "ignored": 0
+          },
+          {
+            "command": "cargo test --workspace --no-default-features --features legacy --locked",
+            "passed": 46,
+            "failed": 0,
+            "ignored": 0
+          }
+        ],
+        "ctest": [
+          {
+            "name": "desktop_contract",
+            "status": "passed",
+            "seconds": 0.01
+          },
+          {
+            "name": "view_contract",
+            "status": "passed",
+            "seconds": 0.49
+          },
+          {
+            "name": "tray_contract",
+            "status": "passed",
+            "seconds": 0.07
+          },
+          {
+            "name": "media_sender_contract",
+            "status": "passed",
+            "seconds": 1.21
+          },
+          {
+            "name": "rtc_contract",
+            "status": "passed",
+            "seconds": 2.2
+          },
+          {
+            "name": "media_abi_contract",
+            "status": "passed",
+            "seconds": 0.44
+          },
+          {
+            "name": "video_pool_contract",
+            "status": "skipped",
+            "seconds": 0.01
+          }
+        ],
+        "packagePassLogCount": 2,
+        "correspondingSourcePackagingPassed": true
+      }
+    },
+    {
+      "workflow": "android.yml",
+      "run": 40159596247,
+      "event": "push",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159596247",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068178606,
+          "log_sha256": "8fc130c54b9f4eb502e6d67421d469872f44077783423c50abb96b714cd2b6f6"
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 40159596242,
+      "event": "push",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159596242",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068178178,
+          "log_sha256": "da06b2b68cde7ae63d8a65f88aa1819ae22c7d454aa0c7ba22f59c6bb61dcb4c"
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 40159596259,
+      "event": "push",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159596259",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068178358,
+          "log_sha256": "ccdd936625691fa0f902db21cc0bf18a1dea0cab802092365fe73d85a470f486"
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 40159596263,
+      "event": "push",
+      "url": "https://github.com/sck03/LanCast/actions/runs/40159596263",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 121068178485,
+          "log_sha256": "31d416605fd37ac194cf232d3d73d65130a848a436b87371672ae571810220d5"
+        }
+      ]
+    }
+  ],
+  "android": {
+    "test_counts": {
+      "testDebugUnitTest": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "testReleaseUnitTest": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "test": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "per_configuration_contract_coverage": {
+      "Debug": 28,
+      "Release": 28
+    },
+    "unique_reported_testcase_results": 42,
+    "counting_note": "Each configuration covers 14 shared JVM receiver contracts plus 14 variant tests; the shared JVM results appear once in the artifact, so 42 testcase results are reported, not 56 independent executions.",
+    "apk_reports": {
+      "Debug": {
+        "report_file": "build-android.json",
+        "report_sha256": "293fa11d20e7700fc7405d50e9ee47f72dc65c2ef71cdfbe228f519c538a6449",
+        "source_dirty": false,
+        "products": [
+          {
+            "product": "sender",
+            "bytes": 35338968,
+            "sha256": "6268d34cda160780df2c86747bfd5d457d79db3f64351b5146129e0a405cf411",
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore",
+              "dev.lancast.sender.TsMux",
+              "dev.lancast.sender.TsMux$Sink"
+            ]
+          },
+          {
+            "product": "receiver-standard",
+            "bytes": 34256630,
+            "sha256": "1dc1c889eb5f301f41d8b077e4f054202f902d31c86d0240c601632578813270",
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ]
+          },
+          {
+            "product": "receiver-legacy",
+            "bytes": 30410224,
+            "sha256": "9b16b891bf35f6c5d6f765e4594f64e3c2b632952ae75e2d0c36fec0d1a639b7",
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ]
+          },
+          {
+            "product": "receiver-airplay",
+            "bytes": 38891906,
+            "sha256": "c9e97d94bf8fdc162c713d94278aa761e0d6eb8b3be85aaeca8194ad8e5b05de",
+            "verified_jni_classes": [
+              "dev.lancast.airplay.NativeEngine",
+              "dev.lancast.control.NativeCore"
+            ]
+          }
+        ]
+      },
+      "Release": {
+        "report_file": "build-android-release-check.json",
+        "report_sha256": "9b910054b4a262ed86c7ebe9b1c3cf0940e827209b72cfd8ff5073a542be490d",
+        "source_dirty": false,
+        "products": [
+          {
+            "product": "sender",
+            "bytes": 31058334,
+            "sha256": "a80605ea1addb819829959496ec7a218970d07be4569faa1aed4288967909945",
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore",
+              "dev.lancast.sender.TsMux",
+              "dev.lancast.sender.TsMux$Sink"
+            ],
+            "r8_mapping_sha256": "408996a99f129cc4e86d75eea1ff7088880e2db17660323cfa38cacd070d38cf"
+          },
+          {
+            "product": "receiver-standard",
+            "bytes": 28722698,
+            "sha256": "31d1f9f8eb15795ee3b486a8be7407d797b1aaa69ba2df1eec381d2a16772dc7",
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "838f2d807df5ff74c32295267b2fd6ee0d7d2145b11f57a35e92b47f29a2e5f2"
+          },
+          {
+            "product": "receiver-legacy",
+            "bytes": 27796168,
+            "sha256": "6a03a0b1bf9750c0daafeb15288708c94b861085e32f4a3dcd2e464bea219196",
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "85617f761348403ff8af2ae5475e97422ffefddbccc1707647be6d0edc39df52"
+          },
+          {
+            "product": "receiver-airplay",
+            "bytes": 33322838,
+            "sha256": "9546bfbf2015f6275d202a1214e8d796a09b3b2ef966a4400846247ae4c2a01e",
+            "verified_jni_classes": [
+              "dev.lancast.airplay.NativeEngine",
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "6efcc229d101603ac89bb6cdda6862bf9ec5efd9e70e2c5fb57abbba1d32d960"
+          }
+        ]
+      }
+    }
+  },
+  "apple": {
+    "macos_tests": {
+      "contracts": 7,
+      "integration_xctest": 9,
+      "audio_xctest": 4,
+      "failures": 0,
+      "audio_methods_passed": [
+        "testContinuousSourceDoesNotResetResamplerPriming",
+        "testResamplesMonoFloatToStereoPCMAndTerminates",
+        "testSourceTimelinePreservesGapsAndRejectsBackwardsOrInvalidTimes",
+        "testStopRecordingDiscardsTheRestOfAnInFlightConversion"
+      ]
+    },
+    "ios_device_and_simulator_builds_passed": true,
+    "tvos_device_and_simulator_builds_passed": true
+  },
+  "windows_package": {
+    "configuration": "Release",
+    "source_dirty": false,
+    "source_tree_sha256": "3860c1232d268b542d181d7702f8d1c6e80cc888d6c520deb3f540b3e62900c8",
+    "file_count": 20,
+    "total_bytes": 11411573,
+    "artifact": {
+      "id": 12585960687,
+      "name": "LanCast-Windows-x64-0.6.7-15-Release",
+      "bytes": 5084920,
+      "reportedDigest": "sha256:546b134fdd7a63e7560ab8f0ab07dffeea15786c1c73542e8664dee6a5a347c3",
+      "expired": false,
+      "url": "https://api.github.com/repos/sck03/LanCast/actions/artifacts/12585960687"
+    },
+    "files": [
+      {
+        "file": "binary-dependencies.json",
+        "bytes": 3054,
+        "sha256": "a1f1ada044d6acd2842e79c661b1910bec6c03f3095cd3703359017727e0a290"
+      },
+      {
+        "file": "BUILD-STATUS.txt",
+        "bytes": 310,
+        "sha256": "aed6b7fc08959c75c69a65e9e2b201011d812c71c046c7c9b2f4e8bd1f259cac"
+      },
+      {
+        "file": "build-windows.json",
+        "bytes": 477,
+        "sha256": "4085a05e32c4d81e1009210f9f613a188bd7e222ecdf190dffec108f57640add"
+      },
+      {
+        "file": "LanCast.exe",
+        "bytes": 472064,
+        "sha256": "d297cd46f30a4ce6a7fb37b739692bfe30a991a5cc8ac25e7f2370bf6f7eefeb"
+      },
+      {
+        "file": "lancast_core.dll",
+        "bytes": 6580224,
+        "sha256": "a8b8f36d6d8aca5b2384b235cef24370474d43ec15e4cfdc354bd5d5270c4883"
+      },
+      {
+        "file": "lancast_rtc.dll",
+        "bytes": 2862080,
+        "sha256": "9039fd79d865eba586fb85475882751f47840644981267629ffba18caaa8eebe"
+      },
+      {
+        "file": "lancast_ts.dll",
+        "bytes": 1375232,
+        "sha256": "e68aee5a8c2b5e107e47aad9134438b18dfff241b931d80ff5dd24e2a446851f"
+      },
+      {
+        "file": "LICENSE",
+        "bytes": 11560,
+        "sha256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5"
+      },
+      {
+        "file": "licenses/FFmpeg-LGPL-2.1.txt",
+        "bytes": 26517,
+        "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+      },
+      {
+        "file": "licenses/json-MIT.txt",
+        "bytes": 1097,
+        "sha256": "b9715282b2f1db1359a919bb3a542dd4362fd9e38ae72d421367eb11abe62eec"
+      },
+      {
+        "file": "licenses/libdatachannel-MPL-2.0.txt",
+        "bytes": 17099,
+        "sha256": "cde215e5b42363eb28ca2462c4558ff4807b38f383c537624c31e44657ac58f4"
+      },
+      {
+        "file": "licenses/libjuice-LICENSE.txt",
+        "bytes": 17099,
+        "sha256": "cde215e5b42363eb28ca2462c4558ff4807b38f383c537624c31e44657ac58f4"
+      },
+      {
+        "file": "licenses/libsrtp-LICENSE.txt",
+        "bytes": 1649,
+        "sha256": "56151b4acf86106f0756d130187fb9c855d07b0378933cb245ded359dc39f682"
+      },
+      {
+        "file": "licenses/mbedtls-LICENSE.txt",
+        "bytes": 30405,
+        "sha256": "f8582e76de1b7dd1caa680ab9a82cf2455b4392f00613b68a63df88121909175"
+      },
+      {
+        "file": "licenses/opus-COPYING.txt",
+        "bytes": 1989,
+        "sha256": "cbd8bd07329a234413710c02b19d22c0cf78fc451882593e817130779b5455e3"
+      },
+      {
+        "file": "licenses/plog-LICENSE.txt",
+        "bytes": 1092,
+        "sha256": "b88260cd359627f608e831653db4e23e639a6c044cb4e4babdff51898c7bc7e5"
+      },
+      {
+        "file": "licenses/usrsctp-LICENSE.md.txt",
+        "bytes": 1527,
+        "sha256": "654779a3c456296fe43d4f452a441a257f0afb2f3a7495cde5d35d02f08e916d"
+      },
+      {
+        "file": "SHA256.json",
+        "bytes": 2338,
+        "sha256": "9dcb0ab5c5c8f7f61cece763b927b7c2ba1de36e631276699c2391927af83982"
+      },
+      {
+        "file": "THIRD_PARTY.md",
+        "bytes": 4436,
+        "sha256": "1cc0899f1b493bd35e78ae1908ace7de87e0498089a7f4f12313c19363267b34"
+      },
+      {
+        "file": "使用说明.txt",
+        "bytes": 1324,
+        "sha256": "e2bb3c0ea3e2eb2fd34426897751200f1021d0d435207c2b54116b493eb36df7"
+      }
+    ],
+    "independent_verification": {
+      "python_optimized": true,
+      "exit_code": 0,
+      "result": "PASS: package SHA-256, x64 PE imports, runtime dependencies and Release TS symbol policy"
+    },
+    "downloaded_copy_removed_after_validation": true
+  },
+  "cleanup": {
+    "build_outputs": {
+      "mode": "clean",
+      "workspace": "E:/cast/LanCast",
+      "before_bytes": 896688793,
+      "after_bytes": 20504531,
+      "removed_bytes": 876184262,
+      "files": 2736,
+      "paths": [
+        {
+          "path": "target",
+          "files": 1521,
+          "bytes": 491845893
+        },
+        {
+          "path": "airplay-native/target",
+          "files": 1199,
+          "bytes": 384284996
+        },
+        {
+          "path": "android/.gradle",
+          "files": 8,
+          "bytes": 122
+        },
+        {
+          "path": "scripts/__pycache__",
+          "files": 6,
+          "bytes": 39443
+        },
+        {
+          "path": "scripts/tests/__pycache__",
+          "files": 2,
+          "bytes": 13808
+        }
+      ]
+    },
+    "downloads": {
+      "files": 350,
+      "removed_bytes": 128629039,
+      "path": ".cache/artifacts"
+    },
+    "scratch": {
+      "status": "retained",
+      "removed_bytes": 0,
+      "reason": "Automatic approval review rejected deletion of the explicitly listed temporary CI logs and intermediate summaries; tool returned only 'blocked by policy'."
+    },
+    "total_removed_bytes": 1004813301,
+    "total_removed_files": 3086,
+    "note": "Totals include temporary files generated or downloaded during this maintenance; they are not the difference between the initial and final workspace sizes. Source, Git history, licenses, active vendor code and original media fixtures were preserved."
+  },
+  "branches": {
+    "local": [
+      "main"
+    ],
+    "remote": [
+      "main"
+    ],
+    "history": "preserved; no force push",
+    "origin_head": "symbolic alias of main"
+  },
+  "limitations": [
+    "Physical iPhone/TV interoperability, CPU/RSS, end-to-end latency, audible synchronization and two-hour driver stability remain unmeasured.",
+    "Windows CI skipped video_pool_contract because the runner lacks the required GPU capability; all six other CTest contracts passed.",
+    "Android Release validation produced unsigned optimized packages; production signing and full binary SBOM remain separate release work."
+  ],
+  "raw_ci_logs_retained_locally": true
+}
