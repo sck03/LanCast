@@ -301,13 +301,15 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn description_deadline_keeps_results_and_drops_pending_requests() {
         let finished = CancellationToken::new();
         let guard = finished.clone().drop_guard();
+        let (started, pending_started) = oneshot::channel();
         let jobs = stream::iter([Ok(renderer()), Err(anyhow::anyhow!("DEVICE_OFFLINE"))]).chain(
             stream::once(async move {
                 let _guard = guard;
+                started.send(()).unwrap();
                 std::future::pending::<anyhow::Result<Renderer>>().await
             }),
         );
@@ -319,6 +321,7 @@ mod tests {
         .unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id, "tv");
+        pending_started.await.unwrap();
         assert!(finished.is_cancelled());
     }
 
@@ -333,14 +336,25 @@ mod tests {
         assert!(!started.load(std::sync::atomic::Ordering::Relaxed));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn ready_description_cannot_revive_an_expired_deadline() {
+        use futures_util::FutureExt;
+        let (release, pending) = oneshot::channel();
         let jobs = stream::once(async {
-            // Deliberately stall this executor: timeout_at polls work before its timer.
-            std::thread::sleep(Duration::from_millis(60));
+            pending.await.unwrap();
             Ok(renderer())
         });
-        let found = collect_renderers(jobs, Instant::now() + Duration::from_millis(20)).await;
+        let mut collection = Box::pin(collect_renderers(
+            jobs,
+            Instant::now() + Duration::from_millis(20),
+        ));
+        // Enter the pending description before advancing the injected clock.
+        // timeout_at polls its now-ready work before its already-expired timer,
+        // so this exercises collect_renderers' post-completion deadline check.
+        assert!(collection.as_mut().now_or_never().is_none());
+        tokio::time::advance(Duration::from_millis(60)).await;
+        release.send(()).unwrap();
+        let found = collection.await;
         assert!(found.is_empty());
     }
 

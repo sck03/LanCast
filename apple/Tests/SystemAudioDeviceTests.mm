@@ -27,14 +27,26 @@
 @implementation SystemAudioDeviceTests
 - (void)testSourceTimelinePreservesGapsAndRejectsBackwardsOrInvalidTimes {
     LCAudioTimeline timeline;
-    XCTAssertTrue(timeline.begin(100)); XCTAssertEqual(timeline.take(480), 0);
-    XCTAssertTrue(timeline.begin(100.01)); XCTAssertEqual(timeline.take(480), 480);
-    XCTAssertTrue(timeline.begin(100.10)); XCTAssertTrue(timeline.hasGap());
+    XCTAssertTrue(timeline.begin(100, .01)); XCTAssertEqual(timeline.take(480), 0);
+    XCTAssertTrue(timeline.begin(100.01, .01)); XCTAssertEqual(timeline.take(480), 480);
+    XCTAssertTrue(timeline.begin(100.10, .01)); XCTAssertTrue(timeline.hasGap());
     XCTAssertEqual(timeline.take(480), 4800);
-    XCTAssertFalse(timeline.begin(100.09)); XCTAssertFalse(timeline.begin(100.10));
-    XCTAssertFalse(timeline.begin(NAN)); XCTAssertFalse(timeline.begin(-1));
-    XCTAssertTrue(timeline.begin(100.11)); XCTAssertEqual(timeline.take(480), 5280);
-    timeline.reset(); XCTAssertTrue(timeline.begin(1)); XCTAssertEqual(timeline.take(480), 0);
+    XCTAssertFalse(timeline.begin(100.09, .01)); XCTAssertFalse(timeline.begin(100.10, .01));
+    XCTAssertFalse(timeline.begin(NAN, .01)); XCTAssertFalse(timeline.begin(-1, .01));
+    XCTAssertFalse(timeline.begin(100.11, NAN)); XCTAssertFalse(timeline.begin(100.11, 0));
+    XCTAssertTrue(timeline.begin(100.11, .01)); XCTAssertEqual(timeline.take(480), 5280);
+    timeline.reset(); XCTAssertTrue(timeline.begin(1, .01)); XCTAssertEqual(timeline.take(480), 0);
+}
+- (void)testContinuousSourceDoesNotResetResamplerPriming {
+    LCAudioTimeline timeline;
+    XCTAssertTrue(timeline.begin(100, 441.0 / 44100));
+    XCTAssertEqual(timeline.take(400), 0); // First conversion retains its priming samples.
+    XCTAssertTrue(timeline.begin(100.01, 441.0 / 44100));
+    XCTAssertFalse(timeline.hasGap()); XCTAssertEqual(timeline.take(480), 400);
+    XCTAssertTrue(timeline.begin(100.02, .01));
+    XCTAssertFalse(timeline.hasGap()); XCTAssertEqual(timeline.take(480), 880);
+    XCTAssertTrue(timeline.begin(100.10, .01));
+    XCTAssertTrue(timeline.hasGap()); XCTAssertEqual(timeline.take(480), 4800);
 }
 - (void)testResamplesMonoFloatToStereoPCMAndTerminates {
     XCTestExpectation *received = [self expectationWithDescription:@"converted PCM reached ADM"];

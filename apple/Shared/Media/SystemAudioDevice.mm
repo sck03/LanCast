@@ -96,7 +96,7 @@ struct LCQueuedAudioSample {
                 auto count = (AVAudioFrameCount)CMSampleBufferGetNumSamples(sample);
                 if (inputFormat && count && asbd->mSampleRate >= 8000 && asbd->mSampleRate <= 192000) {
                     const CMTime pts = CMSampleBufferGetPresentationTimeStamp(sample);
-                    if (!CMTIME_IS_NUMERIC(pts) || !timeline.begin(CMTimeGetSeconds(pts))) {
+                    if (!CMTIME_IS_NUMERIC(pts) || !timeline.begin(CMTimeGetSeconds(pts), count / asbd->mSampleRate)) {
                         CFRelease(sample);
                         continue;
                     }
