@@ -10,9 +10,9 @@ import tomllib
 PRODUCTION = {
     "crates/cast-domain": {"serde"},
     "crates/cast-core": {"cast-domain"},
-    "core": {"cast-adapters", "serde_json"},
+    "core": {"cast-adapters"},
 }
-DEVELOPMENT = {"crates/cast-domain": set(), "crates/cast-core": set(), "core": {"tempfile"}}
+DEVELOPMENT = {"crates/cast-domain": set(), "crates/cast-core": set(), "core": {"serde_json"}}
 ANDROID = 'cfg(target_os = "android")'
 
 

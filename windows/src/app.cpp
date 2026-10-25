@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 #include <windows.h>
 using Json = nlohmann::json;
@@ -29,6 +30,9 @@ class DesktopApp {
         return lancast_create_v2(&c);
     }
     std::unique_ptr<MediaSender> media;
+    uint64_t media_generation = 0;
+    std::unordered_set<uint64_t> retiring_media;
+    std::string pending_live_url;
     std::string session, mode, dlna_id, dlna_ip, local_address, receiver_address,
         receiver_fingerprint;
     Json shared_file;
@@ -97,9 +101,12 @@ class DesktopApp {
         return request;
     }
     void stop() {
+        if (stopping)
+            return;
         ++generation;
-        media.reset();
+        retire_media();
         live_pending = false;
+        pending_live_url.clear();
         profile_pending = false;
         pending_session.clear();
         probe = false;
@@ -115,11 +122,21 @@ class DesktopApp {
         pairing = false;
         file_pending = false;
         stopping = true;
+        core_stopped = false;
         try {
             command("stop");
         } catch (...) {
+            core_stopped = true;
         }
         status("正在停止分享…");
+        finish_stop();
+    }
+    void retire_media() {
+        if (!media)
+            return;
+        retiring_media.insert(media_generation);
+        media->stop();
+        media.reset();
     }
     static void post_media(HWND target, uint64_t active, std::string type, Json body) {
         auto *event = new Json{{"type", type}, {"body", body}, {"generation", active}};
@@ -171,20 +188,7 @@ class DesktopApp {
         } else if (type == "pair.waiting")
             status("请在电视上确认此设备");
         else if (type == "disconnected") {
-            connected = false;
-            pairing = false;
-            ++generation;
-            live_pending = false;
-            profile_pending = false;
-            pending_session.clear();
-            file_pending = false;
-            media.reset();
-            session.clear();
-            shared_file = nullptr;
-            if (!stopping) {
-                command("stop");
-                stopping = true;
-            }
+            stop();
             status("连接已断开，分享已停止；重新连接需要电视确认");
         } else if (type == "error" || type == "live.failed") {
             pairing = false;
@@ -196,7 +200,8 @@ class DesktopApp {
                 const auto previous = core;
                 core = create_core();
                 release_core(previous);
-                stopping = false;
+                core_stopped = true;
+                finish_stop();
                 scanning = scan_lancast_pending = scan_dlna_pending = false;
                 catalog.clear();
                 selected_key.clear();
@@ -224,12 +229,12 @@ class DesktopApp {
                 std::make_unique<MediaSender>([target = main_window, active](auto type, auto body) {
                     post_media(target, active, type, body);
                 });
+            media_generation = active;
+            pending_live_url = body.at("url").get<std::string>();
             media->start_live(windows[index], monitors[index], selected_audio, probe,
                               [handle](const uint8_t *bytes, size_t length) {
                                   return lancast_write_ts(handle, bytes, length);
                               });
-            command("dlna.load", {{"deviceId", dlna_id}, {"url", body.at("url")}, {"live", true}});
-            live_pending = false;
         } else if (type == "profile.checked") {
             if (!profile_pending || body.value("deviceId", "") != dlna_id ||
                 body.value("generation", uint64_t{0}) != generation)
@@ -292,10 +297,8 @@ class DesktopApp {
                     send("session.start", {{"mode", "file"}, {"audioRequested", true}});
             }
         } else if (type == "stopped") {
-            stopping = false;
-            status("已停止分享。可重新连接电视或播放视频。");
-            if (exiting)
-                destroy();
+            core_stopped = true;
+            finish_stop();
         } else if (type == "dlna.state")
             status("DLNA 指令已返回；是否播放请以电视为准");
         else if (type == "message") {
@@ -312,6 +315,7 @@ class DesktopApp {
                         [target = main_window, active](auto type, auto body) {
                             post_media(target, active, type, body);
                         });
+                    media_generation = active;
                     auto index = SendMessageW(windows_list, CB_GETCURSEL, 0, 0);
                     HWND selected = index > 0 && static_cast<size_t>(index) < windows.size()
                                         ? windows[static_cast<size_t>(index)]
@@ -324,7 +328,7 @@ class DesktopApp {
                     media->start(selected,
                                  SendMessageW(audio_check, BM_GETCHECK, 0, 0) == BST_CHECKED,
                                  profile);
-                    status("正在分享屏幕，可最小化到托盘继续投屏");
+                    status("正在启动屏幕分享…");
                 } else {
                     shared_file["mediaId"] = uuid();
                     shared_file["durationMs"] = nullptr;
@@ -623,8 +627,10 @@ class DesktopApp {
                 if (!core)
                     return 0;
                 if (exiting && GetTickCount64() - exit_started > 3000) {
-                    destroy();
-                    return 0;
+                    if (!exit_wait_notice) {
+                        exit_wait_notice = true;
+                        status("正在等待分享资源释放，请稍候…");
+                    }
                 }
                 if (scanning && GetTickCount64() - scan_started > 25000) {
                     scanning = false;
@@ -644,15 +650,30 @@ class DesktopApp {
                 return 0;
             case MEDIA_EVENT: {
                 std::unique_ptr<Json> e(reinterpret_cast<Json *>(l));
-                if (e->value("generation", uint64_t{0}) != generation)
-                    return 0;
                 auto kind = e->at("type").get<std::string>();
+                if (kind != "media.stopped" &&
+                    e->value("generation", uint64_t{0}) != generation)
+                    return 0;
                 if (kind == "media.error" || kind == "media.ended") {
                     stop();
                     status((*e)["body"].value("code", "媒体已结束"));
                 } else if (kind == "media.connected")
                     status("WebRTC 媒体通道已建立");
-                else if (!session.empty())
+                else if (kind == "media.stopped") {
+                    const auto ended = e->value("generation", uint64_t{0});
+                    if (media && ended == media_generation)
+                        stop();
+                    retiring_media.erase(ended);
+                    finish_stop();
+                } else if (kind == "media.started") {
+                    if (live_pending) {
+                        command("dlna.load", {{"deviceId", dlna_id}, {"url", pending_live_url}, {"live", true}});
+                        pending_live_url.clear();
+                        live_pending = false;
+                    } else {
+                        status("正在分享屏幕，可最小化到托盘继续投屏");
+                    }
+                } else if (!session.empty())
                     send(kind, e->at("body"));
                 return 0;
             }
@@ -679,14 +700,25 @@ class DesktopApp {
     std::vector<network::Interface> interfaces;
     std::string selected_key;
     bool ready = false, pairing = false, file_pending = false, stopping = false;
+    bool core_stopped = true;
     bool scanning = false, scan_lancast_pending = false, scan_dlna_pending = false;
     bool manual_network = false, media_available = false, exiting = false;
+    bool exit_wait_notice = false;
     ULONGLONG scan_started = 0, exit_started = 0;
     uint64_t scan_generation = 0;
     UINT poll_interval = 0;
     bool busy() const {
         return media || live_pending || profile_pending || file_pending ||
-               !pending_session.empty() || !shared_file.is_null() || !session.empty() || stopping;
+               !pending_session.empty() || !shared_file.is_null() || !session.empty() || stopping ||
+               !retiring_media.empty();
+    }
+    void finish_stop() {
+        if (!stopping || !retiring_media.empty() || !core_stopped)
+            return;
+        stopping = false;
+        status("已停止分享。可重新连接电视或播放视频。");
+        if (exiting)
+            destroy();
     }
     void update_controls() {
         if (!ready)

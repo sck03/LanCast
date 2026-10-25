@@ -1,5 +1,6 @@
 #import <XCTest/XCTest.h>
 #import "SystemAudioDevice.h"
+#include "AudioTimeline.h"
 #include <atomic>
 #include <cmath>
 #include <memory>
@@ -24,6 +25,17 @@
 @interface SystemAudioDeviceTests : XCTestCase
 @end
 @implementation SystemAudioDeviceTests
+- (void)testSourceTimelinePreservesGapsAndRejectsBackwardsOrInvalidTimes {
+    LCAudioTimeline timeline;
+    XCTAssertTrue(timeline.begin(100)); XCTAssertEqual(timeline.take(480), 0);
+    XCTAssertTrue(timeline.begin(100.01)); XCTAssertEqual(timeline.take(480), 480);
+    XCTAssertTrue(timeline.begin(100.10)); XCTAssertTrue(timeline.hasGap());
+    XCTAssertEqual(timeline.take(480), 4800);
+    XCTAssertFalse(timeline.begin(100.09)); XCTAssertFalse(timeline.begin(100.10));
+    XCTAssertFalse(timeline.begin(NAN)); XCTAssertFalse(timeline.begin(-1));
+    XCTAssertTrue(timeline.begin(100.11)); XCTAssertEqual(timeline.take(480), 5280);
+    timeline.reset(); XCTAssertTrue(timeline.begin(1)); XCTAssertEqual(timeline.take(480), 0);
+}
 - (void)testResamplesMonoFloatToStereoPCMAndTerminates {
     XCTestExpectation *received = [self expectationWithDescription:@"converted PCM reached ADM"];
     auto calls = std::make_shared<std::atomic<int>>(0);
@@ -70,5 +82,42 @@
     XCTAssertEqual(calls->load(), stoppedCount);
     XCTAssertFalse(device.isInitialized); XCTAssertFalse(device.isRecording);
     CFRelease(sample); CFRelease(format); CFRelease(block);
+}
+- (void)testStopRecordingDiscardsTheRestOfAnInFlightConversion {
+    XCTestExpectation *first = [self expectationWithDescription:@"first block stopped recording"];
+    auto calls = std::make_shared<std::atomic<int>>(0);
+    LCSystemAudioDevice *device = [LCSystemAudioDevice new];
+    AudioProbe *probe = [AudioProbe new];
+    probe.deliverRecordedData = ^OSStatus(AudioUnitRenderActionFlags *flags, const AudioTimeStamp *stamp,
+            NSInteger bus, UInt32 frames, const AudioBufferList *data, void *context,
+            LKRTCAudioDeviceRenderRecordedDataBlock render) {
+        if (calls->fetch_add(1) == 0) { XCTAssertTrue([device stopRecording]); [first fulfill]; }
+        return noErr;
+    };
+    XCTAssertTrue([device initializeWithDelegate:probe]);
+    XCTAssertTrue([device startRecording]);
+    const size_t samples = 9600;
+    CMBlockBufferRef block = nullptr;
+    XCTAssertEqual(CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault, nullptr, samples * 4,
+        kCFAllocatorDefault, nullptr, 0, samples * 4, kCMBlockBufferAssureMemoryNowFlag, &block), noErr);
+    if (!block) { [device terminateDevice]; return; }
+    AudioStreamBasicDescription asbd = {48000, kAudioFormatLinearPCM,
+        kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, 4, 1, 4, 2, 16, 0};
+    CMAudioFormatDescriptionRef format = nullptr;
+    XCTAssertEqual(CMAudioFormatDescriptionCreate(kCFAllocatorDefault, &asbd, 0, nullptr, 0, nullptr, nullptr, &format), noErr);
+    if (!format) { [device terminateDevice]; CFRelease(block); return; }
+    CMSampleTimingInfo timing = {CMTimeMake(1, 48000), kCMTimeZero, kCMTimeInvalid};
+    size_t size = 4; CMSampleBufferRef sample = nullptr;
+    XCTAssertEqual(CMSampleBufferCreateReady(kCFAllocatorDefault, block, format, samples, 1, &timing, 1, &size, &sample), noErr);
+    if (sample) {
+        [device pushSample:sample];
+        [self waitForExpectations:@[first] timeout:5];
+        XCTAssertTrue([device terminateDevice]);
+        XCTAssertEqual(calls->load(), 1);
+        CFRelease(sample);
+    } else [device terminateDevice];
+    // Break the delegate/test ownership cycle after its worker has joined.
+    probe.deliverRecordedData = nil;
+    CFRelease(format); CFRelease(block);
 }
 @end

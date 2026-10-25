@@ -51,6 +51,6 @@ Sender、Standard、Legacy、AirPlay的Release开启R8与资源裁剪。控制JN
 
 ## 验证与剩余工作
 
-自动验证包括Python产品/打包/JNI拒绝错误回归、四项ByteBuffer JVM回归、既有接收合同/队列/初始化测试、四种产品Debug/Release组装和lint，以及真实APK的身份/角色/ABI/16KB对齐和JNI检查。测试用例、运行及样本来源见08。
+自动验证包括Python产品/打包/JNI拒绝错误回归、四项ByteBuffer JVM回归、既有接收合同/队列/初始化测试、四种产品Debug/Release组装和lint，以及真实APK的身份/角色/ABI/16KB对齐和JNI检查。main 分支的 Android 工作流在常规选定配置完成后复用同一原生缓存执行一次全产品 Release 合同检查；手动运行和 Pull Request 仍按用户选择的配置执行，避免额外的原生编译。测试用例、运行及样本来源见08。
 
 物理设备仍需覆盖：录屏授权撤销与立即停止、编码器配置/启动失败、声音读取被停止唤醒、首帧后持续镜像与重新协商、Release下的TS回调/AirPlay回调、API21 Legacy安装及播放、ARM32/ARM64声音同步和两小时长稳。测量设备型号、系统、程序SHA、空闲/播放CPU与RSS、帧率及停止后恢复情况；构建成功不填写真机完成状态。

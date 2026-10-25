@@ -9,16 +9,18 @@ import subprocess
 import tarfile
 import urllib.request
 import zipfile
+from source_provenance import require_clean_source
 
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("platform", choices=["windows", "android"])
 args = parser.parse_args()
+source_state = require_clean_source(root, root / "dist/reports" / f"build-{args.platform}.json")
+commit = source_state["source_commit"]
 destination = root / "dist" / "native-evidence" / args.platform
 destination.mkdir(parents=True, exist_ok=True)
-commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
 source = destination / "lancast-source.tar.gz"
-subprocess.run(["git", "archive", "--format=tar.gz", "-o", str(source), "HEAD"], cwd=root, check=True)
+subprocess.run(["git", "archive", "--format=tar.gz", "-o", str(source), commit], cwd=root, check=True)
 ffmpeg = root / ".cache/ffmpeg-8.0.1.tar.xz"
 if not ffmpeg.is_file():
     ffmpeg.parent.mkdir(parents=True, exist_ok=True)
@@ -77,5 +79,6 @@ artifacts = []
 for path in sorted(destination.iterdir()):
     if path.is_file() and path.name != "manifest.json":
         artifacts.append({"file": path.name, "bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-(destination / "manifest.json").write_text(json.dumps({"schemaVersion": 1, "commit": commit, "platform": args.platform, "components": components, "artifacts": artifacts}, indent=2), encoding="utf-8")
+require(require_clean_source(root) == source_state, "Sources changed while packaging corresponding-source materials")
+(destination / "manifest.json").write_text(json.dumps({"schemaVersion": 1, "commit": commit, **source_state, "platform": args.platform, "components": components, "artifacts": artifacts}, indent=2), encoding="utf-8")
 print(f"Packaged native source and relinking evidence: {destination}")

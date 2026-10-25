@@ -14,6 +14,7 @@ import org.json.JSONObject
 /** One coordinator owns capture and control even while the Activity is backgrounded. */
 object SenderRuntime {
     var observer: ((JSONObject) -> Unit)? = null
+    private var hostVisible = false
     private var core: ControlSession? = null
     private var peer: RtcPeer? = null
     private var liveCapture: DlnaCapture? = null
@@ -47,11 +48,23 @@ object SenderRuntime {
     private var multicast: WifiManager.MulticastLock? = null
     private var filePending = false
     private var stopping = false
+    private var retiringMedia = 0
     private val captureGate = CaptureGrantGate()
     private var activeCapture: String? = null
-    val busy get() = captureGate.pending || peer != null || liveCapture != null || grant != null || probing || pendingSession != null || sessionId != null || media != null || filePending || stopping
+    val busy get() = captureGate.pending || peer != null || retiringMedia > 0 || liveCapture != null || grant != null || probing || pendingSession != null || sessionId != null || media != null || filePending || stopping
     val filePlaying get() = media != null && !stopping && liveCapture == null && peer == null
     val selectionLocked get() = connected || connecting || scanning || busy
+    /** Activity visibility is separate from CaptureService ownership; capture may continue in background. */
+    fun setHostVisible(visible: Boolean) {
+        hostVisible = visible
+        releaseIdleCore()
+    }
+    private fun releaseIdleCore() {
+        if (hostVisible || selectionLocked) return
+        val previous = core ?: return
+        core = null
+        previous.close()
+    }
     fun scan(context: Context, local: String) {
         check(!selectionLocked) { "请先停止分享并断开连接" }
         ensureCore(context); catalog.clear(); selectedDevice = null; dlnaId = null; dlnaIp = null; receiverAddress = ""
@@ -70,6 +83,7 @@ object SenderRuntime {
             if (scanning && scanGeneration == current) {
                 scanning = false; nativePending = false; dlnaPending = false; releaseMulticast()
                 observer?.invoke(JSONObject().put("type", "discovery.updated"))
+                releaseIdleCore()
             }
         }, 25000)
     }
@@ -200,8 +214,30 @@ object SenderRuntime {
             }
         }
         observer?.invoke(event)
+        releaseIdleCore()
     }
-    private fun stopCapture() { generation++; captureGate.cancel(); activeCapture = null; pendingSession = null; probing = false; liveCapture?.close(); liveCapture = null; liveUrl = null; peer?.close(); peer = null; grant = null; sessionId = null; media = null; val callback = stopService; stopService = null; callback?.invoke() }
+    private fun stopCapture() {
+        generation++; captureGate.cancel(); activeCapture = null; pendingSession = null; probing = false
+        val previousLive = liveCapture; liveCapture = null; liveUrl = null
+        if (previousLive != null) {
+            retiringMedia++
+            previousLive.close(::mediaClosed)
+        }
+        val previousPeer = peer; peer = null
+        if (previousPeer != null) {
+            retiringMedia++
+            previousPeer.close(::mediaClosed)
+        }
+        grant = null; sessionId = null; media = null
+        val callback = stopService; stopService = null; callback?.invoke()
+    }
+    private fun mediaClosed() {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            retiringMedia--
+            observer?.invoke(JSONObject().put("type", "media.closed"))
+            releaseIdleCore()
+        }
+    }
     fun stop() {
         if (connecting) { close(); return }
         stopping = core != null; filePending = false

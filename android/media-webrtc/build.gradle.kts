@@ -8,6 +8,7 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }
 }
 dependencies { coreLibraryDesugaring(libs.desugar)
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.annotation:annotation:1.9.1")
     // Explicit build input; never silently pick up a different local AAR.
     val sourceAar = providers.gradleProperty("lancastWebrtcAar").orNull

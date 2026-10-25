@@ -78,49 +78,6 @@ pub async fn event_processor(listener: TcpListener) {
 }
 
 #[tracing::instrument(level = "DEBUG", skip(stream))]
-pub async fn audio_buffered_processor(
-    mut tcp_stream: TcpStream,
-    stream: &impl AudioStream,
-    audio_buf_size: u32,
-    encryption: Encryption,
-) -> io::Result<()> {
-    const TRAILER_LEN: usize = 24;
-
-    let mut audio_buf = memory::BytesHunk::new(audio_buf_size as usize);
-    let cipher = build_audio_cipher(&encryption);
-
-    loop {
-        async {
-            let pkt_len = tcp_stream.read_u16().await?;
-            // 2 is pkt_len field size itself
-            let pkt_len: usize = pkt_len.saturating_sub(2).into();
-
-            if pkt_len < AudioPacket::HEADER_LEN + TRAILER_LEN {
-                return Err(io::Error::other("malformed buffered stream"));
-            }
-
-            let mut rtp = audio_buf.allocate_buf(pkt_len);
-            tcp_stream.read_exact(&mut rtp).await?;
-            tracing::trace!(%pkt_len, "packet read");
-
-            cipher.decrypt(&mut rtp).map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidData, "audio authentication failed")
-            })?;
-
-            stream.on_data(AudioPacket {
-                rtp,
-                presentation_us: None,
-            });
-            tokio::task::consume_budget().await;
-
-            Ok(())
-        }
-        .instrument(tracing::debug_span!("packet.buffered"))
-        .await?;
-    }
-}
-
-#[tracing::instrument(level = "DEBUG", skip(stream))]
 #[allow(clippy::too_many_arguments)] // Explicit transport, codec and negotiated clock inputs.
 pub async fn audio_realtime_processor(
     expected_remote_addr: IpAddr,

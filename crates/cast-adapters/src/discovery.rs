@@ -297,8 +297,6 @@ mod tests {
                 kind: "AVTransport:1".into(),
                 control: "http://192.168.1.2/control".into(),
             },
-            rendering: None,
-            connection: None,
             signature: String::new(),
         }
     }

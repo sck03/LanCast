@@ -14,6 +14,8 @@ pub struct Recovery {
     outage: Option<u64>,
     attempts: u8,
     connected: [bool; 2],
+    established: bool,
+    deadline_reached: bool,
     stopped: bool,
 }
 
@@ -24,12 +26,21 @@ impl Recovery {
             outage: None,
             attempts: 0,
             connected: [false; 2],
+            established: false,
+            deadline_reached: false,
             stopped: false,
         }
     }
 
     pub fn report(&mut self, remote: bool, connected: bool, now_ms: u64) {
-        if self.stopped {
+        if self.stopped || self.deadline_reached {
+            return;
+        }
+        // A late state report must not revive a deadline that has already
+        // expired.  Check before applying the new state so the boundary is
+        // deterministic even when a report races the periodic poll.
+        if self.expired(now_ms) {
+            self.deadline_reached = true;
             return;
         }
         self.connected[usize::from(remote)] = connected;
@@ -38,6 +49,7 @@ impl Recovery {
             self.attempts = 0;
         }
         if self.connected == [true, true] {
+            self.established = true;
             self.outage = None;
             self.attempts = 0;
         }
@@ -47,12 +59,12 @@ impl Recovery {
         if self.stopped {
             return Action::Wait;
         }
+        if self.deadline_reached || self.expired(now_ms) {
+            self.stopped = true;
+            return Action::Stop;
+        }
         if let Some(started) = self.outage {
             let elapsed = now_ms.saturating_sub(started);
-            if elapsed >= 15_000 {
-                self.stopped = true;
-                return Action::Stop;
-            }
             if let Some(delay) = [1_000, 5_000, 10_000].get(usize::from(self.attempts))
                 && elapsed >= *delay
             {
@@ -62,11 +74,14 @@ impl Recovery {
                     attempt: self.attempts,
                 };
             }
-        } else if self.connected != [true, true] && now_ms >= self.initial_deadline {
-            self.stopped = true;
-            return Action::Stop;
         }
         Action::Wait
+    }
+    fn expired(&self, now_ms: u64) -> bool {
+        (!self.established && now_ms >= self.initial_deadline)
+            || self
+                .outage
+                .is_some_and(|started| now_ms.saturating_sub(started) >= 15_000)
     }
 }
 
@@ -114,5 +129,33 @@ mod tests {
         assert_eq!(r.poll(0), Action::Wait);
         r.report(false, true, 200);
         assert_eq!(r.poll(20100), Action::Stop);
+    }
+
+    #[test]
+    fn late_reports_cannot_revive_initial_or_outage_deadlines() {
+        let mut initial = Recovery::new(0);
+        initial.report(false, true, 19_000);
+        initial.report(true, true, 20_000);
+        assert_eq!(initial.poll(20_000), Action::Stop);
+        initial.report(true, true, 20_001);
+        assert_eq!(initial.poll(20_001), Action::Wait);
+
+        let mut outage = Recovery::new(0);
+        outage.report(false, true, 0);
+        outage.report(true, true, 0);
+        outage.report(false, false, 100);
+        outage.report(false, true, 15_100);
+        outage.report(true, true, 15_100);
+        assert_eq!(outage.poll(15_100), Action::Stop);
+        outage.report(false, true, 15_101);
+        assert_eq!(outage.poll(20_000), Action::Wait);
+    }
+
+    #[test]
+    fn first_failure_never_extends_initial_connection_deadline() {
+        let mut recovery = Recovery::new(0);
+        recovery.report(false, false, 19_000);
+        assert_eq!(recovery.poll(19_999), Action::Wait);
+        assert_eq!(recovery.poll(20_000), Action::Stop);
     }
 }

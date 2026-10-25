@@ -1,5 +1,6 @@
 //! Network and persistence adapters. UI and platform media types stay outside.
 pub mod auth;
+mod blocking_io;
 pub use cast_domain::capabilities;
 mod control;
 pub mod discovery;

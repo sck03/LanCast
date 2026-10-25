@@ -38,6 +38,7 @@ class MainActivity : Activity() {
     private var approvalId: String? = null
     private var approvalDialog: AlertDialog? = null
     private var receivingLease: Lease? = null
+    private var retiringPeers = 0
     private lateinit var airplay: AirPlayFeature
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,6 +94,7 @@ class MainActivity : Activity() {
             "pair.request" -> showApproval(body)
             "pair.closed" -> if (approvalId == body.optString("connectionId")) clearApproval()
             "session.started" -> {
+                if (retiringPeers > 0) { core?.command("stop"); state.text = "正在释放上一投屏的媒体资源，请稍后重试"; return }
                 if (receivingLease == null) receivingLease = ReceiverOwnership.leases.acquire(Source.LANCAST, body.getString("sessionId"))
                 if (receivingLease == null) { core?.command("stop"); state.text = "接收画面正被另一来源使用，请先停止当前投屏"; return }
                 stopMedia(releaseLease = false)
@@ -193,10 +195,23 @@ class MainActivity : Activity() {
     private fun stopMedia(releaseLease: Boolean = true) {
         sessionId = null
         negotiationId = null; readySent = false
-        peer?.close(); peer = null
+        val previousPeer = peer; peer = null
         player?.close(); player = null
         if (ReceiverOwnership.leases.owns(receivingLease)) display.removeAllViews()
-        if (releaseLease) { ReceiverOwnership.leases.release(receivingLease); receivingLease = null; airplay.refreshDisplay() }
+        val held = if (releaseLease) receivingLease.also { receivingLease = null } else null
+        if (previousPeer != null) {
+            retiringPeers++
+            previousPeer.close {
+                ReceiverOwnership.leases.release(held)
+                runOnUiThread {
+                    retiringPeers--
+                    if (!isDestroyed) airplay.refreshDisplay()
+                }
+            }
+        } else {
+            ReceiverOwnership.leases.release(held)
+            if (releaseLease && retiringPeers == 0) airplay.refreshDisplay()
+        }
         invitation.visibility = View.VISIBLE
         codeLabel.visibility = View.VISIBLE
         state.text = "投屏已停止；新设备连接请刷新配对码"

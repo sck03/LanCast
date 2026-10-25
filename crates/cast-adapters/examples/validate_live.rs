@@ -127,8 +127,6 @@ async fn main() -> anyhow::Result<()> {
                 kind: "urn:schemas-upnp-org:service:AVTransport:1".into(),
                 control: format!("http://{endpoint}/control"),
             },
-            rendering: None,
-            connection: None,
             signature: "test".into(),
         };
         let started = Arc::new(AtomicBool::new(false));

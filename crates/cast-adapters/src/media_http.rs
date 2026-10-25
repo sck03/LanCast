@@ -69,18 +69,27 @@ pub fn parse_range(header: Option<&str>, length: u64) -> Range {
 }
 
 pub struct Resource {
-    file: Mutex<tokio::fs::File>,
+    file: Mutex<FileCursor>,
     pub length: u64,
     token: String,
     allowed: IpAddr,
     stop: CancellationToken,
 }
+struct FileCursor {
+    file: tokio::fs::File,
+    position: Option<u64>,
+}
 impl Resource {
-    pub fn from_file(file: std::fs::File, allowed: IpAddr) -> anyhow::Result<Arc<Self>> {
+    pub fn from_file(mut file: std::fs::File, allowed: IpAddr) -> anyhow::Result<Arc<Self>> {
+        use std::io::Seek;
         let metadata = file.metadata()?;
         ensure!(metadata.is_file(), "MEDIA_UNSUPPORTED");
+        let position = file.stream_position()?;
         Ok(Arc::new(Self {
-            file: Mutex::new(tokio::fs::File::from_std(file)),
+            file: Mutex::new(FileCursor {
+                file: tokio::fs::File::from_std(file),
+                position: Some(position),
+            }),
             length: metadata.len(),
             token: crate::auth::random_token()
                 .replace('/', "_")
@@ -157,9 +166,17 @@ impl Resource {
                 }
                 let mut buffer = vec![0; left.min(65536) as usize];
                 let read = {
-                    let mut file = resource.file.lock().await;
-                    file.seek(std::io::SeekFrom::Start(offset)).await?;
-                    file.read(&mut buffer).await?
+                    let mut cursor = resource.file.lock().await;
+                    if cursor.position != Some(offset) {
+                        cursor.position = None;
+                        cursor.file.seek(std::io::SeekFrom::Start(offset)).await?;
+                    }
+                    // Cancellation may drop this read after the OS has advanced
+                    // its cursor. Invalidate the hint until completion is observed.
+                    cursor.position = None;
+                    let read = cursor.file.read(&mut buffer).await?;
+                    cursor.position = Some(offset + read as u64);
+                    read
                 };
                 if read == 0 {
                     return Err(std::io::Error::new(
@@ -255,6 +272,24 @@ mod tests {
         assert_eq!(h.status(), 200);
         assert_eq!(h.headers()["content-length"], "10");
         assert!(h.bytes().await.unwrap().is_empty());
+        // A disconnected request invalidates the shared cursor hint. The next
+        // range still seeks explicitly and must not read from the old offset.
+        {
+            let mut cursor = resource.file.lock().await;
+            cursor.file.seek(std::io::SeekFrom::Start(7)).await.unwrap();
+            cursor.position = None;
+        }
+        assert_eq!(
+            c.get(&url)
+                .header("Range", "bytes=1-3")
+                .send()
+                .await
+                .unwrap()
+                .text()
+                .await
+                .unwrap(),
+            "123"
+        );
         let r = c
             .get(&url)
             .header("Range", "bytes=10-")

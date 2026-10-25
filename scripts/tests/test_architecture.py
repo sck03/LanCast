@@ -34,6 +34,11 @@ class ArchitectureTests(unittest.TestCase):
         ):
             self.assertTrue(manifest_errors("core", manifest))
 
+    def test_ffi_json_support_is_limited_to_tests(self):
+        self.assertEqual(manifest_errors("core", {"dev-dependencies": {"serde_json": "1"}}), [])
+        self.assertTrue(manifest_errors("core", {"dependencies": {"serde_json": "1"}}))
+        self.assertTrue(manifest_errors("core", {"dev-dependencies": {"tempfile": "3"}}))
+
     def test_pure_layer_build_dependencies_are_not_normal_dependencies(self):
         self.assertTrue(manifest_errors("crates/cast-core", {
             "build-dependencies": {"cast-domain": {"path": "../cast-domain"}}

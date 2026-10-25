@@ -6,7 +6,11 @@ import json
 import os
 from pathlib import Path
 import re
-import subprocess
+
+if __package__:
+    from .source_provenance import source_state
+else:
+    from source_provenance import source_state
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORMS = ("windows", "android", "macos", "ios", "tvos")
@@ -65,12 +69,21 @@ def resolve(platform, *, version=None, build_number=None, configuration=None, an
 
 def record(config):
     report = asdict(config)
-    report["source_commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    report.update(source_state(ROOT))
     report["artifact_label"] = config.label
     report["signing"] = "development or unsigned; no production signing credentials used"
     path = ROOT / "dist/reports" / f"build-{config.platform}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
+def check_recorded(config):
+    path = ROOT / "dist/reports" / f"build-{config.platform}.json"
+    report = json.loads(path.read_text(encoding="utf-8-sig"))
+    expected = json.loads(json.dumps(asdict(config))) | source_state(ROOT)
+    if any(report.get(key) != value for key, value in expected.items()):
+        raise ValueError("Recorded build inputs or sources changed; rebuild before packaging")
     return report
 
 
@@ -90,6 +103,7 @@ def main():
     add_arguments(parser)
     parser.add_argument("--android-abis")
     parser.add_argument("--github", action="store_true", help="Export validated values to Actions environment and step outputs")
+    parser.add_argument("--check-recorded", action="store_true", help="Check existing build inputs and source identity without replacing the report")
     args = parser.parse_args()
     config = resolve(args.platform, version=args.version, build_number=args.build_number,
                      configuration=args.configuration, android_abis=args.android_abis)
@@ -99,7 +113,7 @@ def main():
             stream.writelines(f"{key}={value}\n" for key, value in config.environment().items())
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
             stream.write(f"label={config.label}\nconfiguration={config.configuration}\nandroid_abi_key={config.android_abi_key}\n")
-    print(json.dumps(record(config), indent=2))
+    print(json.dumps(check_recorded(config) if args.check_recorded else record(config), indent=2))
 
 
 if __name__ == "__main__":

@@ -23,9 +23,12 @@ class RtcPeer(
     private val recoveryEnabled: Boolean = false
 ) : Closeable {
     private val closed = AtomicBoolean(false)
-    private val thread = HandlerThread("lancast-media").apply { start() }
-    private val worker = Handler(thread.looper)
-    private val egl = EglBase.create()
+    private val thread = HandlerThread("lancast-media")
+    private lateinit var worker: Handler
+    private var egl: EglBase? = null
+    private val closeLock = Any()
+    private val closeCallbacks = mutableListOf<() -> Unit>()
+    private var cleanupFinished = false
     private var audio: JavaAudioDeviceModule? = null
     private var factory: PeerConnectionFactory? = null
     private var peer: PeerConnection? = null
@@ -48,13 +51,23 @@ class RtcPeer(
     private var internalAudioEnabled = false
     private var senderProfile = JSONObject()
     init {
-        PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions())
-        renderer?.init(egl.eglBaseContext, object : RendererCommon.RendererEvents {
-            override fun onFirstFrameRendered() {}
-            override fun onFrameResolutionChanged(width: Int, height: Int, rotation: Int) {}
-        })
-        renderer?.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
-        renderer?.setEnableHardwareScaler(true)
+        try {
+            thread.start()
+            worker = Handler(thread.looper)
+            egl = EglBase.create()
+            PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions())
+            renderer?.init(egl!!.eglBaseContext, object : RendererCommon.RendererEvents {
+                override fun onFirstFrameRendered() {}
+                override fun onFrameResolutionChanged(width: Int, height: Int, rotation: Int) {}
+            })
+            renderer?.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
+            renderer?.setEnableHardwareScaler(true)
+        } catch (failure: Throwable) {
+            closed.set(true)
+            runCatching { renderer?.release() }; runCatching { egl?.release() }; egl = null
+            thread.quitSafely()
+            throw failure
+        }
     }
     private fun submit(action: () -> Unit) {
         if (!closed.get()) worker.post {
@@ -73,10 +86,11 @@ class RtcPeer(
             playback = PlaybackAudio { status(it) }
             builder.setAudioBufferCallback(playback)
         }
-        audio = builder.createAudioDeviceModule().apply { setAudioRecordEnabled(false) }
+        audio = builder.createAudioDeviceModule()
+        audio!!.setAudioRecordEnabled(false)
         factory = PeerConnectionFactory.builder().setAudioDeviceModule(audio)
-            .setVideoEncoderFactory(HardwareVideoEncoderFactory(egl.eglBaseContext, false, true))
-            .setVideoDecoderFactory(HardwareVideoDecoderFactory(egl.eglBaseContext)).createPeerConnectionFactory()
+            .setVideoEncoderFactory(HardwareVideoEncoderFactory(egl!!.eglBaseContext, false, true))
+            .setVideoDecoderFactory(HardwareVideoDecoderFactory(egl!!.eglBaseContext)).createPeerConnectionFactory()
         createPeer()
         worker.postDelayed(stats, 1000)
     }
@@ -127,16 +141,20 @@ class RtcPeer(
         negotiation = UUID.randomUUID().toString()
         val f = factory!!
         videoSource = f.createVideoSource(true)
-        texture = SurfaceTextureHelper.create("lancast-texture", egl.eglBaseContext)
+        texture = SurfaceTextureHelper.create("lancast-texture", egl!!.eglBaseContext)
         capture = ScreenCapturerAndroid(grant, object : MediaProjection.Callback() {
             override fun onStop() { if (!closed.get()) { status("CAPTURE_REVOKED"); close() } }
             override fun onCapturedContentResize(width: Int, height: Int) {
                 if (Build.VERSION.SDK_INT >= 34 && width > 0 && height > 0)
-                    submit { capture?.changeCaptureFormat(width, height, profile.optInt("fps", 30)) }
+                    submit {
+                        val (boundedWidth, boundedHeight) = boundedCaptureSize(width, height, profile)
+                        capture?.changeCaptureFormat(boundedWidth, boundedHeight, boundedFps(profile))
+                    }
             }
         })
         capture!!.initialize(texture, context, videoSource!!.capturerObserver)
-        capture!!.startCapture(profile.optInt("width", 1280), profile.optInt("height", 720), profile.optInt("fps", 30))
+        val (initialWidth, initialHeight) = boundedCaptureSize(profile.optInt("width", 1280).coerceAtLeast(2), profile.optInt("height", 720).coerceAtLeast(2), profile)
+        capture!!.startCapture(initialWidth, initialHeight, boundedFps(profile))
         if (internalAudio) playback!!.start(checkNotNull(capture!!.mediaProjection) { "CAPTURE_PROJECTION_UNAVAILABLE" })
         videoTrack = f.createVideoTrack("screen", videoSource)
         peer!!.addTrack(videoTrack, listOf("lancast"))
@@ -256,24 +274,52 @@ class RtcPeer(
             worker.postDelayed(this, 1000)
         }
     }
-    override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        playback?.stop()
+    private fun boundedFps(profile: JSONObject): Int = profile.optInt("fps", 30).coerceIn(1, 60)
+    private fun boundedCaptureSize(width: Int, height: Int, profile: JSONObject): Pair<Int, Int> {
+        val maxWidth = profile.optInt("width", 1280).coerceIn(2, 3840)
+        val maxHeight = profile.optInt("height", 720).coerceIn(2, 2160)
+        return fitCaptureSize(width, height, maxWidth, maxHeight)
+    }
+    override fun close() = close { }
+    fun close(onClosed: () -> Unit) {
+        var invokeNow = false
+        var schedule = false
+        synchronized(closeLock) {
+            if (cleanupFinished) invokeNow = true
+            else {
+                closeCallbacks += onClosed
+                schedule = closed.compareAndSet(false, true)
+            }
+        }
+        if (invokeNow) {
+            onClosed()
+            return
+        }
+        if (!schedule) return
+        runCatching { playback?.stop() }
         worker.removeCallbacksAndMessages(null)
         worker.post {
-            // Covers close racing an initialize/startCapture action already on this worker.
-            playback?.stop()
-            runCatching { renderer?.let { remoteVideo?.removeSink(it) } }
-            runCatching { frameProbe?.let { remoteVideo?.removeSink(it) } }
-            runCatching { capture?.stopCapture() }; runCatching { capture?.dispose() }
-            runCatching { peer?.close() }; runCatching { peer?.dispose() }
-            runCatching { videoTrack?.dispose() }; runCatching { audioTrack?.dispose() }
-            runCatching { videoSource?.dispose() }; runCatching { audioSource?.dispose() }
-            runCatching { texture?.dispose() }; runCatching { factory?.dispose() }
-            runCatching { audio?.release() }; runCatching { playback?.release() }
-            // A receiver renderer belongs to this instance and is replaced before the next session.
-            runCatching { renderer?.release() }; runCatching { egl.release() }
-            thread.quitSafely()
+            try {
+                // Covers close racing an initialize/startCapture action already on this worker.
+                runCatching { playback?.stop() }
+                runCatching { renderer?.let { remoteVideo?.removeSink(it) } }
+                runCatching { frameProbe?.let { remoteVideo?.removeSink(it) } }
+                runCatching { capture?.stopCapture() }; runCatching { capture?.dispose() }
+                runCatching { peer?.close() }; runCatching { peer?.dispose() }
+                runCatching { videoTrack?.dispose() }; runCatching { audioTrack?.dispose() }
+                runCatching { videoSource?.dispose() }; runCatching { audioSource?.dispose() }
+                runCatching { texture?.dispose() }; runCatching { factory?.dispose() }
+                runCatching { audio?.release() }; runCatching { playback?.release() }
+                // A receiver renderer belongs to this instance and is replaced before the next session.
+                runCatching { renderer?.release() }; runCatching { egl?.release() }; egl = null
+            } finally {
+                val callbacks = synchronized(closeLock) {
+                    cleanupFinished = true
+                    closeCallbacks.toList().also { closeCallbacks.clear() }
+                }
+                callbacks.forEach { runCatching { it() } }
+                thread.quitSafely()
+            }
         }
     }
 }

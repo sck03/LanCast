@@ -2,9 +2,9 @@ name: AirPlay protocol checks (no APK)
 on:
   push:
     branches: [main]
-    paths: ["airplay-native/**", "rust-toolchain.toml", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
+    paths: ["airplay-native/**", "rust-toolchain.toml", "scripts/package-airplay.py", "scripts/source_provenance.py", ".github/workflows/airplay.yml"]
   pull_request:
-    paths: ["airplay-native/**", "rust-toolchain.toml", "scripts/package-airplay.py", ".github/workflows/airplay.yml"]
+    paths: ["airplay-native/**", "rust-toolchain.toml", "scripts/package-airplay.py", "scripts/source_provenance.py", ".github/workflows/airplay.yml"]
   workflow_dispatch:
 permissions:
   contents: read

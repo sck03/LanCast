@@ -1,5 +1,3 @@
-import hashlib
-import json
 from pathlib import Path
 import struct
 import subprocess
@@ -8,7 +6,7 @@ import tempfile
 import unittest
 
 SCRIPTS = Path(__file__).resolve().parents[1]
-from scripts.windows_artifacts import BINARIES, verify, verify_pe
+from scripts.windows_artifacts import BINARIES, LICENSE_COMPONENTS, REQUIRED_LICENSES, ROOT_FILES, verify, verify_pe, write_hashes
 
 
 def pe_fixture():
@@ -25,20 +23,66 @@ def pe_fixture():
     return data
 
 
+def make_package(root):
+    for name in ROOT_FILES:
+        (root / name).write_bytes(pe_fixture() if name in BINARIES else b"notice")
+    (root / "build-windows.json").write_text('{"configuration":"Release"}', encoding="utf-8")
+    (root / "licenses").mkdir()
+    for name in (*REQUIRED_LICENSES, *(component + "-LICENSE.txt" for component in LICENSE_COMPONENTS)):
+        (root / "licenses" / name).write_text("notice", encoding="utf-8")
+    write_hashes(root)
+
+
+def with_import(name, delayed=False):
+    data = pe_fixture()
+    struct.pack_into("<I", data, 152 + 112 + (13 if delayed else 1) * 8, 0x1000)
+    if delayed:
+        struct.pack_into("<IIIIIIII", data, 512, 1, 0x1080, 0, 0, 0, 0, 0, 0)
+    else:
+        struct.pack_into("<IIIII", data, 512, 0, 0, 0, 0x1080, 0)
+    data[640:640 + len(name) + 1] = name.encode("ascii") + b"\0"
+    return data
+
+
 class WindowsArtifactTests(unittest.TestCase):
     def test_valid_package_and_hash_rejection(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in BINARIES:
-                (root / name).write_bytes(pe_fixture())
-            (root / "build-windows.json").write_text('{"configuration":"Release"}', encoding="utf-8")
-            entries = [{"Path": file.name, "Hash": hashlib.sha256(file.read_bytes()).hexdigest()}
-                       for file in root.iterdir()]
-            (root / "SHA256.json").write_text(json.dumps(entries), encoding="utf-8")
+            make_package(root)
             self.assertEqual(len(verify(root)), 4)
             (root / BINARIES[0]).write_bytes(b"changed")
             with self.assertRaisesRegex(ValueError, "Hash mismatch"):
                 verify(root)
+
+    def test_stale_files_and_unhashed_notices_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            make_package(root)
+            (root / "obsolete-helper.exe").write_bytes(b"stale")
+            with self.assertRaisesRegex(ValueError, "unexpected root"):
+                write_hashes(root)
+            (root / "obsolete-helper.exe").unlink()
+            notice = root / "licenses" / next(iter(REQUIRED_LICENSES))
+            notice.write_text("changed", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Hash mismatch"):
+                verify(root)
+            (root / "licenses/libjuice-LICENSE.txt").unlink()
+            with self.assertRaisesRegex(ValueError, "Missing dependency license: libjuice"):
+                verify(root)
+
+    def test_direct_and_delay_imports_require_a_packaged_or_system_dll(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            make_package(root)
+            for delayed in (False, True):
+                for dependency in ("kernel32.dll", "lancast_rtc.dll", "api-ms-win-core-synch-l1-2-0.dll"):
+                    (root / "LanCast.exe").write_bytes(with_import(dependency, delayed))
+                    write_hashes(root)
+                    self.assertIn(dependency, verify(root)[0]["imports"])
+                (root / "LanCast.exe").write_bytes(with_import("missing_dependency.dll", delayed))
+                write_hashes(root)
+                with self.assertRaisesRegex(ValueError, "Unresolved packaged dependency"):
+                    verify(root)
 
     def test_pe_architecture_bounds_and_release_symbols(self):
         valid = pe_fixture()

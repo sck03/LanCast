@@ -53,13 +53,18 @@ class PlatformPlayer(context: Context, private val event: (String) -> Unit) : Fi
         if (!hasSurface || media != null) return
         val current = generation
         runCatching {
-            media = MediaPlayer().also { player ->
-                player.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
-                player.setDisplay(surface.holder)
-                player.setOnPreparedListener { if (current == generation) { ready = true; it.start(); event("ready") } }
-                player.setOnCompletionListener { if (current == generation) event("ended") }
-                player.setOnErrorListener { _, _, _ -> if (current == generation) { close(); event("MEDIA_UNSUPPORTED") }; true }
-                player.setDataSource(url); player.prepareAsync()
+            val candidate = MediaPlayer()
+            try {
+                candidate.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
+                candidate.setDisplay(surface.holder)
+                candidate.setOnPreparedListener { if (current == generation) { ready = true; it.start(); event("ready") } }
+                candidate.setOnCompletionListener { if (current == generation) event("ended") }
+                candidate.setOnErrorListener { _, _, _ -> if (current == generation) { close(); event("MEDIA_UNSUPPORTED") }; true }
+                candidate.setDataSource(url); candidate.prepareAsync()
+                media = candidate
+            } catch (failure: Throwable) {
+                runCatching { candidate.reset() }; runCatching { candidate.release() }
+                throw failure
             }
         }.onFailure { close(); event("MEDIA_UNSUPPORTED") }
     }

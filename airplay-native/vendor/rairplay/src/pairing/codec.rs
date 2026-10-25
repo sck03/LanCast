@@ -15,10 +15,24 @@ pub struct UpgradeableCodec<E, D> {
     hap_decoder: Option<HAPDecoder>,
     decode_buf: BytesMut,
     session_key: SharedSessionKey,
+    budget: crate::transport::RequestBudget,
 }
 
 impl<E, D> UpgradeableCodec<E, D> {
     pub fn new(inner_encoder: E, inner_decoder: D, session_key: SharedSessionKey) -> Self {
+        Self::with_budget(
+            inner_encoder,
+            inner_decoder,
+            session_key,
+            crate::transport::RequestBudget::default(),
+        )
+    }
+    pub(crate) fn with_budget(
+        inner_encoder: E,
+        inner_decoder: D,
+        session_key: SharedSessionKey,
+        budget: crate::transport::RequestBudget,
+    ) -> Self {
         Self {
             inner_encoder,
             inner_decoder,
@@ -26,6 +40,7 @@ impl<E, D> UpgradeableCodec<E, D> {
             hap_encoder: None,
             hap_decoder: None,
             decode_buf: BytesMut::new(),
+            budget,
         }
     }
 }
@@ -38,6 +53,22 @@ where
     type Error = io::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if !src.is_empty() || !self.decode_buf.is_empty() {
+            self.budget.begin()?;
+        }
+        let result = self.decode_inner(src)?;
+        if result.is_some() {
+            self.budget.finish();
+        }
+        Ok(result)
+    }
+}
+
+impl<E, D> UpgradeableCodec<E, D>
+where
+    D: Decoder<Item = BytesMut, Error = io::Error>,
+{
+    fn decode_inner(&mut self, src: &mut BytesMut) -> Result<Option<BytesMut>, io::Error> {
         if let Some(hap_decoder) = &mut self.hap_decoder {
             loop {
                 // Try decode gathered data

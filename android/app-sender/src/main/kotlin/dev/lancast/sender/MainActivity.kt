@@ -82,10 +82,10 @@ class MainActivity : Activity() {
         SenderRuntime.ensureCore(this)
     }
     override fun onStart() {
-        super.onStart(); SenderRuntime.observer = ::onEvent; updateControls()
+        super.onStart(); SenderRuntime.setHostVisible(true); SenderRuntime.observer = ::onEvent; updateControls()
         if (!SenderRuntime.selectionLocked && !externalRequest && SenderRuntime.catalog.devices.isEmpty()) runCatching(::scanDevices).onFailure { state.text = it.message }
     }
-    override fun onStop() { profileRequest = null; if (SenderRuntime.probing) SenderRuntime.stop(); SenderRuntime.observer = null; super.onStop() }
+    override fun onStop() { profileRequest = null; if (SenderRuntime.probing) SenderRuntime.stop(); SenderRuntime.observer = null; SenderRuntime.setHostVisible(false); super.onStop() }
     private fun canStart() = !SenderRuntime.busy && !SenderRuntime.connecting && !SenderRuntime.scanning && profileRequest == null && !externalRequest
     private fun scanDevices() {
         check(profileRequest == null && !externalRequest)

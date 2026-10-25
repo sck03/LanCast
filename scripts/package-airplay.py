@@ -6,15 +6,17 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
+from source_provenance import require_clean_source
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    source_state = require_clean_source(ROOT, ROOT / "dist/reports/build-android.json")
     dest = ROOT / "dist/airplay-evidence"
     dest.mkdir(parents=True, exist_ok=True)
     subprocess.run([sys.executable, "scripts/dependency-report.py", "--manifest", "airplay-native/Cargo.toml", "--output", "dist/airplay-evidence/reports"], cwd=ROOT, check=True)
-    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    revision = source_state["source_commit"]
     subprocess.run(["git", "archive", "--format=tar.gz", "-o", str(dest / "lancast-source.tar.gz"), revision], cwd=ROOT, check=True)
     vendor = ROOT / ".cache/airplay-cargo-sources"
     config = subprocess.check_output(["cargo", "vendor", "--locked", "--versioned-dirs", "--manifest-path", "airplay-native/Cargo.toml", "--sync", "Cargo.toml", str(vendor)], cwd=ROOT, text=True)
@@ -37,7 +39,9 @@ def main():
         "The existing fixed WebRTC AAR remains a supplier binary; see THIRD_PARTY.md.\n"
         "This is review/build evidence. Physical iPhone/TV interop and production release remain unverified.\n", encoding="utf-8")
     files = [{"file": p.relative_to(dest).as_posix(), "bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(dest.rglob("*")) if p.is_file() and p != dest / "manifest.json"]
-    (dest / "manifest.json").write_text(json.dumps({"schema": 1, "commit": revision, "license": "GPL-3.0-only", "files": files}, indent=2) + "\n", encoding="utf-8")
+    if require_clean_source(ROOT) != source_state:
+        raise ValueError("Sources changed while packaging corresponding-source materials")
+    (dest / "manifest.json").write_text(json.dumps({"schema": 1, "commit": revision, **source_state, "license": "GPL-3.0-only", "files": files}, indent=2) + "\n", encoding="utf-8")
     print(f"AirPlay source and dependency evidence: {dest}")
 
 

@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** One MediaProjection, one video Surface and one optional playback-only AudioRecord. */
 class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, private val status: (String) -> Unit) : AutoCloseable {
     private val closed = AtomicBoolean(false)
+    private val completion = CaptureCompletion()
     private val thread = HandlerThread("lancast-dlna-codecs").apply { start() }
     private val worker = Handler(thread.looper)
     private var projection: MediaProjection? = null
@@ -174,22 +175,33 @@ class DlnaCapture(private val context: Context, private val sink: TsMux.Sink, pr
                 runCatching { encoder.stop() }; runCatching { encoder.release() }
                 runCatching { recorder?.stop() }; runCatching { recorder?.release() }
                 record = null
+                completion.audioFinished()
             }
-        }, "lancast-playback-aac").apply { start() }
+        }, "lancast-playback-aac")
+        audioThread!!.start()
     }
-    override fun close() {
+    override fun close() = close { }
+    fun close(onClosed: () -> Unit) {
+        completion.whenComplete(onClosed)
         if (!closed.compareAndSet(false, true)) return
         // AudioRecord.stop unblocks the only reader before the worker waits for its exit.
         runCatching { record?.stop() }
         worker.post {
-            runCatching { audioThread?.join(2000) }
-            runCatching { probeFrames?.close() }
-            runCatching { display?.release() }; runCatching { surface?.release() }; runCatching { projection?.stop() }
-            runCatching { video?.stop() }; runCatching { video?.release() }
-            // Before the I/O thread starts, partially initialized audio belongs here.
-            if (audioThread == null) { runCatching { audio?.stop() }; runCatching { audio?.release() }; runCatching { record?.release() } }
-            runCatching { mux?.close() }
-            worker.removeCallbacksAndMessages(null); thread.quitSafely()
+            try {
+                runCatching { audioThread?.join(2000) }
+                runCatching { probeFrames?.close() }
+                runCatching { display?.release() }; runCatching { surface?.release() }; runCatching { projection?.stop() }
+                runCatching { video?.stop() }; runCatching { video?.release() }
+                // A started I/O thread retains its resources and reports completion in finally.
+                if (audioThread == null || audioThread?.state == Thread.State.NEW) {
+                    runCatching { audio?.stop() }; runCatching { audio?.release() }; runCatching { record?.release() }
+                    completion.audioFinished()
+                }
+                runCatching { mux?.close() }
+            } finally {
+                worker.removeCallbacksAndMessages(null); thread.quitSafely()
+                completion.codecFinished()
+            }
         }
     }
 }

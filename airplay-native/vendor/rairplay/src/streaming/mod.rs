@@ -31,12 +31,6 @@ pub struct AudioRealtimeChannel {
 }
 
 #[derive(Debug)]
-pub struct AudioBufferedChannel {
-    pub local_addr: SocketAddr,
-    pub audio_buf_size: u32,
-}
-
-#[derive(Debug)]
 pub struct VideoChannel {
     pub local_addr: SocketAddr,
 }
@@ -80,61 +74,6 @@ impl EventChannel {
 
     pub fn local_addr(&self) -> SocketAddr {
         self.local_addr
-    }
-}
-
-impl AudioBufferedChannel {
-    #[tracing::instrument(ret, err, skip(shared_data, stream))]
-    pub async fn create(
-        bind_addr: IpAddr,
-        expected_remote_addr: IpAddr,
-        shared_data: Arc<SharedData>,
-        stream: impl AudioStream,
-        audio_buf_size: u32,
-        keys: EncryptionMaterial,
-    ) -> io::Result<Self> {
-        let encryption = processing::Encryption::try_from(keys)?;
-
-        let listener = TcpListener::bind(SocketAddr::new(bind_addr, 0)).await?;
-        let local_addr = listener.local_addr()?;
-        tracing::info!(%local_addr, "created new listener");
-
-        tokio::spawn(async move {
-            let task = async {
-                loop {
-                    return match listener.accept().await {
-                        Ok((tcp_stream, stream_remote_addr)) => {
-                            if expected_remote_addr != stream_remote_addr.ip() {
-                                tracing::debug!(%stream_remote_addr, "skip invalid connection");
-                                continue;
-                            }
-
-                            processing::audio_buffered_processor(
-                                tcp_stream,
-                                &stream,
-                                audio_buf_size,
-                                encryption,
-                            )
-                            .await
-                        }
-                        Err(err) => Err(err),
-                    };
-                }
-            };
-
-            tokio::select! {
-                () = &shared_data.waker_flag => {},
-                res = task => match remap_io_error_if_needed(res) {
-                    Ok(()) => stream.on_ok(),
-                    Err(err) => stream.on_err(err.into()),
-                }
-            }
-        });
-
-        Ok(Self {
-            local_addr,
-            audio_buf_size,
-        })
     }
 }
 

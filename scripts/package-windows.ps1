@@ -1,9 +1,39 @@
 param([ValidateSet('Debug', 'Release')][string]$Configuration = 'Release')
 $ErrorActionPreference = 'Stop'
-$destination = Join-Path $PWD 'dist/LanCast-Windows-x64'
-New-Item -ItemType Directory -Force $destination | Out-Null
+$root = (Resolve-Path -LiteralPath (Split-Path $PSScriptRoot -Parent)).Path
+Set-Location -LiteralPath $root
+$dist = [IO.Path]::GetFullPath((Join-Path $root 'dist'))
+$delivery = Join-Path $dist 'LanCast-Windows-x64'
+$destination = Join-Path $dist ('LanCast-Windows-x64-stage-' + [guid]::NewGuid().ToString('N'))
+function Assert-PackagePath([string]$Path) {
+    $absolute = [IO.Path]::GetFullPath($Path)
+    if ([IO.Path]::GetDirectoryName($absolute) -ne $dist -or [IO.Path]::GetFileName($absolute) -notmatch '^LanCast-Windows-x64(?:-stage-[a-f0-9]{32})?$') {
+        throw "Invalid generated package path: $absolute"
+    }
+    $current = $absolute
+    while ($current -and $current -ne $root) {
+        if ((Test-Path -LiteralPath $current) -and ((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Package path contains a link: $current"
+        }
+        $current = [IO.Path]::GetDirectoryName($current)
+    }
+    if ($current -ne $root) { throw "Package path is outside workspace: $absolute" }
+    return $absolute
+}
+function Remove-PackageDirectory([string]$Path) {
+    $absolute = Assert-PackagePath $Path
+    if (Test-Path -LiteralPath $absolute) {
+        if (Get-ChildItem -LiteralPath $absolute -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }) {
+            throw 'Package contains a protected link'
+        }
+        Remove-Item -LiteralPath $absolute -Recurse -Force
+    }
+}
+$destination = Assert-PackagePath $destination
+New-Item -ItemType Directory $destination | Out-Null
+try {
 Copy-Item -LiteralPath "windows/build/$Configuration/LanCast.exe","windows/build/$Configuration/lancast_core.dll","windows/build/$Configuration/lancast_rtc.dll",.cache/ts-windows/lancast_ts.dll -Destination $destination
-python scripts/build_config.py --platform windows --configuration $Configuration
+python scripts/build_config.py --platform windows --configuration $Configuration --check-recorded
 if ($LASTEXITCODE -ne 0) { throw 'Invalid Windows product version' }
 Copy-Item -LiteralPath dist/reports/build-windows.json -Destination $destination
 $buildReport = Get-Content -LiteralPath dist/reports/build-windows.json -Raw | ConvertFrom-Json
@@ -51,4 +81,12 @@ LanCast 使用说明
 需 Windows 10 22H2 或 Windows 11。请保留同目录三个 DLL。
 这是开发版，尚未完成所有电视型号、实际延迟和长时间运行验收。
 '@ | Set-Content -LiteralPath "$destination/使用说明.txt" -Encoding utf8
-Get-ChildItem -LiteralPath $destination -File | Where-Object { $_.Name -notin @('SHA256.json', 'binary-dependencies.json') } | Get-FileHash -Algorithm SHA256 | Select-Object Hash,Path | ConvertTo-Json | Set-Content -LiteralPath "$destination/SHA256.json"
+python scripts/verify-windows.py --write-hashes $destination
+if ($LASTEXITCODE -ne 0) { throw 'Staged Windows package verification failed' }
+$delivery = Assert-PackagePath $delivery
+Remove-PackageDirectory $delivery
+$destination = Assert-PackagePath $destination
+Move-Item -LiteralPath $destination -Destination $delivery
+} finally {
+    Remove-PackageDirectory $destination
+}

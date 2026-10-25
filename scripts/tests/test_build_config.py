@@ -1,6 +1,10 @@
+import json
 from pathlib import Path
+import subprocess
+import tempfile
 import unittest
-from scripts.build_config import resolve
+from unittest.mock import patch
+from scripts.build_config import check_recorded, record, resolve
 
 DEFAULTS = {"schema": 1, "version": "0.4.0", "build_number": 4,
             "configuration": {p: "Release" for p in ("windows", "android", "macos", "ios", "tvos")},
@@ -8,6 +12,27 @@ DEFAULTS = {"schema": 1, "version": "0.4.0", "build_number": 4,
 
 
 class BuildConfigTests(unittest.TestCase):
+    def test_packaging_cannot_replace_recorded_build_sources_or_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True, capture_output=True)
+            (root / ".gitignore").write_text("dist/\n", encoding="utf-8")
+            (root / "source.txt").write_text("original", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                            "commit", "-qm", "fixture"], check=True, capture_output=True)
+            config = resolve("windows", environ={}, defaults=DEFAULTS)
+            with patch("scripts.build_config.ROOT", root):
+                original = record(config)
+                self.assertEqual(check_recorded(config), json.loads(json.dumps(original)))
+                with self.assertRaisesRegex(ValueError, "rebuild"):
+                    check_recorded(resolve("windows", configuration="Debug", environ={}, defaults=DEFAULTS))
+                (root / "source.txt").write_text("changed", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "rebuild"):
+                    check_recorded(config)
+            self.assertEqual((root / "dist/reports/build-windows.json").read_text(encoding="utf-8"),
+                             json.dumps(original, indent=2) + "\n")
+
     def test_android_abi_cache_keys_are_safe_order_independent_and_distinct(self):
         dual = resolve("android", environ={}, defaults=DEFAULTS)
         reversed_abis = resolve("android", android_abis="arm64-v8a,armeabi-v7a", environ={}, defaults=DEFAULTS)

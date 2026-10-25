@@ -57,7 +57,7 @@ async fn stop_revokes_shared_file_and_allows_a_fresh_share() {
     let file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(file.path(), b"synthetic lifecycle fixture").unwrap();
     let engine = Engine::new().unwrap();
-    let share = json!({"op":"file.share","path":file.path(),"address":"127.0.0.1:0","allowedIp":"127.0.0.1","encrypted":false});
+    let mut share = json!({"op":"file.share","path":file.path(),"address":"127.0.0.1:0","allowedIp":"127.0.0.1","encrypted":false});
     engine.command(share.clone()).unwrap();
     let old = event(&engine, "file.shared")["url"]
         .as_str()
@@ -67,6 +67,13 @@ async fn stop_revokes_shared_file_and_allows_a_fresh_share() {
     assert_eq!(client.get(&old).send().await.unwrap().status(), 200);
     engine.command(json!({"op":"stop"})).unwrap();
     event(&engine, "stopped");
+    let old_address = url::Url::parse(&old)
+        .unwrap()
+        .socket_addrs(|| None)
+        .unwrap()[0];
+    // stopped is a listener/connection cleanup barrier, including immediate
+    // reuse of an explicitly selected port.
+    share["address"] = json!(old_address.to_string());
     engine.command(share).unwrap();
     let next = event(&engine, "file.shared")["url"]
         .as_str()

@@ -40,4 +40,4 @@ offer 保留请求 ID 幂等缓存；错误的父代次不改变当前状态。�
 
 ## 验证
 
-纯策略测试覆盖重复失败、单边恢复、耗尽、时钟回退和恢复后再断流。真实 Rust/WSS 集成覆盖能力协商、新旧 offer、过期 answer/ICE 过滤与停止。Windows 用两次 ICE/DTLS/SRTP 通路验证 H.264/Opus RTP，Mac 在重建后实际解码 H.264 帧。Android 已编译/lint；MediaProjection 真机、跨平台断流、旋转、声音恢复和完整网络切换仍须按06验收。
+纯策略测试覆盖重复失败、单边恢复、耗尽、时钟回退和恢复后再断流。D22补充首次截止前失败、截止后成功先于轮询到达的回归；状态报告本身必须检查截止，不能等下一次tick才判断。真实 Rust/WSS 集成覆盖能力协商、新旧 offer、过期 answer/ICE 过滤与停止。Windows 用两次 ICE/DTLS/SRTP 通路验证 H.264/Opus RTP，Mac 在重建后实际解码 H.264 帧。各轮实际构建见08；MediaProjection 真机、跨平台断流、旋转、声音恢复和完整网络切换仍须按06验收。

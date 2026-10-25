@@ -175,7 +175,6 @@ dependencies = [
  "cast-adapters",
  "jni",
  "serde_json",
- "tempfile",
 ]
 
 [[package]]

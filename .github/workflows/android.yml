@@ -3,9 +3,9 @@ run-name: Android · ${{ inputs.product || 'all products' }} · ${{ inputs.confi
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/source_provenance.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/source_provenance.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
       product:
@@ -118,6 +118,15 @@ jobs:
         if: steps.products.outputs.sender == 'true'
       - run: python scripts/package-airplay.py
         if: steps.products.outputs.receiver_airplay == 'true'
+      - name: Verify all Android Release contracts on main
+        if: github.event_name == 'push' && steps.build-config.outputs.configuration != 'Release'
+        env:
+          LC_ANDROID_PRODUCT: all
+          LC_CONFIGURATION: Release
+        run: |
+          cp dist/reports/build-android.json .cache/build-android-selected.json
+          trap 'cp dist/reports/build-android.json dist/reports/build-android-release-check.json; cp .cache/build-android-selected.json dist/reports/build-android.json' EXIT
+          python scripts/build-android.py --product all --configuration Release
       - uses: actions/upload-artifact@v7
         if: steps.products.outputs.receiver_airplay == 'true'
         with:
@@ -169,5 +178,6 @@ jobs:
             android/*/build/test-results/
             android/app-*/build/outputs/mapping/
             dist/reports/build-android.json
+            dist/reports/build-android-release-check.json
             .cache/ffmpeg-install-*/build-manifest.json
           compression-level: 9

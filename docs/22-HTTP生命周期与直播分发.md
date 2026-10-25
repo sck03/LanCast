@@ -17,7 +17,7 @@
 | [ts](../crates/cast-adapters/src/ts.rs) | TS校验、PAT/PMT及实际SPS/PPS/IDR起播解析 | 不拥有网络任务或平台采集资源 |
 | [media_http](../crates/cast-adapters/src/media_http.rs) / [legacy_bridge](../crates/cast-adapters/src/legacy_bridge.rs) | 文件Range/HEAD与固定HTTPS上游桥 | 共用连接生命周期，各自保留授权和响应策略 |
 
-不新增crate或运行依赖。后续增加HTTP资源时，复用服务的任务所有权与请求取消令牌，资源自身处理授权、数据策略和撤销；不能在平台UI重新实现网络停止流程。正常`serve`返回是连接任务回收屏障；外部强制中止只发出子任务中止，调用方若需要确定完成应走资源撤销并等待监听退出。
+不新增crate或运行依赖。后续增加HTTP资源时，复用服务的任务所有权与请求取消令牌，资源自身处理授权、数据策略和撤销；不能在平台UI重新实现网络停止流程。正常`serve`返回是连接任务回收屏障；外部强制中止只发出子任务中止，调用方若需要确定完成应走资源撤销并等待监听退出。D22由Runtime独立持有资源任务，撤销后等待回收才交付stopped，文件顺序读取与取消位置提示合同见[26](26-截止与资源退出维护.md)。
 
 ## 分发与预算
 

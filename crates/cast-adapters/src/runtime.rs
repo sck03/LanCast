@@ -1,5 +1,6 @@
 use crate::{
     auth::Identity,
+    blocking_io::BlockingIo,
     control::{Client, Server},
     discovery, dlna,
     events::{self, EventInbox, Events, event},
@@ -115,6 +116,9 @@ impl Engine {
                         server: None,
                         client: None,
                         tasks: Vec::new(),
+                        resource_tasks: Vec::new(),
+                        generation: worker_generation.clone(),
+                        io: BlockingIo::new(worker_generation.clone(), shutdown_worker.clone()),
                         scan: discovery::ScanTask::default(),
                         resources: Vec::new(),
                         renderers: HashMap::new(),
@@ -149,12 +153,14 @@ impl Engine {
                         // Once teardown begins, finish its bounded renderer cleanup. A duplicate
                         // stop must not detach the old cleanup and let it race a new session.
                         let result = if command.value["op"] == "stop" {
-                            Some(state.command(command.value, command.file).await)
+                            Some(state
+                                .command(command.value, command.file, command.generation)
+                                .await)
                         } else {
                             tokio::select! { biased;
                                 _ = shutdown_worker.cancelled() => break,
                                 _ = stop_worker.notified() => None,
-                                r = state.command(command.value, command.file) => Some(r),
+                                r = state.command(command.value, command.file, command.generation) => Some(r),
                             }
                         };
                         match result {
@@ -162,17 +168,33 @@ impl Engine {
                                 event(&events, "error", json!({"code":error.to_string()}))
                             }
                             None => {
-                                let _ = state.command(json!({"op":"stop"}), None).await;
+                                let _ = state
+                                    .command(
+                                        json!({"op":"stop"}),
+                                        None,
+                                        worker_generation.load(std::sync::atomic::Ordering::Acquire),
+                                    )
+                                    .await;
                             }
                             _ => {}
                         }
                         state.tasks.retain(|task| !task.is_finished());
+                        state.resource_tasks.retain(|task| !task.is_finished());
                     }
-                    let _ = state.command(json!({"op":"stop"}), None).await;
+                    let _ = state
+                        .command(
+                            json!({"op":"stop"}),
+                            None,
+                            worker_generation.load(std::sync::atomic::Ordering::Acquire),
+                        )
+                        .await;
                     for resource in state.resources {
                         resource.revoke();
                     }
                     for task in state.tasks {
+                        task.abort();
+                    }
+                    for task in state.resource_tasks {
                         task.abort();
                     }
                     event(&events, "shutdown.completed", json!({}));
@@ -242,6 +264,9 @@ struct Runtime {
     server: Option<Arc<Server>>,
     client: Option<Client>,
     tasks: Vec<JoinHandle<()>>,
+    resource_tasks: Vec<JoinHandle<()>>,
+    generation: Arc<std::sync::atomic::AtomicU64>,
+    io: BlockingIo,
     scan: discovery::ScanTask,
     resources: Vec<Arc<Resource>>,
     renderers: HashMap<String, dlna::Renderer>,
@@ -252,7 +277,7 @@ struct Runtime {
     #[cfg(feature = "sender")]
     live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
     #[cfg(feature = "sender")]
-    profiles: Option<crate::profiles::ProfileStore>,
+    profiles: Option<Arc<StdMutex<crate::profiles::ProfileStore>>>,
     #[cfg(feature = "sender")]
     live_context: Option<LiveContext>,
     #[cfg(feature = "sender")]
@@ -269,9 +294,15 @@ struct LiveContext {
 impl Runtime {
     async fn command(
         &mut self,
-        c: Value,
+        mut c: Value,
         granted_file: Option<std::fs::File>,
+        command_generation: u64,
     ) -> anyhow::Result<()> {
+        if c["op"] != "stop"
+            && command_generation != self.generation.load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Ok(());
+        }
         match string(&c, "op")? {
             "listen" => {
                 ensure!(self.server.is_none(), "ALREADY_LISTENING");
@@ -352,7 +383,7 @@ impl Runtime {
                 self.client = Some(client);
             }
             "send" => {
-                let msg = Message::parse(&c["message"].to_string())?;
+                let msg = Message::from_value(c["message"].take())?;
                 if let Some(client) = &self.client {
                     client.send(msg)?;
                 } else if let Some(server) = &self.server {
@@ -383,6 +414,15 @@ impl Runtime {
                 }
                 for resource in self.resources.drain(..) {
                     resource.revoke();
+                }
+                for mut task in self.resource_tasks.drain(..) {
+                    if tokio::time::timeout(Duration::from_secs(2), &mut task)
+                        .await
+                        .is_err()
+                    {
+                        task.abort();
+                        let _ = task.await;
+                    }
                 }
                 if let Some((controller, url)) = self.dlna_playing.take() {
                     let _ = tokio::time::timeout(Duration::from_secs(2), async {
@@ -425,14 +465,28 @@ impl Runtime {
             "file.share" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 ensure!(self.resources.is_empty(), "STOP_CURRENT_FILE_FIRST");
-                let file = if let Some(file) = granted_file {
-                    file
-                } else if let Some(path) = c["path"].as_str() {
-                    std::fs::File::open(path)?
-                } else {
-                    anyhow::bail!("FILE_REQUIRED")
-                };
-                let resource = Resource::from_file(file, string(&c, "allowedIp")?.parse()?)?;
+                let allowed_ip: IpAddr = string(&c, "allowedIp")?.parse()?;
+                let path = c["path"].as_str().map(str::to_owned);
+                let resource = self
+                    .io
+                    .run(command_generation, move |guard| {
+                        let file = if let Some(file) = granted_file {
+                            file
+                        } else if let Some(path) = path {
+                            std::fs::File::open(path)?
+                        } else {
+                            anyhow::bail!("FILE_REQUIRED")
+                        };
+                        guard.check()?;
+                        let resource = Resource::from_file(file, allowed_ip)?;
+                        guard.check()?;
+                        Ok(resource)
+                    })
+                    .await?;
+                if command_generation != self.generation.load(std::sync::atomic::Ordering::Acquire)
+                {
+                    return Ok(());
+                }
                 let encrypted = c["encrypted"].as_bool().unwrap_or(true);
                 let tls = if encrypted {
                     Some(Arc::new(self.identity.server_config()?))
@@ -451,7 +505,7 @@ impl Runtime {
                     json!({"url":url,"length":resource.length,"mime":"video/mp4","fingerprint":self.identity.fingerprint,"encrypted":encrypted}),
                 );
                 self.resources.push(resource);
-                self.tasks.push(task);
+                self.resource_tasks.push(task);
             }
             "dlna.load" | "dlna.command" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
@@ -550,35 +604,40 @@ impl Runtime {
                 )
                 .await?;
                 self.bridges.push(bridge);
-                self.tasks.push(task);
+                self.resource_tasks.push(task);
                 event(&self.events, "bridge.ready", json!({"url":url}));
             }
             #[cfg(feature = "sender")]
             "profiles.open" => {
                 ensure!(self.profiles.is_none(), "PROFILES_ALREADY_OPEN");
-                self.profiles = Some(crate::profiles::ProfileStore::open(
-                    string(&c, "path")?.into(),
-                )?);
+                let path = string(&c, "path")?.into();
+                let profiles = self
+                    .io
+                    .run(command_generation, move |guard| {
+                        crate::profiles::ProfileStore::open_checked(path, || guard.check())
+                    })
+                    .await?;
+                if command_generation != self.generation.load(std::sync::atomic::Ordering::Acquire)
+                {
+                    return Ok(());
+                }
+                self.profiles = Some(Arc::new(StdMutex::new(profiles)));
             }
             #[cfg(feature = "sender")]
             "profile.check" => {
                 let device = self
                     .renderers
                     .get(string(&c, "deviceId")?)
-                    .context("DLNA_UNAVAILABLE")?;
+                    .context("DLNA_UNAVAILABLE")?
+                    .clone();
                 let profile = live_profile(c["audio"].as_bool().unwrap_or(true));
-                let evidence = self.profiles.as_ref().and_then(|store| {
-                    store.get(
-                        &device.id,
-                        &device.signature,
-                        &profile,
-                        crate::profiles::now(),
-                    )
-                });
+                let evidence = self
+                    .profile_evidence(&device, &profile, command_generation)
+                    .await?;
                 event(
                     &self.events,
                     "profile.checked",
-                    json!({"deviceId":device.id,"profile":profile,"passed":evidence.is_some_and(|e| e.passed),"evidence":evidence,"generation":c["generation"],"requestId":c["requestId"]}),
+                    json!({"deviceId":device.id,"profile":profile,"passed":evidence.as_ref().is_some_and(|e| e.passed),"evidence":evidence,"generation":c["generation"],"requestId":c["requestId"]}),
                 );
             }
             #[cfg(feature = "sender")]
@@ -597,19 +656,28 @@ impl Runtime {
                 ensure!(!live.cancellation().is_cancelled(), "PROBE_EXPIRED");
                 let passed = c["passed"].as_bool().context("PROBE_RESULT_REQUIRED")?;
                 ensure!(!passed || live.delivered() > 0, "PROBE_NOT_PULLING");
-                self.profiles
-                    .as_mut()
-                    .context("PROFILE_STORE_REQUIRED")?
-                    .save(
-                        device.id.clone(),
-                        crate::profiles::Evidence {
-                            signature: device.signature.clone(),
-                            profile: profile.clone(),
-                            confirmed_at: crate::profiles::now(),
-                            passed,
-                            source: "user_confirmed_synthetic".into(),
-                        },
-                    )?;
+                let profiles = self.profiles.clone().context("PROFILE_STORE_REQUIRED")?;
+                let device_id = device.id.clone();
+                let evidence = crate::profiles::Evidence {
+                    signature: device.signature.clone(),
+                    profile: profile.clone(),
+                    confirmed_at: crate::profiles::now(),
+                    passed,
+                    source: "user_confirmed_synthetic".into(),
+                };
+                self.io
+                    .run(command_generation, move |guard| {
+                        let mut profiles = profiles
+                            .lock()
+                            .map_err(|_| anyhow::anyhow!("PROFILE_STORE_FAILED"))?;
+                        guard.check()?;
+                        profiles.save_checked(device_id, evidence, || guard.check())
+                    })
+                    .await?;
+                if command_generation != self.generation.load(std::sync::atomic::Ordering::Acquire)
+                {
+                    return Ok(());
+                }
                 event(
                     &self.events,
                     "probe.saved",
@@ -628,20 +696,14 @@ impl Runtime {
                     .clone();
                 let probe = c["synthetic"].as_bool().unwrap_or(false);
                 let profile = live_profile(c["audio"].as_bool().unwrap_or(true));
-                ensure!(
-                    probe
-                        || self
-                            .profiles
-                            .as_ref()
-                            .and_then(|store| store.get(
-                                &device.id,
-                                &device.signature,
-                                &profile,
-                                crate::profiles::now()
-                            ))
+                if !probe {
+                    ensure!(
+                        self.profile_evidence(&device, &profile, command_generation)
+                            .await?
                             .is_some_and(|e| e.passed),
-                    "SYNTHETIC_PROBE_REQUIRED"
-                );
+                        "SYNTHETIC_PROBE_REQUIRED"
+                    );
+                }
                 ensure!(
                     string(&c, "allowedIp")?.parse::<IpAddr>()? == device.ip,
                     "LIVE_DEVICE_MISMATCH"
@@ -656,7 +718,7 @@ impl Runtime {
                     url: url.clone(),
                     generation,
                 });
-                self.tasks.push(task);
+                self.resource_tasks.push(task);
                 event(
                     &self.events,
                     "live.created",
@@ -681,6 +743,35 @@ impl Runtime {
             _ => anyhow::bail!("UNKNOWN_COMMAND"),
         }
         Ok(())
+    }
+    #[cfg(feature = "sender")]
+    async fn profile_evidence(
+        &self,
+        device: &dlna::Renderer,
+        profile: &str,
+        generation: u64,
+    ) -> anyhow::Result<Option<crate::profiles::Evidence>> {
+        let Some(profiles) = self.profiles.clone() else {
+            return Ok(None);
+        };
+        let device = device.clone();
+        let profile = profile.to_owned();
+        self.io
+            .run(generation, move |guard| {
+                let profiles = profiles
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("PROFILE_STORE_FAILED"))?;
+                guard.check()?;
+                Ok(profiles
+                    .get(
+                        &device.id,
+                        &device.signature,
+                        &profile,
+                        crate::profiles::now(),
+                    )
+                    .cloned())
+            })
+            .await
     }
 }
 #[cfg(feature = "sender")]

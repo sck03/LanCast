@@ -64,38 +64,65 @@ impl Message {
         Unique::deserialize(&mut deserializer)?;
         deserializer.end()?;
         let value: Self = serde_json::from_str(text)?;
-        anyhow::ensure!(value.version == 1, "VERSION_UNSUPPORTED");
-        anyhow::ensure!(value.body.is_object(), "INVALID_BODY");
-        if matches!(value.kind.as_str(), "rtc.offer" | "rtc.answer") {
-            anyhow::ensure!(value.string("sdp")?.len() <= MAX_SDP, "SDP_TOO_LARGE");
-            Uuid::parse_str(value.string("negotiationId")?)?;
+        value.validate()?;
+        Ok(value)
+    }
+    pub(crate) fn from_value(value: Value) -> anyhow::Result<Self> {
+        // A Value cannot contain duplicate keys. Count its wire size without
+        // allocating/reparsing a temporary JSON string for native commands.
+        let mut limit = FrameLimit(0);
+        serde_json::to_writer(&mut limit, &value)?;
+        let message: Self = serde_json::from_value(value)?;
+        message.validate()?;
+        Ok(message)
+    }
+    fn validate(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(self.version == 1, "VERSION_UNSUPPORTED");
+        anyhow::ensure!(self.body.is_object(), "INVALID_BODY");
+        if matches!(self.kind.as_str(), "rtc.offer" | "rtc.answer") {
+            anyhow::ensure!(self.string("sdp")?.len() <= MAX_SDP, "SDP_TOO_LARGE");
+            Uuid::parse_str(self.string("negotiationId")?)?;
         }
-        if value.kind == "rtc.ice" {
-            anyhow::ensure!(value.string("candidate")?.len() <= MAX_ICE, "ICE_TOO_LARGE");
+        if self.kind == "rtc.ice" {
+            anyhow::ensure!(self.string("candidate")?.len() <= MAX_ICE, "ICE_TOO_LARGE");
             anyhow::ensure!(
-                value.body["sdpMLineIndex"]
+                self.body["sdpMLineIndex"]
                     .as_u64()
                     .is_some_and(|n| n <= 65535),
                 "INVALID_ICE"
             );
-            Uuid::parse_str(value.string("negotiationId")?)?;
+            Uuid::parse_str(self.string("negotiationId")?)?;
         }
-        if value.kind == "rtc.state" {
-            Uuid::parse_str(value.string("negotiationId")?)?;
+        if self.kind == "rtc.state" {
+            Uuid::parse_str(self.string("negotiationId")?)?;
             anyhow::ensure!(
                 matches!(
-                    value.string("state")?,
+                    self.string("state")?,
                     "connected" | "disconnected" | "failed"
                 ),
                 "INVALID_RTC_STATE"
             );
         }
-        Ok(value)
+        Ok(())
     }
     pub fn string(&self, field: &str) -> anyhow::Result<&str> {
         self.body[field]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("INVALID_FIELD: {field}"))
+    }
+}
+
+struct FrameLimit(usize);
+impl std::io::Write for FrameLimit {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > MAX_FRAME - self.0 {
+            return Err(std::io::Error::other("FRAME_TOO_LARGE"));
+        }
+        self.0 += bytes.len();
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
@@ -169,5 +196,6 @@ mod tests {
             serde_json::json!({"sdp":"x".repeat(MAX_SDP+1),"negotiationId":Uuid::new_v4()}),
         );
         assert!(Message::parse(&serde_json::to_string(&msg).unwrap()).is_err());
+        assert!(Message::from_value(serde_json::to_value(msg).unwrap()).is_err());
     }
 }

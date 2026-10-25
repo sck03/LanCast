@@ -25,6 +25,7 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
     private static let sslReady = LKRTCInitializeSSL()
     private let queue = DispatchQueue(label: "dev.lancast.rtc")
     private let videoSlots = DispatchSemaphore(value: 2)
+    private let audioSlots = DispatchSemaphore(value: 4)
     private var factory: LKRTCPeerConnectionFactory?
     private var peer: LKRTCPeerConnection?
     private var source: LKRTCVideoSource?
@@ -240,9 +241,9 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
     }
     func pushAudio(_ sample: CMSampleBuffer) {
         // Access is serialized with creation and stop; audio device has its own bounded queue.
-        guard withAudio, videoSlots.wait(timeout: .now()) == .success else { return }
-        queue.async { [weak self, videoSlots] in
-            defer { videoSlots.signal() }; guard let self, !self.closed else { return }; self.audioInput?.pushSample(sample)
+        guard withAudio, audioSlots.wait(timeout: .now()) == .success else { return }
+        queue.async { [weak self, audioSlots] in
+            defer { audioSlots.signal() }; guard let self, !self.closed else { return }; self.audioInput?.pushSample(sample)
         }
     }
     private func measure() {

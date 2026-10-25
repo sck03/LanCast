@@ -58,7 +58,7 @@ class AndroidProductsTests(unittest.TestCase):
     def test_selection_limits_tasks_and_native_features(self):
         sender = selected_products("sender", environ={})
         self.assertEqual([p.key for p in sender], ["sender"])
-        self.assertEqual(gradle_tasks(sender, "Release"), [":app-sender:assembleRelease", ":app-sender:lintRelease", ":control-bridge:testReleaseUnitTest", ":app-sender:testReleaseUnitTest"])
+        self.assertEqual(gradle_tasks(sender, "Release"), [":app-sender:assembleRelease", ":app-sender:lintRelease", ":control-bridge:testReleaseUnitTest", ":media-webrtc:testReleaseUnitTest", ":app-sender:testReleaseUnitTest"])
         receivers = selected_products("receivers", environ={})
         self.assertEqual(len(receivers), 3)
         self.assertFalse(any("sender" in p.features for p in receivers))
@@ -70,6 +70,7 @@ class AndroidProductsTests(unittest.TestCase):
             products = selected_products(selection, environ={})
             for mode in ("Debug", "Release"):
                 tasks = gradle_tasks(products, mode)
+                self.assertIn(f":media-webrtc:test{mode}UnitTest", tasks)
                 airplay_tests = [task for task in tasks if task.startswith(":airplay-receiver:")]
                 self.assertEqual(airplay_tests, [f":airplay-receiver:test{mode}UnitTest"]
                                  if any(product.airplay for product in products) else [])

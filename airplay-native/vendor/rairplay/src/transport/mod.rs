@@ -3,6 +3,8 @@
 use std::{
     io,
     net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use axum::serve::Listener;
@@ -19,6 +21,45 @@ use tokio_util::{
 use crate::pairing::{SharedSessionKey, codec::UpgradeableCodec};
 
 pub(crate) mod codec;
+
+/// A request has one absolute budget, including encrypted fragments and its body.
+/// The I/O owner polls its timer, so a partial request expires even without another byte.
+#[derive(Clone)]
+pub(crate) struct RequestBudget {
+    deadline: Arc<Mutex<Option<tokio::time::Instant>>>,
+    timeout: Duration,
+}
+impl Default for RequestBudget {
+    fn default() -> Self {
+        Self::new(Duration::from_secs(15))
+    }
+}
+impl RequestBudget {
+    fn new(timeout: Duration) -> Self {
+        Self {
+            deadline: Arc::new(Mutex::new(None)),
+            timeout,
+        }
+    }
+    pub(crate) fn begin(&self) -> io::Result<()> {
+        let mut deadline = self.deadline.lock().unwrap_or_else(|e| e.into_inner());
+        let now = tokio::time::Instant::now();
+        if deadline.is_some_and(|end| now >= end) {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "RTSP request deadline",
+            ));
+        }
+        deadline.get_or_insert(now + self.timeout);
+        Ok(())
+    }
+    pub(crate) fn finish(&self) {
+        *self.deadline.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+    fn deadline(&self) -> Option<tokio::time::Instant> {
+        *self.deadline.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
 
 /// Dual-stack listener used by the receiver service.
 ///
@@ -137,14 +178,22 @@ impl Listener for DualStackListenerWithRtspRemap {
             let cancel = tokio_util::sync::CancellationToken::new();
             let id = self.next_id;
             self.next_id += 1;
-            let stream = GuardedIo::new(stream, cancel.clone(), permit);
+            let budget = RequestBudget::default();
+            let stream = GuardedIo::new(
+                stream,
+                cancel.clone(),
+                permit,
+                session_key.clone(),
+                budget.clone(),
+            );
             return (
                 SinkWriter::new(StreamReader::new(Framed::new(
                     stream,
-                    UpgradeableCodec::new(
+                    UpgradeableCodec::with_budget(
                         codec::Rtsp2Http::default(),
                         codec::Rtsp2Http::default(),
                         session_key.clone(),
+                        budget,
                     ),
                 ))),
                 Connection {
@@ -178,6 +227,10 @@ pub struct GuardedIo {
     stream: TcpStream,
     cancelled: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>,
     idle: std::pin::Pin<Box<tokio::time::Sleep>>,
+    pairing: std::pin::Pin<Box<tokio::time::Sleep>>,
+    request: std::pin::Pin<Box<tokio::time::Sleep>>,
+    session_key: SharedSessionKey,
+    budget: RequestBudget,
     _permit: tokio::sync::OwnedSemaphorePermit,
 }
 impl GuardedIo {
@@ -185,11 +238,17 @@ impl GuardedIo {
         stream: TcpStream,
         cancel: tokio_util::sync::CancellationToken,
         permit: tokio::sync::OwnedSemaphorePermit,
+        session_key: SharedSessionKey,
+        budget: RequestBudget,
     ) -> Self {
         Self {
             stream,
             cancelled: Box::pin(cancel.cancelled_owned()),
             idle: Box::pin(tokio::time::sleep(std::time::Duration::from_secs(30))),
+            pairing: Box::pin(tokio::time::sleep(Duration::from_secs(60))),
+            request: Box::pin(tokio::time::sleep(budget.timeout)),
+            session_key,
+            budget,
             _permit: permit,
         }
     }
@@ -203,6 +262,21 @@ impl tokio::io::AsyncRead for GuardedIo {
         let this = self.get_mut();
         if this.cancelled.as_mut().poll(cx).is_ready() || this.idle.as_mut().poll(cx).is_ready() {
             return std::task::Poll::Ready(Ok(()));
+        }
+        if this.session_key.read().is_none() && this.pairing.as_mut().poll(cx).is_ready() {
+            return std::task::Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "pairing deadline",
+            )));
+        }
+        if let Some(deadline) = this.budget.deadline() {
+            this.request.as_mut().reset(deadline);
+            if this.request.as_mut().poll(cx).is_ready() {
+                return std::task::Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "RTSP request deadline",
+                )));
+            }
         }
         let before = buf.filled().len();
         let result = std::pin::Pin::new(&mut this.stream).poll_read(cx, buf);
@@ -237,5 +311,202 @@ impl tokio::io::AsyncWrite for GuardedIo {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<io::Result<()>> {
         std::pin::Pin::new(&mut self.get_mut().stream).poll_shutdown(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::{SinkExt, StreamExt};
+    use tokio::io::AsyncWriteExt;
+
+    async fn framed_pair(
+        timeout: Duration,
+    ) -> (
+        TcpStream,
+        Framed<GuardedIo, UpgradeableCodec<codec::Rtsp2Http, codec::Rtsp2Http>>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        let permit = Arc::new(tokio::sync::Semaphore::new(1))
+            .acquire_owned()
+            .await
+            .unwrap();
+        let key = SharedSessionKey::default();
+        let budget = RequestBudget::new(timeout);
+        let io = GuardedIo::new(
+            server,
+            tokio_util::sync::CancellationToken::new(),
+            permit,
+            key.clone(),
+            budget.clone(),
+        );
+        let codec = UpgradeableCodec::with_budget(
+            codec::Rtsp2Http::default(),
+            codec::Rtsp2Http::default(),
+            key,
+            budget,
+        );
+        (client, Framed::new(io, codec))
+    }
+
+    #[tokio::test]
+    async fn partial_request_expires_while_bytes_keep_arriving() {
+        let (mut client, mut framed) = framed_pair(Duration::from_millis(60)).await;
+        let writer = tokio::spawn(async move {
+            for _ in 0..30 {
+                if client.write_all(b"P").await.is_err() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        });
+        let result = tokio::time::timeout(Duration::from_secs(1), framed.next())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        writer.abort();
+        let _ = writer.await;
+    }
+
+    #[tokio::test]
+    async fn completed_request_does_not_expire_the_next_request() {
+        let (mut client, mut framed) = framed_pair(Duration::from_millis(60)).await;
+        let request = b"OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n";
+        client.write_all(request).await.unwrap();
+        assert!(
+            framed
+                .next()
+                .await
+                .unwrap()
+                .unwrap()
+                .starts_with(b"OPTIONS / HTTP/1.1")
+        );
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        client.write_all(request).await.unwrap();
+        assert!(
+            framed
+                .next()
+                .await
+                .unwrap()
+                .unwrap()
+                .starts_with(b"OPTIONS / HTTP/1.1")
+        );
+    }
+
+    #[tokio::test]
+    async fn partial_header_and_body_expire_without_more_input() {
+        for prefix in [
+            b"OPTIONS * RTSP/1.0\r\nCSeq:".as_slice(),
+            b"POST /pair-setup RTSP/1.0\r\nContent-Length: 10\r\n\r\nx".as_slice(),
+        ] {
+            let (mut client, mut framed) = framed_pair(Duration::from_millis(60)).await;
+            client.write_all(prefix).await.unwrap();
+            let result = tokio::time::timeout(Duration::from_secs(1), framed.next())
+                .await
+                .expect("request deadline did not wake an idle socket")
+                .unwrap();
+            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        }
+    }
+
+    #[tokio::test]
+    async fn pipelined_partial_request_gets_its_own_deadline() {
+        let (mut client, mut framed) = framed_pair(Duration::from_millis(60)).await;
+        client
+            .write_all(b"OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\nPOST /pair-setup RTSP/1.0\r\nContent-Length: 10\r\n\r\nx")
+            .await
+            .unwrap();
+        assert!(framed.next().await.unwrap().is_ok());
+        let result = tokio::time::timeout(Duration::from_secs(1), framed.next())
+            .await
+            .expect("pipelined partial request had no timer")
+            .unwrap();
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+    }
+
+    #[tokio::test]
+    async fn pairing_budget_is_absolute_but_no_longer_applies_to_verified_peers() {
+        for verified in [false, true] {
+            let (mut client, mut framed) = framed_pair(Duration::from_secs(1)).await;
+            if verified {
+                framed
+                    .get_mut()
+                    .session_key
+                    .lock_write()
+                    .replace(crate::pairing::SessionKey {
+                        key_material: [7; 32],
+                        upgrade_channel: false,
+                    });
+            }
+            framed
+                .get_mut()
+                .pairing
+                .as_mut()
+                .reset(tokio::time::Instant::now() + Duration::from_millis(60));
+            let request = b"OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n";
+            client.write_all(request).await.unwrap();
+            assert!(framed.next().await.unwrap().is_ok());
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            client.write_all(request).await.unwrap();
+            let result = tokio::time::timeout(Duration::from_secs(1), framed.next())
+                .await
+                .unwrap()
+                .unwrap();
+            if verified {
+                assert!(result.is_ok());
+            } else {
+                assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+            }
+        }
+    }
+
+    fn client_encrypted_block(secret: &[u8], bytes: &[u8]) -> Vec<u8> {
+        use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce, aead::AeadInOut};
+        let key = crate::crypto::hkdf(secret, b"Control-Salt", b"Control-Write-Encryption-Key");
+        let length = u16::try_from(bytes.len()).unwrap().to_le_bytes();
+        let mut encrypted = bytes.to_vec();
+        ChaCha20Poly1305::new(&key.into())
+            .encrypt_in_place(&Nonce::from([0; 12]), &length, &mut encrypted)
+            .unwrap();
+        [length.as_slice(), &encrypted].concat()
+    }
+
+    #[tokio::test]
+    async fn upgraded_encrypted_fragments_share_the_request_deadline() {
+        for complete_encrypted_block in [false, true] {
+            let (mut client, mut framed) = framed_pair(Duration::from_millis(60)).await;
+            let secret = [7; 32];
+            framed
+                .get_mut()
+                .session_key
+                .lock_write()
+                .replace(crate::pairing::SessionKey {
+                    key_material: secret,
+                    upgrade_channel: true,
+                });
+            // The successful pairing response is plaintext; only its complete
+            // response boundary switches both directions to HAP encryption.
+            framed
+                .send(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".as_slice())
+                .await
+                .unwrap();
+            let block = client_encrypted_block(&secret, b"OPTIONS * RTSP/1.0\r\nCSeq:");
+            let bytes = if complete_encrypted_block {
+                &block[..]
+            } else {
+                &block[..1]
+            };
+            client.write_all(bytes).await.unwrap();
+            let result = tokio::time::timeout(Duration::from_secs(1), framed.next())
+                .await
+                .expect("encrypted partial request had no timer")
+                .unwrap();
+            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        }
     }
 }

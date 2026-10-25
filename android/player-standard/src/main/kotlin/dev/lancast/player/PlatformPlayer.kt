@@ -22,17 +22,23 @@ class PlatformPlayer(private val context: Context, private val event: (String) -
         require(url.startsWith("https://"))
         close()
         val factory = DefaultMediaSourceFactory(OkHttpDataSource.Factory(pinnedHttp(fingerprint)))
-        player = ExoPlayer.Builder(context).setMediaSourceFactory(factory).build().also {
-            it.setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
-            surface.player = it
-            it.addListener(object : Player.Listener {
+        val candidate = ExoPlayer.Builder(context).setMediaSourceFactory(factory).build()
+        try {
+            candidate.setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
+            surface.player = candidate
+            candidate.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY) event("ready")
                     if (state == Player.STATE_ENDED) event("ended")
                 }
                 override fun onPlayerError(error: PlaybackException) { event("MEDIA_UNSUPPORTED") }
             })
-            it.setMediaItem(MediaItem.fromUri(url)); it.prepare(); it.playWhenReady = true
+            candidate.setMediaItem(MediaItem.fromUri(url)); candidate.prepare(); candidate.playWhenReady = true
+            player = candidate
+        } catch (failure: Throwable) {
+            if (surface.player === candidate) surface.player = null
+            runCatching { candidate.release() }
+            throw failure
         }
     }
     override fun play() { player?.play() }

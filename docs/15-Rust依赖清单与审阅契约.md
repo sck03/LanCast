@@ -26,7 +26,7 @@ python -m unittest discover -s scripts/tests
 | rust-dependency-graph.json | 提交、dirty状态、锁文件SHA256、workspace根节点、已解析feature、包来源、依赖别名、normal/build/dev分类和target条件 |
 | rust-source.spdx.json | SPDX 2.3源码包、crates.io purl、Cargo归档SHA256、DESCRIBES和DEPENDS_ON关系 |
 
-新图和SPDX以`名称+版本+来源`区分同名同版本不同源包；本地包使用仓库相对路径，不暴露检出目录。包/边排序稳定，文档命名空间由规范化报告摘要生成，时间使用Git提交时间并转换为UTC。同一输入可重复生成；dirty仅表示工作树状态，不是未提交源码的内容指纹。正式审阅应以干净提交的CI产物为证据。
+新图和SPDX以`名称+版本+来源`区分同名同版本不同源包；本地包使用仓库相对路径，不暴露检出目录。包/边排序稳定，文档命名空间由规范化报告摘要生成，时间使用Git提交时间并转换为UTC。同一输入可重复生成；图报告保留 dirty 状态，平台构建报告还记录源码树摘要。正式审阅应以干净提交的CI产物为证据；Windows/Android 原生对应源码打包会拒绝 dirty 工作树或与构建报告摘要不一致的材料。
 
 `cargoLockSha256`计算实际检出文件的原始字节：Windows的CRLF和Linux的LF会产生不同值，也会改变SPDX命名空间和报告哈希。这不是依赖版本差异。跨平台比对先核对提交，再核对包、feature和依赖边；不要把换行归一化后的摘要冒充实际文件摘要。本轮CI已确认两平台的依赖内容完全相同，唯一图差异确为Git检出换行。
 

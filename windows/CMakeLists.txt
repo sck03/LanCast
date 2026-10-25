@@ -54,5 +54,19 @@ target_compile_definitions(tray_contract PRIVATE UNICODE _UNICODE NOMINMAX WIN32
 target_compile_options(tray_contract PRIVATE /W4 /utf-8 /EHsc)
 target_link_libraries(tray_contract PRIVATE shell32)
 add_test(NAME tray_contract COMMAND tray_contract)
+add_library(media_sender_fake SHARED tests/media_sender_fake.cpp)
+target_include_directories(media_sender_fake PRIVATE ../media-native/include)
+set_target_properties(media_sender_fake PROPERTIES OUTPUT_NAME lancast_rtc
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/media-adapter-contract/$<CONFIG>")
+add_executable(media_sender_contract tests/media_sender_contract.cpp src/media.cpp)
+target_include_directories(media_sender_contract PRIVATE src ../media-native/include)
+target_compile_definitions(media_sender_contract PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_options(media_sender_contract PRIVATE /W4 /utf-8 /EHsc)
+target_link_libraries(media_sender_contract PRIVATE nlohmann_json::nlohmann_json)
+set_target_properties(media_sender_contract PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/media-adapter-contract/$<CONFIG>")
+add_dependencies(media_sender_contract media_sender_fake)
+add_test(NAME media_sender_contract COMMAND media_sender_contract)
+set_tests_properties(media_sender_contract PROPERTIES TIMEOUT 15)
 add_custom_command(TARGET LanCast POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_CURRENT_SOURCE_DIR}/../target/x86_64-pc-windows-msvc/release/lancast_core.dll" "$<TARGET_FILE_DIR:LanCast>")

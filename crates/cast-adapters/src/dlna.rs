@@ -16,8 +16,6 @@ pub struct Renderer {
     pub name: String,
     pub ip: IpAddr,
     pub transport: Service,
-    pub rendering: Option<Service>,
-    pub connection: Option<Service>,
     #[serde(default)]
     pub signature: String,
 }
@@ -121,8 +119,6 @@ pub fn parse_renderer(raw: &str, location: &str, source: IpAddr) -> anyhow::Resu
         name: text(device, "friendlyName"),
         ip: source,
         transport: get("AVTransport").context("NO_AVTRANSPORT")?,
-        rendering: get("RenderingControl"),
-        connection: get("ConnectionManager"),
         signature: {
             use sha2::{Digest, Sha256};
             hex::encode(Sha256::digest(format!(
@@ -228,9 +224,6 @@ impl Controller {
         }
         ensure!(status.is_success(), "DLNA_HTTP_ERROR");
         Ok(raw)
-    }
-    pub async fn load(&self, url: &str, title: &str) -> anyhow::Result<()> {
-        self.load_media(url, title, MediaKind::FileMp4).await
     }
     pub async fn load_media(&self, url: &str, title: &str, kind: MediaKind) -> anyhow::Result<()> {
         let mime = match kind {

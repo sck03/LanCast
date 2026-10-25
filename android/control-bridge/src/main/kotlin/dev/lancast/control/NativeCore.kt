@@ -44,13 +44,14 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
                     }
                     if (!main.post {
                         try { for (event in batch) { if (closed.get() || failed.get()) break; onEvent(event) } }
+                        catch (_: Exception) { fail("HOST_EVENT_HANDLER_FAILED") }
                         finally { delivery.release() }
                     }) { delivery.release(); break }
                 }
             } finally { NativeCore.destroy(handle) }
         }
     }
-    private fun fail() {
+    private fun fail(code: String = "CONTROL_COMMAND_REJECTED") {
         if (!failed.compareAndSet(false, true) || closed.get()) return
         NativeCore.shutdown(handle)
         delivery.release()
@@ -58,8 +59,10 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
         // One reserved error bypasses the normal UI batch. A late media signal must
         // not throw through an Android callback after the native engine has stopped.
         main.post {
-            if (!closed.get()) onEvent(JSONObject().put("type", "error").put("body",
-                JSONObject().put("code", "CONTROL_COMMAND_REJECTED").put("terminal", true)))
+            if (!closed.get()) runCatching {
+                onEvent(JSONObject().put("type", "error").put("body",
+                    JSONObject().put("code", code).put("terminal", true)))
+            }
         }
     }
     fun command(op: String, body: JSONObject = JSONObject()) {

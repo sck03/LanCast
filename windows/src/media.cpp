@@ -1,6 +1,8 @@
 #include "media.h"
 #include "lancast_rtc.h"
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
@@ -24,19 +26,76 @@ struct MediaSender::State {
     LcRtcCommandFn command = nullptr;
     LcRtcDestroyFn destroy = nullptr;
     std::atomic_bool active{false};
+    bool launched = false;
     std::function<int32_t(const uint8_t *, size_t)> ts;
-    ~State() {
+    std::mutex mutex;
+    std::condition_variable ready;
+    std::deque<Json> commands;
+    void release() {
         if (handle && destroy)
             destroy(handle);
+        handle = 0;
         if (module)
             FreeLibrary(module);
+        module = nullptr;
     }
-    void send(const Json &message) {
-        if (!active || !handle)
+    void emit(const std::string &type, Json body = Json::object()) noexcept {
+        try {
+            event(type, std::move(body));
+        } catch (...) {
+        }
+    }
+    void send(Json message) {
+        std::lock_guard lock(mutex);
+        if (!active)
             return;
-        auto text = message.dump();
-        if (command(handle, reinterpret_cast<const uint8_t *>(text.data()), text.size()) != 0)
-            throw std::runtime_error("RTC_COMMAND_FAILED");
+        if (commands.size() == 32)
+            throw std::runtime_error("RTC_COMMAND_QUEUE_FULL");
+        commands.push_back(std::move(message));
+        ready.notify_one();
+    }
+    void run(LcRtcConfig config) noexcept {
+        try {
+            module = load();
+            if (!module)
+                throw std::runtime_error("MEDIA_LIBRARY_MISSING");
+            auto version = reinterpret_cast<LcRtcVersionFn>(GetProcAddress(module, "lc_rtc_version"));
+            create = reinterpret_cast<LcRtcCreateFn>(GetProcAddress(module, "lc_rtc_create"));
+            command = reinterpret_cast<LcRtcCommandFn>(GetProcAddress(module, "lc_rtc_command"));
+            destroy = reinterpret_cast<LcRtcDestroyFn>(GetProcAddress(module, "lc_rtc_destroy"));
+            if (!version || version() != 2 || !create || !command || !destroy)
+                throw std::runtime_error("RTC_ABI_MISMATCH");
+            if (active) {
+                handle = create(&config);
+                if (!handle)
+                    throw std::runtime_error("RTC_INITIALIZATION_FAILED");
+            }
+            if (active)
+                emit("media.started");
+            while (active) {
+                Json message;
+                {
+                    std::unique_lock lock(mutex);
+                    ready.wait(lock, [this] { return !active || !commands.empty(); });
+                    if (!active)
+                        break;
+                    message = std::move(commands.front());
+                    commands.pop_front();
+                }
+                auto text = message.dump();
+                if (command(handle, reinterpret_cast<const uint8_t *>(text.data()), text.size()) != 0)
+                    throw std::runtime_error("RTC_COMMAND_FAILED");
+            }
+        } catch (const std::exception &error) {
+            if (active)
+                emit("media.error", {{"code", error.what()}});
+        } catch (...) {
+            if (active)
+                emit("media.error", {{"code", "MEDIA_FAILED"}});
+        }
+        active = false;
+        release();
+        emit("media.stopped");
     }
 };
 bool MediaSender::available() {
@@ -57,18 +116,11 @@ MediaSender::~MediaSender() {
     stop();
 }
 void MediaSender::start(HWND window, bool audio, const Json &profile) {
+    if (!state_)
+        throw std::runtime_error("MEDIA_CLOSED");
     auto &s = *state_;
-    if (s.active)
+    if (s.launched)
         throw std::runtime_error("ALREADY_ACTIVE");
-    s.module = load();
-    if (!s.module)
-        throw std::runtime_error("此构建未包含原生 RTC 媒体后端，屏幕分享不可用");
-    auto version = reinterpret_cast<LcRtcVersionFn>(GetProcAddress(s.module, "lc_rtc_version"));
-    s.create = reinterpret_cast<LcRtcCreateFn>(GetProcAddress(s.module, "lc_rtc_create"));
-    s.command = reinterpret_cast<LcRtcCommandFn>(GetProcAddress(s.module, "lc_rtc_command"));
-    s.destroy = reinterpret_cast<LcRtcDestroyFn>(GetProcAddress(s.module, "lc_rtc_destroy"));
-    if (!version || version() != 2 || !s.create || !s.command || !s.destroy)
-        throw std::runtime_error("RTC_ABI_MISMATCH");
     LcRtcConfig c{};
     c.size = sizeof(c);
     c.abi_version = 2;
@@ -98,14 +150,21 @@ void MediaSender::start(HWND window, bool audio, const Json &profile) {
         }
     };
     s.active = true;
-    s.handle = s.create(&c);
-    if (!s.handle) {
+    s.launched = true;
+    try {
+        // One owner serializes create, commands and destroy away from the window thread.
+        // Its shared state remains alive until the native destroy call has joined callbacks.
+        std::thread([state = state_, c] { state->run(c); }).detach();
+    } catch (...) {
         s.active = false;
-        throw std::runtime_error("RTC_INITIALIZATION_FAILED");
+        s.launched = false;
+        throw;
     }
 }
 void MediaSender::start_live(HWND window, HMONITOR monitor, bool audio, bool synthetic,
                              std::function<int32_t(const uint8_t *, size_t)> sink) {
+    if (!state_)
+        throw std::runtime_error("MEDIA_CLOSED");
     state_->ts = std::move(sink);
     start(window, audio,
           {{"live", true},
@@ -113,20 +172,29 @@ void MediaSender::start_live(HWND window, HMONITOR monitor, bool audio, bool syn
            {"monitor", reinterpret_cast<uintptr_t>(monitor)}});
 }
 void MediaSender::answer(const std::string &sdp, const std::string &negotiation) {
+    if (!state_)
+        return;
     state_->send(
         {{"type", "rtc.answer"}, {"body", {{"sdp", sdp}, {"negotiationId", negotiation}}}});
 }
 void MediaSender::ice(const Json &body) {
-    state_->send({{"type", "rtc.ice"}, {"body", body}});
+    if (state_)
+        state_->send({{"type", "rtc.ice"}, {"body", body}});
 }
 void MediaSender::restart(const Json &body) {
-    state_->send({{"type", "rtc.restart"}, {"body", body}});
+    if (state_)
+        state_->send({{"type", "rtc.restart"}, {"body", body}});
 }
 void MediaSender::stop() {
     if (!state_)
         return;
     state_->active = false;
-    // Callback owner remains alive until the backend has stopped every callback.
-    auto state = std::move(state_);
-    std::thread([state = std::move(state)]() mutable { state.reset(); }).detach();
+    {
+        std::lock_guard lock(state_->mutex);
+        state_->commands.clear();
+    }
+    state_->ready.notify_one();
+    if (!state_->launched)
+        state_->emit("media.stopped");
+    state_.reset();
 }
