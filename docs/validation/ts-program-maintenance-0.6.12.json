@@ -1,0 +1,58 @@
+{
+  "version": "0.6.12",
+  "build_number": 20,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "baseline_commit": "3d8478b",
+  "local_validation": {
+    "architecture": "passed",
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "rust_workspace_all_features": 84,
+    "rust_workspace_no_default_features": 53,
+    "rust_workspace_no_default_features_legacy": 54,
+    "python_unittest": 54,
+    "python_optimized_unittest": 54,
+    "validate_ts": "passed using existing synthetic-local.ts: three join positions and four header splits",
+    "validate_live": {
+      "http_1_0": "passed",
+      "http_1_1": "passed",
+      "bytes_per_protocol": 1155072,
+      "checks": ["pull confirmation", "cancellation", "SOAP stop", "changed renderer ownership"]
+    },
+    "new_regressions": [
+      "changed_pmt_requires_fresh_parameter_sets_and_continuity",
+      "pmt_without_h264_cannot_reuse_the_previous_video",
+      "repeated_pmt_preserves_an_in_progress_keyframe",
+      "changed_split_pmt_keeps_the_last_valid_pat_and_all_pmt_packets",
+      "pmt_rejects_descriptors_extending_past_the_section",
+      "split_optional_pes_header_is_never_scanned_as_video"
+    ],
+    "failures_reproduced_before_fix": [
+      "changed_pmt_requires_fresh_parameter_sets_and_continuity",
+      "pmt_without_h264_cannot_reuse_the_previous_video"
+    ]
+  },
+  "resource_changes": {
+    "psi_sections": "borrow completed sections and retain assembly capacity across tables",
+    "complete_pes_headers": "parse directly from input without a scratch allocation",
+    "split_pes_headers": "retain bounded reassembly",
+    "pmt_changes": "discard obsolete startup packets and reset the video parser",
+    "new_runtime_dependencies": 0,
+    "new_background_tasks": 0
+  },
+  "cleanup": {
+    "mode": "delete",
+    "files_deleted": 2893,
+    "bytes_deleted": 2202111400,
+    "paths": ["target", ".cache/local-joins", "scripts/__pycache__", "scripts/tests/__pycache__"],
+    "note": "Known ignored outputs were previewed and revalidated with workspace_cleanup; source, licenses, Git history and original media samples are preserved."
+  },
+  "github_actions": [],
+  "github_actions_status": "pending source push",
+  "limits": [
+    "No new physical-device CPU/RSS, latency or long-duration measurements",
+    "Standalone AirPlay protocol code is unchanged; its workspace was not retested locally",
+    "Local TS validation covers transport and framing; FFmpeg decoding runs in Linux native media CI"
+  ]
+}

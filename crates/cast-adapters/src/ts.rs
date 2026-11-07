@@ -54,7 +54,11 @@ struct SectionAssembler {
     continuity: Option<u8>,
 }
 impl SectionAssembler {
-    fn push(&mut self, body: &[u8], start: bool, cc: u8) -> anyhow::Result<Option<Vec<u8>>> {
+    fn reset(&mut self) {
+        self.bytes.clear();
+        self.continuity = None;
+    }
+    fn push(&mut self, body: &[u8], start: bool, cc: u8) -> anyhow::Result<Option<&[u8]>> {
         if body.is_empty() {
             return Ok(None);
         }
@@ -81,7 +85,7 @@ impl SectionAssembler {
         }
         self.continuity = None;
         self.bytes.truncate(length);
-        Ok(Some(std::mem::take(&mut self.bytes)))
+        Ok(Some(&self.bytes))
     }
 }
 #[derive(Default)]
@@ -92,6 +96,17 @@ struct VideoStart {
     sps: bool,
     pps: bool,
     idr: bool,
+}
+fn pes_offset(header: &[u8]) -> anyhow::Result<Option<usize>> {
+    if header.len() < 9 {
+        return Ok(None);
+    }
+    ensure!(
+        header[..3] == [0, 0, 1] && header[3] & 0xf0 == 0xe0,
+        "INVALID_VIDEO_PES"
+    );
+    let offset = 9 + header[8] as usize;
+    Ok((header.len() >= offset).then_some(offset))
 }
 impl VideoStart {
     fn push(&mut self, body: &[u8], start: bool, cc: u8) -> anyhow::Result<()> {
@@ -107,23 +122,23 @@ impl VideoStart {
         }
         self.continuity = Some(cc);
         if start {
-            self.header = Some(Vec::new());
             self.prefix = u32::MAX;
+            // Most PES headers fit in the first TS packet: scan its payload in
+            // place and allocate scratch space only for genuinely split headers.
+            self.header = None;
+            if let Some(offset) = pes_offset(body)? {
+                body = &body[offset..];
+            } else {
+                self.header = Some(body.to_vec());
+                return Ok(());
+            }
         }
         let joined;
         if let Some(header) = self.header.as_mut() {
             header.extend_from_slice(body);
-            if header.len() < 9 {
+            let Some(offset) = pes_offset(header)? else {
                 return Ok(());
-            }
-            ensure!(
-                header[..3] == [0, 0, 1] && header[3] & 0xf0 == 0xe0,
-                "INVALID_VIDEO_PES"
-            );
-            let offset = 9 + header[8] as usize;
-            if header.len() < offset {
-                return Ok(());
-            }
+            };
             joined = self.header.take().unwrap();
             body = &joined[offset..];
         }
@@ -158,6 +173,26 @@ pub struct StartGate {
     pat_section: SectionAssembler,
     pmt_section: SectionAssembler,
     pat_packets: Vec<u8>,
+    pat_length: usize,
+    pmt_packets: Vec<u8>,
+    program_map: Vec<u8>,
+}
+fn video_pid(pmt: &[u8]) -> anyhow::Result<Option<u16>> {
+    ensure!(pmt.len() >= 16, "INVALID_PMT");
+    let end = pmt.len() - 4;
+    let mut offset = 12 + (((pmt[10] & 15) as usize) << 8 | pmt[11] as usize);
+    ensure!(offset <= end, "INVALID_PMT_DESCRIPTORS");
+    let mut video = None;
+    while offset < end {
+        ensure!(offset + 5 <= end, "INVALID_PMT_STREAM");
+        let next = offset + 5 + (((pmt[offset + 3] & 15) as usize) << 8 | pmt[offset + 4] as usize);
+        ensure!(next <= end, "INVALID_PMT_DESCRIPTORS");
+        if pmt[offset] == 0x1b {
+            video = Some(((pmt[offset + 1] as u16 & 31) << 8) | pmt[offset + 2] as u16);
+        }
+        offset = next;
+    }
+    Ok(video)
 }
 impl StartGate {
     pub fn push(&mut self, data: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
@@ -176,7 +211,7 @@ impl StartGate {
                 ensure!(self.pat_packets.len() < 2048, "PAT_TOO_LARGE");
                 self.pat_packets.extend_from_slice(p);
                 if let Some(bytes) = self.pat_section.push(body, start, p[3] & 15)?
-                    && let Some(pat) = section(&bytes, 0)
+                    && let Some(pat) = section(bytes, 0)
                 {
                     let programs = pat.get(8..pat.len().saturating_sub(4)).unwrap_or_default();
                     for program in programs.as_chunks::<4>().0 {
@@ -188,7 +223,10 @@ impl StartGate {
                                 self.video_start = VideoStart::default();
                                 self.pending.clear();
                                 self.pending.extend_from_slice(&self.pat_packets);
-                                self.pmt_section = SectionAssembler::default();
+                                self.pat_length = self.pending.len();
+                                self.pmt_section.reset();
+                                self.pmt_packets.clear();
+                                self.program_map.clear();
                             }
                             break;
                         }
@@ -207,19 +245,24 @@ impl StartGate {
                 "START_POINT_TOO_LARGE"
             );
             self.pending.extend_from_slice(p);
-            if Some(pid) == self.pmt
-                && let Some(bytes) = self.pmt_section.push(body, start, p[3] & 15)?
-                && let Some(pmt) = section(&bytes, 2)
-            {
-                ensure!(pmt.len() >= 16, "INVALID_PMT");
-                let mut offset = 12 + (((pmt[10] & 15) as usize) << 8 | pmt[11] as usize);
-                while offset + 5 <= pmt.len() - 4 {
-                    if pmt[offset] == 0x1b {
-                        self.video =
-                            Some(((pmt[offset + 1] as u16 & 31) << 8) | pmt[offset + 2] as u16);
-                    }
-                    offset +=
-                        5 + (((pmt[offset + 3] & 15) as usize) << 8 | pmt[offset + 4] as usize);
+            if Some(pid) == self.pmt && !body.is_empty() {
+                if start {
+                    self.pmt_packets.clear();
+                }
+                ensure!(self.pmt_packets.len() < 2048, "PMT_TOO_LARGE");
+                self.pmt_packets.extend_from_slice(p);
+                if let Some(bytes) = self.pmt_section.push(body, start, p[3] & 15)?
+                    && let Some(pmt) = section(bytes, 2)
+                    && pmt != self.program_map
+                {
+                    self.video = video_pid(pmt)?;
+                    self.video_start = VideoStart::default();
+                    self.program_map.clear();
+                    self.program_map.extend_from_slice(pmt);
+                    // Publish only the current program and its own video start.
+                    // Keep every packet when the PMT spans multiple TS packets.
+                    self.pending.truncate(self.pat_length);
+                    self.pending.extend_from_slice(&self.pmt_packets);
                 }
             }
             if Some(pid) == self.video {
@@ -287,6 +330,141 @@ mod tests {
 
     const PES: &[u8] = &[0, 0, 1, 0xe0, 0, 0, 0x80, 0, 0];
     const KEYFRAME: &[u8] = &[0, 0, 1, 0x67, 0, 0, 1, 0x68, 0, 0, 1, 0x65];
+
+    fn program_map(video: u8, version: u8, codec: u8) -> [u8; PACKET] {
+        psi(
+            0x1000,
+            &[
+                2,
+                0xb0,
+                18,
+                0,
+                1,
+                0xc1 | (version << 1),
+                0,
+                0,
+                0xe1,
+                video,
+                0xf0,
+                0,
+                codec,
+                0xe1,
+                video,
+                0xf0,
+                0,
+            ],
+        )
+    }
+
+    #[test]
+    fn changed_pmt_requires_fresh_parameter_sets_and_continuity() {
+        for video in [0, 1] {
+            let mut gate = StartGate::default();
+            tables(&mut gate);
+            gate.push(&packet(0x100, true, 4, &[PES, &KEYFRAME[..8]].concat()))
+                .unwrap();
+            let pmt = program_map(video, 1, 0x1b);
+            assert!(gate.push(&pmt).unwrap().is_none());
+            let idr = packet(
+                0x100 + u16::from(video),
+                true,
+                5,
+                &[PES, &KEYFRAME[8..]].concat(),
+            );
+            assert!(gate.push(&idr).unwrap().is_none(), "reused old SPS/PPS");
+            let keyframe = packet(0x100 + u16::from(video), true, 6, &[PES, KEYFRAME].concat());
+            let accepted = gate.push(&keyframe).unwrap().unwrap();
+            assert_eq!(&accepted[PACKET..2 * PACKET], &pmt);
+            assert_eq!(
+                accepted.len(),
+                4 * PACKET,
+                "retained obsolete program packets"
+            );
+        }
+    }
+
+    #[test]
+    fn pmt_without_h264_cannot_reuse_the_previous_video() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        gate.push(&program_map(0, 1, 0x0f)).unwrap();
+        assert!(
+            gate.push(&packet(0x100, true, 0, &[PES, KEYFRAME].concat()))
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn repeated_pmt_preserves_an_in_progress_keyframe() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        gate.push(&packet(0x100, true, 15, &[PES, &KEYFRAME[..8]].concat()))
+            .unwrap();
+        gate.push(&program_map(0, 0, 0x1b)).unwrap();
+        assert!(
+            gate.push(&packet(0x100, false, 0, &KEYFRAME[8..]))
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn changed_split_pmt_keeps_the_last_valid_pat_and_all_pmt_packets() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        let pat = gate.pending[..PACKET].to_vec();
+        let mut invalid_pat = pat.clone();
+        *invalid_pat.last_mut().unwrap() ^= 1; // Corrupt the section CRC.
+        gate.push(&invalid_pat).unwrap();
+        let pmt = program_map(1, 1, 0x1b);
+        let body = payload(&pmt).unwrap();
+        let first = packet(0x1000, true, 7, &body[..10]);
+        let second = packet(0x1000, false, 8, &body[10..]);
+        gate.push(&first).unwrap();
+        gate.push(&second).unwrap();
+        let keyframe = packet(0x101, true, 3, &[PES, KEYFRAME].concat());
+        let accepted = gate.push(&keyframe).unwrap().unwrap();
+        assert_eq!(
+            accepted,
+            [pat.as_slice(), &first, &second, &keyframe].concat()
+        );
+    }
+
+    #[test]
+    fn pmt_rejects_descriptors_extending_past_the_section() {
+        for index in [11, 16] {
+            let mut gate = StartGate::default();
+            tables(&mut gate);
+            let pmt = program_map(0, 1, 0x1b);
+            let body = payload(&pmt).unwrap();
+            let mut section = body[1..body.len() - 4].to_vec();
+            section[index] = 32;
+            assert!(gate.push(&psi(0x1000, &section)).is_err());
+        }
+    }
+
+    #[test]
+    fn split_optional_pes_header_is_never_scanned_as_video() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        let mut body = PES.to_vec();
+        body[8] = 255;
+        body.extend_from_slice(KEYFRAME); // These bytes belong to the PES header.
+        body.resize(264, 0xff);
+        for (index, part) in body.chunks(180).enumerate() {
+            assert!(
+                gate.push(&packet(0x100, index == 0, index as u8, part))
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        assert!(
+            gate.push(&packet(0x100, false, 2, KEYFRAME))
+                .unwrap()
+                .is_some()
+        );
+    }
 
     #[test]
     fn continuation_without_a_pes_start_cannot_open_the_gate() {
