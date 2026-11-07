@@ -50,10 +50,6 @@ async fn main() -> anyhow::Result<()> {
     {
         let live = LiveResource::new(ip);
         let (url, http) = live.clone().bind((ip, 0).into()).await?;
-        for chunk in fixture.chunks(188 * 348) {
-            live.write(chunk)?;
-        }
-        ensure!(live.ready(), "real sample has no random access point");
         let listener = TcpListener::bind((ip, 0)).await?;
         let endpoint = listener.local_addr()?;
         let tv = Arc::new(Mutex::new(Tv::default()));
@@ -147,6 +143,12 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
         });
+        // Start the real session before ingress so readiness must wake it.
+        tokio::task::yield_now().await;
+        for chunk in fixture.chunks(188 * 348) {
+            live.write(chunk)?;
+        }
+        ensure!(live.ready(), "real sample has no random access point");
         tokio::time::timeout(Duration::from_secs(5), async {
             while !playing.load(Ordering::Acquire) {
                 tokio::time::sleep(Duration::from_millis(10)).await;

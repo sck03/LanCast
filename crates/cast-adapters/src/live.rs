@@ -20,7 +20,10 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tokio::{net::TcpListener, sync::mpsc};
+use tokio::{
+    net::TcpListener,
+    sync::{Notify, mpsc},
+};
 use tokio_util::sync::CancellationToken;
 const START_TIMEOUT: Duration = Duration::from_secs(8);
 struct Reader {
@@ -98,6 +101,7 @@ pub struct LiveResource {
     readers: Mutex<Vec<Reader>>,
     pulls: AtomicU64,
     ready: std::sync::atomic::AtomicBool,
+    ready_changed: Notify,
     ingress: Mutex<Option<StartGate>>,
     delivered: AtomicU64,
 }
@@ -112,6 +116,7 @@ impl LiveResource {
             readers: Mutex::new(Vec::new()),
             pulls: AtomicU64::new(0),
             ready: std::sync::atomic::AtomicBool::new(false),
+            ready_changed: Notify::new(),
             ingress: Mutex::new(Some(StartGate::default())),
             delivered: AtomicU64::new(0),
         })
@@ -132,6 +137,26 @@ impl LiveResource {
     }
     pub fn ready(&self) -> bool {
         self.ready.load(Ordering::Acquire)
+    }
+    pub(crate) async fn wait_ready(&self) -> anyhow::Result<()> {
+        let deadline = tokio::time::Instant::now() + START_TIMEOUT;
+        let notified = self.ready_changed.notified();
+        tokio::pin!(notified);
+        // Register before checking readiness so ingress cannot race this waiter.
+        notified.as_mut().enable();
+        if !self.ready() {
+            tokio::select! { biased;
+                _ = self.stop.cancelled() => anyhow::bail!("RESOURCE_CLOSED"),
+                _ = tokio::time::sleep_until(deadline) => anyhow::bail!("LIVE_START_POINT_TIMEOUT"),
+                _ = notified => {},
+            }
+        }
+        ensure!(!self.stop.is_cancelled(), "RESOURCE_CLOSED");
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "LIVE_START_POINT_TIMEOUT"
+        );
+        Ok(())
     }
     pub fn delivered(&self) -> u64 {
         self.delivered.load(Ordering::Acquire)
@@ -159,6 +184,7 @@ impl LiveResource {
             {
                 *ingress = None;
                 self.ready.store(true, Ordering::Release);
+                self.ready_changed.notify_waiters();
             }
         }
         let mut readers = self
@@ -269,6 +295,52 @@ mod tests {
         let mut packet = [0xff; 188];
         packet[..4].copy_from_slice(&[0x47, 0x1f, 0xff, 0x10]);
         packet
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn readiness_notifies_waiters_without_polling_and_rejects_revocation() {
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        let first = live.wait_ready();
+        let second = live.wait_ready();
+        tokio::pin!(first, second);
+        assert!(futures_util::poll!(first.as_mut()).is_pending());
+        assert!(futures_util::poll!(second.as_mut()).is_pending());
+        live.ready.store(true, Ordering::Release);
+        live.ready_changed.notify_waiters();
+        assert!(futures_util::poll!(first).is_ready());
+        assert!(futures_util::poll!(second).is_ready());
+        live.wait_ready().await.unwrap();
+        live.revoke();
+        assert_eq!(
+            live.wait_ready().await.unwrap_err().to_string(),
+            "RESOURCE_CLOSED"
+        );
+
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        let waiting = live.wait_ready();
+        tokio::pin!(waiting);
+        assert!(futures_util::poll!(waiting.as_mut()).is_pending());
+        live.revoke();
+        assert_eq!(waiting.await.unwrap_err().to_string(), "RESOURCE_CLOSED");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn readiness_rejects_missing_and_late_start_points() {
+        let live = LiveResource::new("127.0.0.1".parse().unwrap());
+        assert_eq!(
+            live.wait_ready().await.unwrap_err().to_string(),
+            "LIVE_START_POINT_TIMEOUT"
+        );
+        let waiting = live.wait_ready();
+        tokio::pin!(waiting);
+        assert!(futures_util::poll!(waiting.as_mut()).is_pending());
+        tokio::time::advance(START_TIMEOUT).await;
+        live.ready.store(true, Ordering::Release);
+        live.ready_changed.notify_waiters();
+        assert_eq!(
+            waiting.await.unwrap_err().to_string(),
+            "LIVE_START_POINT_TIMEOUT"
+        );
     }
 
     #[tokio::test]
