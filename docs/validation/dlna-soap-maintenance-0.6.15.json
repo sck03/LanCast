@@ -1,0 +1,278 @@
+{
+  "schema": 1,
+  "date": "2026-11-07",
+  "application": {
+    "version": "0.6.15",
+    "build_number": 23
+  },
+  "source": {
+    "branch": "main",
+    "commit": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+    "url": "https://github.com/sck03/LanCast/commit/c160bd3ce52baed2a3f1dcb775d2c06e23af00fd"
+  },
+  "regressions": {
+    "baseline_commit": "d79146f",
+    "reproduced_before_fix": "A 160 KiB valid SOAP XML body forwarded through the original dlna.state event shape triggered HOST_EVENT_QUEUE_OVERFLOW and cancelled the engine token.",
+    "coverage": [
+      "large metadata produces a compact typed host event",
+      "bounded remote state, fault code and XML parser diagnostics",
+      "SOAP action and service namespace matching",
+      "header, nested and duplicate field rejection",
+      "fragmented XML text shares one field budget",
+      "position and URI values, escaping and size limits"
+    ]
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features_tests": 96,
+    "rust_no_default_features_tests": 65,
+    "rust_legacy_tests": 66,
+    "python_tests": 54,
+    "markdown_documents_checked": 29,
+    "local_links_checked": 214,
+    "checks": [
+      "cargo fmt --all --check",
+      "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "cargo test --workspace --all-features --locked",
+      "cargo test --workspace --no-default-features --locked",
+      "cargo test --workspace --no-default-features --features legacy --locked",
+      "python scripts/check-architecture.py",
+      "python -m unittest discover -s scripts/tests",
+      "local Markdown link existence check",
+      "git diff --check"
+    ],
+    "synthetic_live": {
+      "command": "cargo run --locked -p cast-adapters --example validate_live -- .cache/synthetic-local.ts .cache/media-maintenance/soap-0.6.15",
+      "http_versions": [
+        "HTTP/1.0",
+        "HTTP/1.1"
+      ],
+      "received_bytes_per_version": 1155072,
+      "assertions": [
+        "confirmed pull",
+        "cancellation",
+        "SOAP stop"
+      ],
+      "fixture": "existing synthetic-local.ts; no new hardware capture or local decode"
+    }
+  },
+  "limitations": [
+    "No real television interoperability test in this iteration.",
+    "No CPU, RSS, end-to-end latency or two-hour endurance measurement.",
+    "Removal of raw XML event copies and repeated parsing is a code-path improvement, not a measured device performance claim."
+  ],
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 2037018446,
+    "after_bytes": 20976622,
+    "reclaimable_bytes": 2016041824,
+    "removed_bytes": 2016041824,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2806,
+        "bytes": 2013523239,
+        "fingerprint": "d1e0052b29f81ecd6d7b7f32139009ec85b2aada4025c39f61e32f827b3cbf7e"
+      },
+      {
+        "path": ".cache/media-maintenance",
+        "category": "build",
+        "files": 2,
+        "bytes": 2310144,
+        "fingerprint": "9237e17e2c78e829033e067d24e0a4409e45e3bd4195233d24951b0d9a0c9815"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 15,
+        "bytes": 121803,
+        "fingerprint": "d259cea2a486c4e2630f1b119160fef433bf6f00cbc914cd3dbe0e2335d59f26"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 12,
+        "bytes": 86638,
+        "fingerprint": "165ecefaa0666a183b3ddb75353f50a86b2712be1076e938736a606ee10d1800"
+      }
+    ],
+    "command": "python -B scripts/workspace_cleanup.py --include-downloads --clean --json",
+    "removed_files": 2835,
+    "after_preview_reclaimable_bytes": 0
+  },
+  "github_actions": [
+    {
+      "workflow": "windows.yml",
+      "run": 42365077459,
+      "sha": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42365077459",
+      "artifacts": [
+        {
+          "name": "LanCast-Windows-x64-0.6.15-23-Release",
+          "bytes": 5088362,
+          "expired": false
+        },
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 86977828,
+          "expired": false
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114446,
+          "expired": false
+        },
+        {
+          "name": "windows-synthetic-diagnostic-0.6.15-23-Release",
+          "bytes": 139999,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "android.yml",
+      "run": 42365077536,
+      "sha": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42365077536",
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Sender-0.6.15-23-Debug",
+          "bytes": 35356784,
+          "expired": false
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.15-23-Debug",
+          "bytes": 12561792,
+          "expired": false
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.15-23-Debug",
+          "bytes": 56323427,
+          "expired": false
+        },
+        {
+          "name": "android-build-reports-0.6.15-23-Debug",
+          "bytes": 10222625,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.15-23-Debug",
+          "bytes": 34283917,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.15-23-Debug",
+          "bytes": 38774239,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.15-23-Debug",
+          "bytes": 30454664,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 42365077519,
+      "sha": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42365077519",
+      "artifacts": [
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.15-23-Release",
+          "bytes": 22342260,
+          "expired": false
+        },
+        {
+          "name": "apple-macos-build-reports-0.6.15-23-Release",
+          "bytes": 86679,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 42365077429,
+      "sha": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42365077429",
+      "artifacts": [
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.15-23-Debug",
+          "bytes": 54801045,
+          "expired": false
+        },
+        {
+          "name": "apple-ios-build-reports-0.6.15-23-Debug",
+          "bytes": 15555,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 42365077529,
+      "sha": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42365077529",
+      "artifacts": [
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.15-23-Debug",
+          "bytes": 20075085,
+          "expired": false
+        },
+        {
+          "name": "apple-tvos-build-reports-0.6.15-23-Debug",
+          "bytes": 15533,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 42365077456,
+      "sha": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42365077456",
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 117185,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 42365077575,
+      "sha": "c160bd3ce52baed2a3f1dcb775d2c06e23af00fd",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42365077575",
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6200,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "airplay.yml",
+      "status": "not_triggered",
+      "reason": "No AirPlay workspace or workflow changes"
+    }
+  ],
+  "artifact_validation": "Actions artifact names and metadata match 0.6.15 / 23 for all five platforms; package checks ran in CI. Binaries were not downloaded or installed locally."
+}
