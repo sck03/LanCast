@@ -10,7 +10,6 @@ use crate::{
 use anyhow::{Context, ensure};
 use serde_json::{Value, json};
 use std::{
-    collections::HashMap,
     net::{IpAddr, SocketAddr},
     sync::{Arc, Mutex as StdMutex},
     time::Duration,
@@ -121,7 +120,7 @@ impl Engine {
                         io: BlockingIo::new(worker_generation.clone(), shutdown_worker.clone()),
                         scan: discovery::ScanTask::default(),
                         resources: Vec::new(),
-                        renderers: HashMap::new(),
+                        dlna_discovery: discovery::DlnaDiscovery::default(),
                         dlna_playing: None,
                         events: events.clone(),
                         #[cfg(feature = "legacy")]
@@ -139,6 +138,7 @@ impl Engine {
                         let command = tokio::select! { biased;
                             _ = shutdown_worker.cancelled() => break,
                             _ = stop_worker.notified() => Some(QueuedCommand::stop()),
+                            _ = state.dlna_discovery.complete(&events) => continue,
                             c = receiver.recv() => c,
                         };
                         let Some(command) = command else {
@@ -269,7 +269,7 @@ struct Runtime {
     io: BlockingIo,
     scan: discovery::ScanTask,
     resources: Vec<Arc<Resource>>,
-    renderers: HashMap<String, dlna::Renderer>,
+    dlna_discovery: discovery::DlnaDiscovery,
     dlna_playing: Option<(dlna::Controller, String)>,
     events: Events,
     #[cfg(feature = "legacy")]
@@ -395,6 +395,7 @@ impl Runtime {
             }
             "stop" => {
                 self.scan.stop().await;
+                self.dlna_discovery.stop().await;
                 #[cfg(feature = "legacy")]
                 for bridge in self.bridges.drain(..) {
                     bridge.revoke();
@@ -445,23 +446,7 @@ impl Runtime {
                     .as_u64()
                     .context("SCAN_GENERATION_REQUIRED")?;
                 let interface = string(&c, "interface")?.parse()?;
-                self.renderers.clear();
-                let devices = match discovery::scan_dlna(interface).await {
-                    Ok(devices) => devices,
-                    Err(error) => {
-                        event(
-                            &self.events,
-                            "dlna.devices",
-                            json!({"devices":[],"scanGeneration":generation,"error":error.to_string()}),
-                        );
-                        return Ok(());
-                    }
-                };
-                let body = json!({"devices":devices,"scanGeneration":generation});
-                for device in devices {
-                    self.renderers.insert(device.id.clone(), device);
-                }
-                event(&self.events, "dlna.devices", body);
+                self.dlna_discovery.start(interface, generation).await;
             }
             "file.share" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
@@ -511,7 +496,7 @@ impl Runtime {
             "dlna.load" | "dlna.command" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let device = self
-                    .renderers
+                    .dlna_discovery
                     .get(string(&c, "deviceId")?)
                     .context("DLNA_UNAVAILABLE")?
                     .clone();
@@ -627,7 +612,7 @@ impl Runtime {
             #[cfg(feature = "sender")]
             "profile.check" => {
                 let device = self
-                    .renderers
+                    .dlna_discovery
                     .get(string(&c, "deviceId")?)
                     .context("DLNA_UNAVAILABLE")?
                     .clone();
@@ -691,7 +676,7 @@ impl Runtime {
                 ensure!(self.live.lock().unwrap().is_none(), "LIVE_ALREADY_ACTIVE");
                 let generation = c["generation"].as_u64().context("GENERATION_REQUIRED")?;
                 let device = self
-                    .renderers
+                    .dlna_discovery
                     .get(string(&c, "deviceId")?)
                     .context("DLNA_UNAVAILABLE")?
                     .clone();

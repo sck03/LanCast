@@ -139,6 +139,43 @@ fn invalid_scan_generations_do_not_enter_network_work_or_close_the_engine() {
     engine.close();
 }
 
+#[test]
+#[cfg(feature = "sender")]
+fn dlna_search_does_not_block_control_commands() {
+    // Selecting a route does not send UDP data or depend on a responding TV.
+    let route = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+    if route.connect("192.168.1.1:9").is_err() {
+        eprintln!("No LAN route available for discovery integration test");
+        return;
+    }
+    let ip = route.local_addr().unwrap().ip();
+    if !cast_adapters::dlna::lan_ip(ip) {
+        eprintln!("No private interface available for discovery integration test");
+        return;
+    }
+    let engine = Engine::new().unwrap();
+    engine
+        .command(json!({"op":"dlna.scan","scanGeneration":1,"interface":ip}))
+        .unwrap();
+    engine.command(json!({"op":"route.plan","intent":"file",
+        "device":{"receiver":false,"rtc":"unknown","receiverFile":"unknown","dlna":false,"dlnaFile":"unknown","dlnaLive":"unknown","systemGuide":false},
+        "backend":{"rtc":false,"ts":false,"file":false}})).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let mut responsive = false;
+    while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+        let Some(text) = engine.wait_poll(left) else {
+            break;
+        };
+        let value: Value = serde_json::from_str(&text).unwrap();
+        if value["type"] == "route.plan" {
+            responsive = true;
+            break;
+        }
+    }
+    engine.close();
+    assert!(responsive, "DLNA scan blocked the command queue");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn sender_rejects_previous_receiver_before_sending_code() {
     use cast_adapters::{auth, protocol::Message};

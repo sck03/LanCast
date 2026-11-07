@@ -1,55 +1,23 @@
+mod tasks;
+pub(crate) use tasks::{DlnaDiscovery, ScanTask};
+
 use crate::{
     auth,
     dlna::{self, Renderer},
-    events::{Events, event},
 };
 use anyhow::ensure;
 use futures_util::{Stream, StreamExt, stream};
 use std::{
     collections::HashMap,
-    future::Future,
     net::{IpAddr, Ipv4Addr},
     time::Duration,
 };
-use tokio::{task::JoinHandle, time::Instant};
+use tokio::time::Instant;
 
 const SCAN_WINDOW: Duration = Duration::from_secs(4);
 const MAX_DEVICES: usize = 64;
 // Leave room in the 128 KiB host event for its envelope and scan generation.
 const MAX_RENDERER_BYTES: usize = 96 * 1024;
-
-/// Owns the one mDNS search for a host; replacing or stopping it joins cancellation.
-#[derive(Default)]
-pub(crate) struct ScanTask(Option<JoinHandle<()>>);
-impl ScanTask {
-    pub async fn start(&mut self, events: Events, generation: u64) {
-        self.replace(async move {
-            let body = match scan_lancast().await {
-                Ok(devices) => serde_json::json!({"devices":devices,"scanGeneration":generation}),
-                Err(_) => serde_json::json!({"devices":[],"scanGeneration":generation,"error":"DISCOVERY_FAILED"}),
-            };
-            event(&events, "devices", body);
-        })
-        .await;
-    }
-    async fn replace(&mut self, work: impl Future<Output = ()> + Send + 'static) {
-        self.stop().await;
-        self.0 = Some(tokio::spawn(work));
-    }
-    pub async fn stop(&mut self) {
-        if let Some(task) = self.0.take() {
-            task.abort();
-            let _ = task.await;
-        }
-    }
-}
-impl Drop for ScanTask {
-    fn drop(&mut self) {
-        if let Some(task) = &self.0 {
-            task.abort();
-        }
-    }
-}
 
 /// Shutdown also runs after browse/register errors or cancellation of an async search.
 struct MdnsDaemon(mdns_sd::ServiceDaemon);
@@ -256,51 +224,9 @@ pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::event;
     use tokio::sync::oneshot;
     use tokio_util::sync::CancellationToken;
-
-    #[tokio::test]
-    async fn replacement_joins_old_scan_and_stop_is_idempotent() {
-        let mut scan = ScanTask::default();
-        let mut previous: Option<CancellationToken> = None;
-        for _ in 0..8 {
-            let finished = CancellationToken::new();
-            let guard = finished.clone().drop_guard();
-            let (started, ready) = oneshot::channel();
-            let old = previous.clone();
-            scan.replace(async move {
-                let _guard = guard;
-                assert!(old.is_none_or(|old| old.is_cancelled()));
-                started.send(()).unwrap();
-                std::future::pending::<()>().await;
-            })
-            .await;
-            ready.await.unwrap();
-            previous = Some(finished);
-        }
-        scan.stop().await;
-        assert!(previous.unwrap().is_cancelled());
-        scan.stop().await;
-    }
-
-    #[tokio::test]
-    async fn dropping_scan_owner_cancels_pending_work() {
-        let mut scan = ScanTask::default();
-        let finished = CancellationToken::new();
-        let guard = finished.clone().drop_guard();
-        let (started, ready) = oneshot::channel();
-        scan.replace(async move {
-            let _guard = guard;
-            started.send(()).unwrap();
-            std::future::pending::<()>().await;
-        })
-        .await;
-        ready.await.unwrap();
-        drop(scan);
-        tokio::time::timeout(Duration::from_secs(1), finished.cancelled())
-            .await
-            .unwrap();
-    }
 
     fn renderer() -> Renderer {
         Renderer {
