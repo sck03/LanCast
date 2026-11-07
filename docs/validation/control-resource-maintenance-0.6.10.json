@@ -3,6 +3,7 @@
   "build_number": 18,
   "date": "2026-11-07",
   "timezone": "Asia/Shanghai",
+  "source_commit": "d28dadb38b4cf2897a8a909271f244c11efb7647",
   "baseline_commit": "cd5b1ed",
   "regressions_reproduced_before_fix": [
     "listener_abort_releases_incomplete_handshakes",
@@ -31,8 +32,24 @@
     "json_text_passes_before": 2,
     "json_text_passes_after": 1
   },
-  "cleanup": {"status": "pending"},
-  "github_actions": {"status": "pending_push"},
+  "cleanup": {
+    "mode": "quarantine",
+    "directory": ".manual-delete/20261107T033727Z-9d9ea768",
+    "files_moved": 2793,
+    "bytes_moved": 1931507791,
+    "bytes_deleted": 0,
+    "paths": ["target"],
+    "note": "Moving does not reclaim disk space; manifest.json records the original paths. Source, licenses and original media samples are preserved."
+  },
+  "github_actions": [
+    {"workflow": "windows.yml", "run": 42334736743, "conclusion": "success"},
+    {"workflow": "android.yml", "run": 42334736768, "conclusion": "success"},
+    {"workflow": "macos.yml", "run": 42334736748, "conclusion": "success"},
+    {"workflow": "ios.yml", "run": 42334736736, "conclusion": "success"},
+    {"workflow": "tvos.yml", "run": 42334736745, "conclusion": "success"},
+    {"workflow": "core-linux.yml", "run": 42334736782, "conclusion": "success"},
+    {"workflow": "native-linux.yml", "run": 42334736741, "conclusion": "success"}
+  ],
   "limitations": [
     "Buffer reservation is a configuration bound, not a measured process RSS reduction.",
     "No physical receiver interoperability, CPU/RSS, end-to-end latency or two-hour stability measurement in this round.",
