@@ -3,6 +3,7 @@
   "version": "0.6.8",
   "build_number": 16,
   "base_commit": "3f631ff",
+  "source_commit": "f1e87d571a0b76e99f438d8bc26b9cc897839f59",
   "regressions_reproduced_before_fix": [
     "stalled_response_releases_connection_and_cancels_request",
     "cancelled_save_keeps_disk_and_memory_at_the_previous_snapshot with expired prior evidence"
@@ -29,7 +30,16 @@
     "scope": "Known build outputs plus 25 reviewed scratch files; original hardware streams, probe sources, licenses, vendor sources and committed evidence retained",
     "disk_space": "Not reclaimed until the user deletes the quarantine folder"
   },
-  "remote_checks": "Pending push",
+  "remote_checks": [
+    {"workflow": "windows.yml", "result": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42328309085"},
+    {"workflow": "android.yml", "result": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42328309063"},
+    {"workflow": "macos.yml", "result": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42328309183"},
+    {"workflow": "ios.yml", "result": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42328309064"},
+    {"workflow": "tvos.yml", "result": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42328309133"},
+    {"workflow": "core-linux.yml", "result": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42328309117"},
+    {"workflow": "native-linux.yml", "result": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42328309093"},
+    {"workflow": "airplay.yml", "result": "not_triggered", "reason": "Independent protocol workspace unchanged; Android AirPlay product remains included in the Android build"}
+  ],
   "limits": [
     "No new CPU/RSS, physical-device pause/resume, end-to-end latency or two-hour stability measurements",
     "HTTP connections with no transport write progress for 15 seconds now close; paused players must reconnect",
