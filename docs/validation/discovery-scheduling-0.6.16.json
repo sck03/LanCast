@@ -1,0 +1,281 @@
+{
+  "schema": 1,
+  "date": "2026-11-07",
+  "application": {
+    "version": "0.6.16",
+    "build_number": 24
+  },
+  "source": {
+    "branch": "main",
+    "commit": "cfa7885716e520d64613db18382140faeeb1c238",
+    "url": "https://github.com/sck03/LanCast/commit/cfa7885716e520d64613db18382140faeeb1c238"
+  },
+  "regressions": {
+    "baseline_commit": "be0e2a1",
+    "reproduced_before_fix": "With Runtime still awaiting scan_dlna inline, a route.plan command queued after dlna.scan produced no result within two seconds on the local private network interface. The same integration test passed after asynchronous discovery was connected to Runtime.",
+    "coverage": [
+      "pending completion can be cancelled repeatedly without losing its result",
+      "directory is committed before publishing the device event",
+      "replacement discards completed but undelivered old results and clears the directory",
+      "stop joins pending work and discards undelivered results",
+      "failed searches produce bounded diagnostics and permit retry",
+      "interrupting task stop retains the handle until the worker exits",
+      "previously published devices remain selectable after stop",
+      "normal Engine commands run while DLNA discovery is pending"
+    ]
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features_tests": 102,
+    "rust_no_default_features_tests": 70,
+    "rust_legacy_tests": 71,
+    "python_tests": 54,
+    "python_optimized_tests": 54,
+    "markdown_documents_checked": 29,
+    "local_links_checked": 216,
+    "checks": [
+      "cargo fmt --all --check",
+      "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "cargo test --workspace --all-features --locked",
+      "cargo test --workspace --no-default-features --locked",
+      "cargo test --workspace --no-default-features --features legacy --locked",
+      "python scripts/check-architecture.py",
+      "python -m unittest discover -s scripts/tests",
+      "python -O -m unittest discover -s scripts/tests",
+      "local Markdown link existence check",
+      "git diff --check"
+    ]
+  },
+  "limitations": [
+    "No real television interoperability test, CPU/RSS measurement, end-to-end latency or two-hour endurance test in this iteration.",
+    "The Engine network regression skips on machines without an available private route; task lifecycle tests do not require a network.",
+    "An already executing long command may defer discovery result publication; discovery network work itself no longer blocks the command queue.",
+    "No new runtime dependencies or dedicated threads; at most one mDNS and one DLNA task per engine."
+  ],
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 1973471953,
+    "after_bytes": 21125820,
+    "reclaimable_bytes": 1952346133,
+    "removed_bytes": 1952346133,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2793,
+        "bytes": 1951929251,
+        "fingerprint": "b762f8f1f7c7f8f101764e5308afe7fea8abbc20794104d931659fa5c59b65f1"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 30,
+        "bytes": 243606,
+        "fingerprint": "e67b3e4fafca1e3e9884bad939027100d1f03ec9c1d44bacaf011f16e9088c1a"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 24,
+        "bytes": 173276,
+        "fingerprint": "c61fc4e40f05416442decc7e2e96c54d2a658fac3b419d29334f16eb5b8630ab"
+      }
+    ],
+    "remaining_known_reclaimable_bytes": 0
+  },
+  "artifact_metadata": [
+    {
+      "run": 42374142457,
+      "artifacts": [
+        {
+          "name": "windows-synthetic-diagnostic-0.6.16-24-Release",
+          "bytes": 140001,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "LanCast-Windows-x64-0.6.16-24-Release",
+          "bytes": 5095628,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 86982753,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114446,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        }
+      ]
+    },
+    {
+      "run": 42374142444,
+      "artifacts": [
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.16-24-Release",
+          "bytes": 22354994,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "apple-macos-build-reports-0.6.16-24-Release",
+          "bytes": 86845,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        }
+      ]
+    },
+    {
+      "run": 42374142482,
+      "artifacts": [
+        {
+          "name": "apple-ios-build-reports-0.6.16-24-Debug",
+          "bytes": 15554,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.16-24-Debug",
+          "bytes": 54824166,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        }
+      ]
+    },
+    {
+      "run": 42374142454,
+      "artifacts": [
+        {
+          "name": "apple-tvos-build-reports-0.6.16-24-Debug",
+          "bytes": 15534,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.16-24-Debug",
+          "bytes": 20088173,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        }
+      ]
+    },
+    {
+      "run": 42374142458,
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Sender-0.6.16-24-Debug",
+          "bytes": 35373164,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.16-24-Debug",
+          "bytes": 38800486,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.16-24-Debug",
+          "bytes": 12567045,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.16-24-Debug",
+          "bytes": 34310158,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.16-24-Debug",
+          "bytes": 30480522,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.16-24-Debug",
+          "bytes": 56322325,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        },
+        {
+          "name": "android-build-reports-0.6.16-24-Debug",
+          "bytes": 10221711,
+          "expired": false,
+          "source_commit": "cfa7885716e520d64613db18382140faeeb1c238"
+        }
+      ]
+    }
+  ],
+  "github_actions": [
+    {
+      "workflow": "native-linux.yml",
+      "run": 42374142386,
+      "source_commit": "cfa7885716e520d64613db18382140faeeb1c238",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42374142386"
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 42374142452,
+      "source_commit": "cfa7885716e520d64613db18382140faeeb1c238",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42374142452"
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 42374142454,
+      "source_commit": "cfa7885716e520d64613db18382140faeeb1c238",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42374142454"
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 42374142482,
+      "source_commit": "cfa7885716e520d64613db18382140faeeb1c238",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42374142482"
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 42374142444,
+      "source_commit": "cfa7885716e520d64613db18382140faeeb1c238",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42374142444"
+    },
+    {
+      "workflow": "windows.yml",
+      "run": 42374142457,
+      "source_commit": "cfa7885716e520d64613db18382140faeeb1c238",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42374142457"
+    },
+    {
+      "workflow": "android.yml",
+      "run": 42374142458,
+      "source_commit": "cfa7885716e520d64613db18382140faeeb1c238",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42374142458"
+    }
+  ],
+  "artifact_verification": "Actions metadata checked for the implementation commit and 0.6.16 / 24 application names. Package contents were checked by the workflows; no local binary download or device installation.",
+  "untriggered_workflows": [
+    {
+      "workflow": "airplay.yml",
+      "reason": "No changes to the independent AirPlay protocol workspace or its workflow inputs."
+    }
+  ]
+}
