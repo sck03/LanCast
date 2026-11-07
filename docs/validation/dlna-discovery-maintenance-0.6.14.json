@@ -1,0 +1,330 @@
+{
+  "schema": 1,
+  "date": "2026-11-07",
+  "application": {
+    "version": "0.6.14",
+    "build_number": 22
+  },
+  "source": {
+    "branch": "main",
+    "commit": "6e662aec6c2166982331d03ee5c509ce9c805471",
+    "url": "https://github.com/sck03/LanCast/commit/6e662aec6c2166982331d03ee5c509ce9c805471"
+  },
+  "regressions": {
+    "baseline_commit": "4710cee",
+    "reproduced_before_fix": [
+      "unrelated_services_cannot_hide_a_playable_renderer",
+      "missing_control_endpoint_is_not_the_description_endpoint",
+      "oversized_descriptions_do_not_overflow_the_host_mailbox"
+    ],
+    "after": "All pass; added aggregate escaping, duplicate replacement, device count, URLBase scope, XML bounds and invalid scan generation coverage."
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features_tests": 91,
+    "rust_no_default_features_tests": 60,
+    "rust_legacy_tests": 61,
+    "python_tests": 54,
+    "markdown_documents_checked": 29,
+    "checks": [
+      "cargo fmt --all --check",
+      "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "cargo test --workspace --all-features --locked",
+      "cargo test --workspace --no-default-features --locked",
+      "cargo test --workspace --no-default-features --features legacy --locked",
+      "python scripts/check-architecture.py",
+      "python -m unittest discover -s scripts/tests",
+      "local Markdown link existence check",
+      "git diff --check"
+    ]
+  },
+  "cleanup": {
+    "command": "python -B scripts/workspace_cleanup.py --include-downloads --clean --json",
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 2016957506,
+    "after_bytes": 20737721,
+    "removed_bytes": 1996219785,
+    "removed_files": 2826,
+    "paths": [
+      {
+        "path": "target",
+        "files": 2799,
+        "bytes": 1996011344,
+        "fingerprint": "51a0b28231075821949f18689a8c2512fc89c56cde9b953a4698facd21707ccc"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "files": 15,
+        "bytes": 121803,
+        "fingerprint": "cb1cdb75c4f6e901eabb80631264dcdd2fd8fe78a98488658b230ad9b5654b99"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "files": 12,
+        "bytes": 86638,
+        "fingerprint": "3b06ef5c292bf341d51afd749c3ecfcc6a7ca64122d12e69a980eab613af139e"
+      }
+    ],
+    "after_preview_reclaimable_bytes": 0
+  },
+  "limits": [
+    "No new runtime dependencies or backward protocol fallback.",
+    "DLNA discovery output has a 96 KiB JSON budget and 64-device cap; oversized results are skipped.",
+    "Allocation paths were reduced; CPU, RSS and end-to-end latency were not benchmarked.",
+    "Real television interoperability, weak Wi-Fi behavior and two-hour stability remain unverified.",
+    "AirPlay protocol workflow is unchanged and was not triggered by this commit."
+  ],
+  "github": [
+    {
+      "workflow": "windows.yml",
+      "run": 42353324344,
+      "sha": "6e662aec6c2166982331d03ee5c509ce9c805471",
+      "event": "push",
+      "title": "fix: bound DLNA discovery results and isolate description parsing",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42353324344",
+      "jobs": [
+        {
+          "id": 128345928165,
+          "name": "core",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        },
+        {
+          "id": 128345928258,
+          "name": "windows",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "LanCast-Windows-x64-0.6.14-22-Release",
+          "bytes": 5076011,
+          "expired": false
+        },
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 86970556,
+          "expired": false
+        },
+        {
+          "name": "windows-synthetic-diagnostic-0.6.14-22-Release",
+          "bytes": 140000,
+          "expired": false
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114448,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "android.yml",
+      "run": 42353324300,
+      "sha": "6e662aec6c2166982331d03ee5c509ce9c805471",
+      "event": "push",
+      "title": "Android · all products · default configuration",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42353324300",
+      "jobs": [
+        {
+          "id": 128345928360,
+          "name": "android",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Sender-0.6.14-22-Debug",
+          "bytes": 35324016,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.14-22-Debug",
+          "bytes": 34253832,
+          "expired": false
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.14-22-Debug",
+          "bytes": 56318508,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.14-22-Debug",
+          "bytes": 38744152,
+          "expired": false
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.14-22-Debug",
+          "bytes": 12554419,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.14-22-Debug",
+          "bytes": 30424703,
+          "expired": false
+        },
+        {
+          "name": "android-build-reports-0.6.14-22-Debug",
+          "bytes": 10222386,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 42353324435,
+      "sha": "6e662aec6c2166982331d03ee5c509ce9c805471",
+      "event": "push",
+      "title": "fix: bound DLNA discovery results and isolate description parsing",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42353324435",
+      "jobs": [
+        {
+          "id": 128345928446,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "apple-macos-build-reports-0.6.14-22-Release",
+          "bytes": 86674,
+          "expired": false
+        },
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.14-22-Release",
+          "bytes": 22324411,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 42353324373,
+      "sha": "6e662aec6c2166982331d03ee5c509ce9c805471",
+      "event": "push",
+      "title": "fix: bound DLNA discovery results and isolate description parsing",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42353324373",
+      "jobs": [
+        {
+          "id": 128345927956,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "apple-ios-build-reports-0.6.14-22-Debug",
+          "bytes": 15555,
+          "expired": false
+        },
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.14-22-Debug",
+          "bytes": 54766800,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 42353324396,
+      "sha": "6e662aec6c2166982331d03ee5c509ce9c805471",
+      "event": "push",
+      "title": "fix: bound DLNA discovery results and isolate description parsing",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42353324396",
+      "jobs": [
+        {
+          "id": 128345928113,
+          "name": "build",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "apple-tvos-build-reports-0.6.14-22-Debug",
+          "bytes": 15535,
+          "expired": false
+        },
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.14-22-Debug",
+          "bytes": 20053775,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 42353324343,
+      "sha": "6e662aec6c2166982331d03ee5c509ce9c805471",
+      "event": "push",
+      "title": "fix: bound DLNA discovery results and isolate description parsing",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42353324343",
+      "jobs": [
+        {
+          "id": 128345928132,
+          "name": "core",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 117185,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 42353324430,
+      "sha": "6e662aec6c2166982331d03ee5c509ce9c805471",
+      "event": "push",
+      "title": "fix: bound DLNA discovery results and isolate description parsing",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42353324430",
+      "jobs": [
+        {
+          "id": 128345928471,
+          "name": "native",
+          "status": "completed",
+          "conclusion": "success",
+          "step": null
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6200,
+          "expired": false
+        }
+      ]
+    }
+  ],
+  "artifact_verification": "GitHub artifact metadata confirms version/build 0.6.14/22 for all five platforms. Artifacts were built/checked by their workflows; no local binary download or device installation was performed."
+}
