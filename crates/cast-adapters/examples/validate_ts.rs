@@ -1,5 +1,5 @@
 //! CI-only validator for a real FFmpeg-generated synthetic stream.
-use cast_adapters::ts::StartGate;
+use cast_adapters::ts::{MAX_WRITE, PACKET, StartGate};
 use std::io::Write;
 fn main() -> anyhow::Result<()> {
     let args: Vec<_> = std::env::args().collect();
@@ -13,19 +13,31 @@ fn main() -> anyhow::Result<()> {
         "invalid fixture"
     );
     std::fs::create_dir_all(&args[2])?;
-    // Include a mid-GOP join and start-code boundaries at a single TS packet per write.
+    // A mux may flush one packet or a whole block: joining must produce identical TS.
     for (index, offset) in [0, 188 * 50, 188 * 173].into_iter().enumerate() {
-        let mut gate = StartGate::default();
-        let mut file = std::fs::File::create(format!("{}/join-{index}.ts", args[2]))?;
-        let mut count = 0;
-        for packet in input[offset..].as_chunks::<188>().0 {
-            if let Some(bytes) = gate.push(packet)? {
-                count += bytes.len();
-                file.write_all(&bytes)?;
+        let mut reference = None;
+        for packets in [1, 7, MAX_WRITE / PACKET] {
+            let mut gate = StartGate::default();
+            let mut output = Vec::new();
+            for block in input[offset..].chunks(packets * PACKET) {
+                if let Some(bytes) = gate.push(block)? {
+                    output.extend_from_slice(&bytes);
+                }
             }
+            anyhow::ensure!(output.len() > PACKET * 20, "no valid random access point");
+            if let Some(expected) = &reference {
+                anyhow::ensure!(
+                    &output == expected,
+                    "write boundaries changed startup output"
+                );
+            }
+            std::fs::write(format!("{}/join-{index}-{packets}.ts", args[2]), &output)?;
+            println!(
+                "join={index} offset={offset} packetsPerWrite={packets} acceptedBytes={}",
+                output.len()
+            );
+            reference.get_or_insert(output);
         }
-        anyhow::ensure!(count > 188 * 20, "no valid random access point");
-        println!("join={index} offset={offset} acceptedBytes={count}");
     }
     // Repacketize real PAT/PMT/PES starts at deliberately hostile byte boundaries.
     // The MPEG sections and elementary stream remain byte-identical, including their CRC.

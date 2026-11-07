@@ -3,6 +3,7 @@
 use anyhow::ensure;
 pub const PACKET: usize = 188;
 pub const MAX_WRITE: usize = 65_424;
+const MAX_START: usize = 8 * 1024 * 1024;
 pub fn validate(data: &[u8]) -> anyhow::Result<()> {
     ensure!(
         !data.is_empty() && data.len() <= MAX_WRITE && data.len().is_multiple_of(PACKET),
@@ -163,9 +164,26 @@ impl VideoStart {
         Ok(())
     }
 }
+#[derive(Clone, Copy)]
+struct Program {
+    number: u16,
+    pmt: u16,
+}
+fn pat_program(pat: &[u8]) -> anyhow::Result<Option<Program>> {
+    ensure!(pat.len() >= 12, "INVALID_PAT");
+    let (programs, remainder) = pat[8..pat.len() - 4].as_chunks::<4>();
+    ensure!(remainder.is_empty(), "INVALID_PAT_PROGRAMS");
+    Ok(programs.iter().find_map(|p| {
+        let number = u16::from_be_bytes([p[0], p[1]]);
+        (number != 0).then_some(Program {
+            number,
+            pmt: (u16::from(p[2] & 31) << 8) | u16::from(p[3]),
+        })
+    }))
+}
 #[derive(Default)]
 pub struct StartGate {
-    pmt: Option<u16>,
+    program: Option<Program>,
     video: Option<u16>,
     video_start: VideoStart,
     pending: Vec<u8>,
@@ -200,7 +218,7 @@ impl StartGate {
         if self.ready {
             return Ok(Some(data.to_vec()));
         }
-        for p in data.as_chunks::<PACKET>().0 {
+        for (index, p) in data.as_chunks::<PACKET>().0.iter().enumerate() {
             let pid = ((p[1] as u16 & 31) << 8) | p[2] as u16;
             let start = p[1] & 0x40 != 0;
             let body = payload(p)?;
@@ -213,39 +231,30 @@ impl StartGate {
                 if let Some(bytes) = self.pat_section.push(body, start, p[3] & 15)?
                     && let Some(pat) = section(bytes, 0)
                 {
-                    let programs = pat.get(8..pat.len().saturating_sub(4)).unwrap_or_default();
-                    for program in programs.as_chunks::<4>().0 {
-                        if program[0] != 0 || program[1] != 0 {
-                            if !self.video_start.idr {
-                                self.pmt =
-                                    Some(((program[2] as u16 & 31) << 8) | program[3] as u16);
-                                self.video = None;
-                                self.video_start = VideoStart::default();
-                                self.pending.clear();
-                                self.pending.extend_from_slice(&self.pat_packets);
-                                self.pat_length = self.pending.len();
-                                self.pmt_section.reset();
-                                self.pmt_packets.clear();
-                                self.program_map.clear();
-                            }
-                            break;
-                        }
-                    }
+                    self.program = pat_program(pat)?;
+                    self.video = None;
+                    self.video_start = VideoStart::default();
+                    self.pending.clear();
+                    self.pending.extend_from_slice(&self.pat_packets);
+                    self.pat_length = self.pending.len();
+                    self.pmt_section.reset();
+                    self.pmt_packets.clear();
+                    self.program_map.clear();
                 }
                 continue;
             }
-            if self.pmt.is_none() {
+            let Some(program) = self.program else {
                 continue;
-            }
+            };
             if Some(pid) == self.video && !start && self.video_start.continuity.is_none() {
                 continue;
             }
             ensure!(
-                self.pending.len() + PACKET <= 8 * 1024 * 1024,
+                self.pending.len() + PACKET <= MAX_START,
                 "START_POINT_TOO_LARGE"
             );
             self.pending.extend_from_slice(p);
-            if Some(pid) == self.pmt && !body.is_empty() {
+            if pid == program.pmt && !body.is_empty() {
                 if start {
                     self.pmt_packets.clear();
                 }
@@ -253,6 +262,7 @@ impl StartGate {
                 self.pmt_packets.extend_from_slice(p);
                 if let Some(bytes) = self.pmt_section.push(body, start, p[3] & 15)?
                     && let Some(pmt) = section(bytes, 2)
+                    && u16::from_be_bytes([pmt[3], pmt[4]]) == program.number
                     && pmt != self.program_map
                 {
                     self.video = video_pid(pmt)?;
@@ -268,13 +278,25 @@ impl StartGate {
             if Some(pid) == self.video {
                 self.video_start.push(body, start, p[3] & 15)?;
             }
+            if self.video_start.idr {
+                // The first valid start ends parsing immediately, regardless of
+                // write boundaries. Later PAT/PMT/PES packets belong to playback.
+                let tail = &data[(index + 1) * PACKET..];
+                ensure!(
+                    self.pending.len() + tail.len() <= MAX_START,
+                    "START_POINT_TOO_LARGE"
+                );
+                self.pending.extend_from_slice(tail);
+                let output = std::mem::take(&mut self.pending);
+                // Drop startup allocations even when a caller retains this gate.
+                *self = Self {
+                    ready: true,
+                    ..Self::default()
+                };
+                return Ok(Some(output));
+            }
         }
-        if self.video_start.idr {
-            self.ready = true;
-            Ok(Some(std::mem::take(&mut self.pending)))
-        } else {
-            Ok(None)
-        }
+        Ok(None)
     }
 }
 #[cfg(test)]
@@ -354,6 +376,116 @@ mod tests {
                 0,
             ],
         )
+    }
+
+    #[test]
+    fn program_changes_after_the_first_idr_are_independent_of_write_boundaries() {
+        let first_frame = packet(0x100, true, 0, &[PES, KEYFRAME].concat());
+        for pmt_pid in [0x1000, 0x1001] {
+            let pat = psi(
+                0,
+                &[0, 0xb0, 13, 0, 1, 0xc3, 0, 0, 0, 2, 0xf0, pmt_pid as u8],
+            );
+            let pmt = psi(
+                pmt_pid,
+                &[
+                    2, 0xb0, 18, 0, 2, 0xc1, 0, 0, 0xe1, 1, 0xf0, 0, 0x1b, 0xe1, 1, 0xf0, 0,
+                ],
+            );
+            // The next program has not produced a keyframe yet. The first
+            // program's valid start must still be published, with all later TS intact.
+            let input = [first_frame, pat, pmt].concat();
+            let mut reference = StartGate::default();
+            tables(&mut reference);
+            let expected: Vec<u8> = input
+                .as_chunks::<PACKET>()
+                .0
+                .iter()
+                .flat_map(|p| reference.push(p).unwrap().unwrap())
+                .collect();
+            for cut in 1..=3 {
+                let mut gate = StartGate::default();
+                tables(&mut gate);
+                let actual: Vec<u8> = input
+                    .chunks(cut * PACKET)
+                    .flat_map(|part| gate.push(part).unwrap().unwrap_or_default())
+                    .collect();
+                assert_eq!(actual, expected, "PMT {pmt_pid:#x}, {cut} packets/write");
+            }
+        }
+    }
+
+    #[test]
+    fn pat_without_a_program_cannot_reuse_previous_video() {
+        for section in [
+            vec![0, 0xb0, 9, 0, 1, 0xc3, 0, 0],
+            vec![0, 0xb0, 13, 0, 1, 0xc3, 0, 0, 0, 0, 0xe0, 0x10],
+        ] {
+            let mut gate = StartGate::default();
+            tables(&mut gate);
+            gate.push(&packet(0x100, true, 0, &[PES, &KEYFRAME[..8]].concat()))
+                .unwrap();
+            gate.push(&psi(0, &section)).unwrap();
+            assert!(
+                gate.push(&packet(0x100, true, 1, &[PES, KEYFRAME].concat()))
+                    .unwrap()
+                    .is_none(),
+                "removed program still opened the gate"
+            );
+            tables(&mut gate);
+            assert!(
+                gate.push(&packet(0x100, true, 7, &[PES, KEYFRAME].concat()))
+                    .unwrap()
+                    .is_some()
+            );
+        }
+    }
+
+    #[test]
+    fn pmt_must_belong_to_the_program_selected_by_pat() {
+        let mut gate = StartGate::default();
+        let pat = psi(0, &[0, 0xb0, 13, 0, 1, 0xc1, 0, 0, 0, 2, 0xf0, 0]);
+        gate.push(&pat).unwrap();
+        gate.push(&program_map(0, 0, 0x1b)).unwrap(); // Program 1 on the same PMT PID.
+        assert!(
+            gate.push(&packet(0x100, true, 0, &[PES, KEYFRAME].concat()))
+                .unwrap()
+                .is_none(),
+            "accepted another program's PMT"
+        );
+        let pmt = psi(
+            0x1000,
+            &[
+                2, 0xb0, 18, 0, 2, 0xc1, 0, 0, 0xe1, 0, 0xf0, 0, 0x1b, 0xe1, 0, 0xf0, 0,
+            ],
+        );
+        gate.push(&pmt).unwrap();
+        let keyframe = packet(0x100, true, 9, &[PES, KEYFRAME].concat());
+        assert_eq!(
+            gate.push(&keyframe).unwrap().unwrap(),
+            [pat, pmt, keyframe].concat()
+        );
+    }
+
+    #[test]
+    fn malformed_pat_cannot_select_a_partial_program_entry() {
+        for section in [
+            vec![0, 0xb0, 8, 0, 1, 0xc1, 0],
+            vec![0, 0xb0, 14, 0, 1, 0xc1, 0, 0, 0, 1, 0xf0, 0, 9],
+        ] {
+            assert!(StartGate::default().push(&psi(0, &section)).is_err());
+        }
+    }
+
+    #[test]
+    fn first_idr_does_not_bypass_transport_validation_for_the_rest_of_the_write() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        let keyframe = packet(0x100, true, 0, &[PES, KEYFRAME].concat());
+        let mut invalid = packet(0x1fff, false, 0, &[]);
+        invalid[0] = 0;
+        assert!(gate.push(&[keyframe, invalid].concat()).is_err());
+        assert!(gate.push(&keyframe).unwrap().is_some());
     }
 
     #[test]

@@ -1,0 +1,52 @@
+{
+  "version": "0.6.20",
+  "build_number": 28,
+  "date": "2026-11-08",
+  "regressions": {
+    "failed_on_original_implementation": [
+      "program_changes_after_the_first_idr_are_independent_of_write_boundaries",
+      "pat_without_a_program_cannot_reuse_previous_video",
+      "pmt_must_belong_to_the_program_selected_by_pat"
+    ],
+    "additional_coverage": [
+      "malformed_pat_cannot_select_a_partial_program_entry",
+      "first_idr_does_not_bypass_transport_validation_for_the_rest_of_the_write"
+    ],
+    "after": "All five regressions and existing TS startup tests pass"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {"passed": 120, "failed": 0},
+    "rust_no_default_features": {"passed": 83, "failed": 0},
+    "rust_legacy": {"passed": 84, "failed": 0},
+    "python_unittest": {"passed": 54, "failed": 0},
+    "python_optimized_unittest": {"passed": 54, "failed": 0},
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "architecture": "passed",
+    "synthetic_ts": {
+      "fixture": ".cache/synthetic-local.ts (retained synthetic fixture)",
+      "packets_per_write": [1, 7, 348],
+      "join_offsets": [0, 9400, 32524],
+      "accepted_bytes_per_join": [1155072, 879840, 879840],
+      "identical_output_for_each_join": true,
+      "split_header_offsets": [1, 2, 7, 12],
+      "accepted_bytes_per_split": 1228580,
+      "http_1_0_bytes": 1155072,
+      "http_1_1_bytes": 1155072,
+      "pull_cancellation_and_soap_stop": "passed"
+    }
+  },
+  "resource_changes": [
+    "Stop startup parsing at the first valid IDR packet and append the validated remainder directly",
+    "Release PAT, PMT and PES scratch allocations immediately when the startup gate opens",
+    "Centralize PAT program identity parsing and remove nested selection branches",
+    "Preserve the 65424-byte input and 8 MiB startup output limits",
+    "No new runtime dependency, task, thread or compatibility layer"
+  ],
+  "limitations": [
+    "No physical-device, CPU/RSS, end-to-end latency or two-hour soak measurements",
+    "Local synthetic validation reused an existing fixture; no new hardware capture or local media decode",
+    "Independent AirPlay protocol code was unchanged"
+  ]
+}
