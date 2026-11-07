@@ -26,9 +26,15 @@ pub(crate) struct Client {
 }
 impl Client {
     pub(crate) fn send(&self, message: Message) -> anyhow::Result<()> {
-        self.sender
+        let result = self
+            .sender
             .try_send(message)
-            .context("SIGNAL_QUEUE_FULL_OR_CLOSED")
+            .context("SIGNAL_QUEUE_FULL_OR_CLOSED");
+        if result.is_err() {
+            // A dropped offer/ICE/stop cannot leave a healthy-looking session.
+            self.cancel.cancel();
+        }
+        result
     }
 
     pub(crate) fn is_closed(&self) -> bool {
@@ -191,6 +197,31 @@ impl Drop for Client {
 mod tests {
     use super::*;
     use tokio_tungstenite::tungstenite::protocol::Role;
+
+    #[test]
+    fn signal_delivery_failure_cancels_the_connection() {
+        for closed in [false, true] {
+            let (sender, receiver) = mpsc::channel(1);
+            let client = Client {
+                sender,
+                cancel: CancellationToken::new(),
+                task: None,
+            };
+            client.send(Message::new("ping", json!({}))).unwrap();
+            if closed {
+                drop(receiver);
+            }
+            assert!(
+                client
+                    .send(Message::new("session.stop", json!({})))
+                    .is_err()
+            );
+            assert!(
+                client.cancel.is_cancelled(),
+                "undelivered signal left the connection alive"
+            );
+        }
+    }
 
     #[tokio::test]
     async fn close_interrupts_a_blocked_write_and_finishes_event_delivery() {

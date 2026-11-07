@@ -10,10 +10,14 @@ use tokio_tungstenite::{
 
 pub(super) fn wire_config() -> WebSocketConfig {
     WebSocketConfig::default()
+        // Control traffic is mostly small signals. Larger SDP still grows up
+        // to MAX_FRAME; avoid reserving the default 128 KiB for every reader.
+        .read_buffer_size(16 * 1024)
         .max_message_size(Some(MAX_FRAME))
         .max_frame_size(Some(MAX_FRAME))
         .max_write_buffer_size(512 * 1024)
 }
+
 pub(super) async fn send<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     ws: &mut WebSocketStream<S>,
     message: &Message,
@@ -37,5 +41,32 @@ pub(super) async fn receive<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Un
             Frame::Pong(_) => {}
             _ => anyhow::bail!("DISCONNECTED"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio_tungstenite::tungstenite::protocol::Role;
+
+    #[tokio::test]
+    async fn large_sdp_crosses_small_transport_and_read_buffers() {
+        let (client, server) = tokio::io::duplex(1024);
+        let mut client =
+            WebSocketStream::from_raw_socket(client, Role::Client, Some(wire_config())).await;
+        let mut server =
+            WebSocketStream::from_raw_socket(server, Role::Server, Some(wire_config())).await;
+        let message = Message::new(
+            "rtc.offer",
+            serde_json::json!({
+                "sdp": "x".repeat(crate::protocol::MAX_SDP),
+                "negotiationId": uuid::Uuid::new_v4(),
+            }),
+        );
+        let (sent, received) = tokio::join!(send(&mut client, &message), receive(&mut server));
+        sent.unwrap();
+        let received = received.unwrap();
+        assert_eq!(received.id, message.id);
+        assert_eq!(received.body, message.body);
     }
 }

@@ -19,7 +19,8 @@ use std::{
 };
 use tokio::{
     net::TcpListener,
-    sync::{Mutex, Semaphore, mpsc, oneshot},
+    sync::{Mutex, mpsc, oneshot},
+    task::JoinSet,
 };
 use tokio_tungstenite::WebSocketStream;
 use tokio_util::sync::CancellationToken;
@@ -155,16 +156,22 @@ impl Server {
 #[allow(clippy::result_large_err)]
 async fn serve(listener: TcpListener, server: Arc<Server>) -> anyhow::Result<()> {
     let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server.identity.server_config()?));
-    let slots = Arc::new(Semaphore::new(8));
-    loop {
-        let (stream, address) = listener.accept().await?;
-        let Ok(permit) = slots.clone().try_acquire_owned() else {
-            continue;
+    let mut connections = JoinSet::new();
+    let result = loop {
+        let accepted = tokio::select! { biased;
+            Some(_) = connections.join_next(), if !connections.is_empty() => continue,
+            accepted = listener.accept() => accepted,
         };
+        let (stream, address) = match accepted {
+            Ok(connection) => connection,
+            Err(error) => break Err(error.into()),
+        };
+        if connections.len() >= 8 {
+            continue;
+        }
         let acceptor = acceptor.clone();
         let server = server.clone();
-        tokio::spawn(async move {
-            let _permit = permit;
+        connections.spawn(async move {
             let handshake = async {
                 let tls = acceptor.accept(stream).await?;
                 let ws=tokio_tungstenite::accept_hdr_async_with_config(tls,|request:&tokio_tungstenite::tungstenite::handshake::server::Request,response:tokio_tungstenite::tungstenite::handshake::server::Response|{
@@ -176,7 +183,11 @@ async fn serve(listener: TcpListener, server: Arc<Server>) -> anyhow::Result<()>
                 let _ = receiver_connection(ws, address.ip(), server).await;
             }
         });
-    }
+    };
+    // Listener errors join all workers; dropping/aborting it also aborts its
+    // owned handshakes and paired sockets instead of leaving detached tasks.
+    connections.shutdown().await;
+    result
 }
 async fn receiver_connection<
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
@@ -432,6 +443,36 @@ async fn handle_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn listener_abort_releases_incomplete_handshakes() {
+        let (events, _output) = crate::events::channel(16, CancellationToken::new());
+        let server = Arc::new(Server::new(
+            Arc::new(Identity::create().unwrap()),
+            "standard",
+            events,
+        ));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(server.clone().serve(listener));
+        let mut peer = tokio::net::TcpStream::connect(address).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while Arc::strong_count(&server) < 3 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("listener did not accept the connection");
+        task.abort();
+        let _ = task.await;
+        // Keep the client open without sending TLS. Listener teardown must
+        // release its socket/identity now, not after the handshake timeout.
+        use tokio::io::AsyncReadExt;
+        let closed = tokio::time::timeout(Duration::from_secs(2), peer.read(&mut [0])).await;
+        assert!(closed.is_ok(), "orphaned handshake kept its socket alive");
+        assert!(!matches!(closed.unwrap(), Ok(n) if n != 0));
+        assert_eq!(Arc::strong_count(&server), 1);
+    }
 
     #[tokio::test]
     async fn saturated_signal_queue_cannot_prevent_local_stop() {

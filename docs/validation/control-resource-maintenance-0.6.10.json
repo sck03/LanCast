@@ -1,0 +1,41 @@
+{
+  "version": "0.6.10",
+  "build_number": 18,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "baseline_commit": "cd5b1ed",
+  "regressions_reproduced_before_fix": [
+    "listener_abort_releases_incomplete_handshakes",
+    "signal_delivery_failure_cancels_the_connection"
+  ],
+  "local_validation": {
+    "architecture": "passed",
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "rust_workspace_all_features": 70,
+    "rust_workspace_no_default_features": 53,
+    "rust_workspace_no_default_features_legacy": 54,
+    "python_unittest": 54,
+    "python_optimized_unittest": 54,
+    "additional_regressions": [
+      "large_sdp_crosses_small_transport_and_read_buffers",
+      "recursive_values_keep_their_types_and_contents",
+      "both_text_entries_reject_nested_ambiguity_and_invalid_numbers"
+    ]
+  },
+  "resource_changes": {
+    "websocket_initial_read_buffer_before_bytes": 131072,
+    "websocket_initial_read_buffer_after_bytes": 16384,
+    "websocket_max_message_bytes": 131072,
+    "control_connection_limit": 8,
+    "json_text_passes_before": 2,
+    "json_text_passes_after": 1
+  },
+  "cleanup": {"status": "pending"},
+  "github_actions": {"status": "pending_push"},
+  "limitations": [
+    "Buffer reservation is a configuration bound, not a measured process RSS reduction.",
+    "No physical receiver interoperability, CPU/RSS, end-to-end latency or two-hour stability measurement in this round.",
+    "Independent AirPlay protocol sources are unchanged."
+  ]
+}

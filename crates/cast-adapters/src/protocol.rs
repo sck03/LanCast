@@ -3,7 +3,7 @@ use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
 };
 use serde_json::Value;
-use std::{collections::HashSet, fmt};
+use std::fmt;
 use uuid::Uuid;
 
 pub const MAX_FRAME: usize = 128 * 1024;
@@ -11,11 +11,7 @@ pub const MAX_SDP: usize = 96 * 1024;
 pub const MAX_ICE: usize = 4096;
 
 pub fn parse_command(text: &str) -> anyhow::Result<Value> {
-    anyhow::ensure!(text.len() <= MAX_FRAME, "FRAME_TOO_LARGE");
-    let mut decoder = serde_json::Deserializer::from_str(text);
-    Unique::deserialize(&mut decoder)?;
-    decoder.end()?;
-    let value: Value = serde_json::from_str(text)?;
+    let value = parse_json(text)?;
     anyhow::ensure!(
         value.is_object() && value["op"].is_string(),
         "INVALID_COMMAND"
@@ -58,12 +54,7 @@ impl Message {
         self.reply("error", serde_json::json!({"code":code,"retryable":false}))
     }
     pub fn parse(text: &str) -> anyhow::Result<Self> {
-        anyhow::ensure!(text.len() <= MAX_FRAME, "FRAME_TOO_LARGE");
-        // serde_json::Value normally accepts duplicate keys; validate recursively first.
-        let mut deserializer = serde_json::Deserializer::from_str(text);
-        Unique::deserialize(&mut deserializer)?;
-        deserializer.end()?;
-        let value: Self = serde_json::from_str(text)?;
+        let value: Self = serde_json::from_value(parse_json(text)?)?;
         value.validate()?;
         Ok(value)
     }
@@ -126,7 +117,17 @@ impl std::io::Write for FrameLimit {
     }
 }
 
-struct Unique;
+fn parse_json(text: &str) -> anyhow::Result<Value> {
+    anyhow::ensure!(text.len() <= MAX_FRAME, "FRAME_TOO_LARGE");
+    let mut decoder = serde_json::Deserializer::from_str(text);
+    let value = Unique::deserialize(&mut decoder)?.0;
+    decoder.end()?;
+    Ok(value)
+}
+
+// Build the validated tree once. The object itself detects duplicate decoded
+// keys; no second parse or parallel HashSet of key allocations is needed.
+struct Unique(Value);
 impl<'de> Deserialize<'de> for Unique {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct V;
@@ -136,39 +137,42 @@ impl<'de> Deserialize<'de> for Unique {
                 f.write_str("bounded JSON with unique keys")
             }
             fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Unique, M::Error> {
-                let mut keys = HashSet::new();
+                let mut object = serde_json::Map::new();
                 while let Some(key) = map.next_key::<String>()? {
-                    if !keys.insert(key) {
+                    if object.contains_key(&key) {
                         return Err(de::Error::custom("duplicate key"));
                     }
-                    map.next_value::<Unique>()?;
+                    object.insert(key, map.next_value::<Unique>()?.0);
                 }
-                Ok(Unique)
+                Ok(Unique(Value::Object(object)))
             }
             fn visit_seq<S: SeqAccess<'de>>(self, mut seq: S) -> Result<Unique, S::Error> {
-                while seq.next_element::<Unique>()?.is_some() {}
-                Ok(Unique)
+                let mut array = Vec::new();
+                while let Some(value) = seq.next_element::<Unique>()? {
+                    array.push(value.0);
+                }
+                Ok(Unique(Value::Array(array)))
             }
-            fn visit_bool<E: de::Error>(self, _: bool) -> Result<Unique, E> {
-                Ok(Unique)
+            fn visit_bool<E: de::Error>(self, value: bool) -> Result<Unique, E> {
+                Ok(Unique(value.into()))
             }
-            fn visit_i64<E: de::Error>(self, _: i64) -> Result<Unique, E> {
-                Ok(Unique)
+            fn visit_i64<E: de::Error>(self, value: i64) -> Result<Unique, E> {
+                Ok(Unique(value.into()))
             }
-            fn visit_u64<E: de::Error>(self, _: u64) -> Result<Unique, E> {
-                Ok(Unique)
+            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Unique, E> {
+                Ok(Unique(value.into()))
             }
             fn visit_f64<E: de::Error>(self, n: f64) -> Result<Unique, E> {
                 if !n.is_finite() || n.abs() > 9_007_199_254_740_991.0 {
                     return Err(E::custom("number out of range"));
                 }
-                Ok(Unique)
+                Ok(Unique(n.into()))
             }
-            fn visit_str<E: de::Error>(self, _: &str) -> Result<Unique, E> {
-                Ok(Unique)
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<Unique, E> {
+                Ok(Unique(value.into()))
             }
             fn visit_unit<E: de::Error>(self) -> Result<Unique, E> {
-                Ok(Unique)
+                Ok(Unique(Value::Null))
             }
         }
         d.deserialize_any(V)
@@ -178,6 +182,43 @@ impl<'de> Deserialize<'de> for Unique {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recursive_values_keep_their_types_and_contents() {
+        let body = r#"{"text":"电视\n\u7535\"\\","nested":[null,true,false,-1,1.25,-0.0,18446744073709551615,{"key":[] }]}"#;
+        let expected: Value = serde_json::from_str(body).unwrap();
+        let command = format!(r#"{{"op":"signal","message":{body}}}"#);
+        assert_eq!(parse_command(&command).unwrap()["message"], expected);
+        let message = Message::new("ping", expected.clone());
+        let parsed = Message::parse(&serde_json::to_string(&message).unwrap()).unwrap();
+        assert_eq!(parsed.body, expected);
+        assert_eq!(parsed.id, message.id);
+    }
+
+    #[test]
+    fn both_text_entries_reject_nested_ambiguity_and_invalid_numbers() {
+        for body in [
+            r#"{"items":[{"key":1,"\u006bey":2}]}"#,
+            r#"{"items":[{"nested":{"x":null,"x":false}}]}"#,
+            r#"{"number":1e100}"#,
+            r#"{"number":1e999}"#,
+        ] {
+            let command = format!(r#"{{"op":"signal","message":{body}}}"#);
+            assert!(parse_command(&command).is_err(), "accepted {body}");
+            let wire = serde_json::to_string(&Message::new("ping", serde_json::json!({})))
+                .unwrap()
+                .replace(r#""body":{}"#, &format!(r#""body":{body}"#));
+            assert!(Message::parse(&wire).is_err(), "accepted {body}");
+        }
+        assert!(parse_command(r#"{"op":"stop"} null"#).is_err());
+        let deep = format!(
+            r#"{{"op":"signal","body":{}0{}}}"#,
+            "[".repeat(128),
+            "]".repeat(128)
+        );
+        assert!(parse_command(&deep).is_err());
+        let oversized = format!(r#"{{"op":"{}"}}"#, "x".repeat(MAX_FRAME));
+        assert!(parse_command(&oversized).is_err());
+    }
     #[test]
     fn rejects_ambiguous_json() {
         let msg = Message::new("ping", serde_json::json!({}));
