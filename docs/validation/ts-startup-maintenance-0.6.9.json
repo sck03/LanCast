@@ -1,0 +1,49 @@
+{
+  "version": "0.6.9",
+  "build_number": 17,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "source_commit": "5db0feb78165fe5aea42a8a329f2532cb72e82ef",
+  "baseline_commit": "df9235d",
+  "regressions_reproduced_before_fix": [
+    "continuation_without_a_pes_start_cannot_open_the_gate",
+    "new_pat_discards_an_unfinished_pes_header",
+    "lost_video_packet_cannot_publish_a_broken_start_point"
+  ],
+  "local_validation": {
+    "architecture": "passed",
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "rust_workspace_all_features": 65,
+    "rust_workspace_no_default_features": 48,
+    "rust_workspace_no_default_features_legacy": 49,
+    "python_unittest": 54,
+    "python_optimized_unittest": 54,
+    "synthetic_ts_join_offsets_bytes": [0, 9400, 32524],
+    "synthetic_ts_split_header_offsets_bytes": [1, 2, 7, 12],
+    "live_http_versions": ["1.0", "1.1"],
+    "live_http_checks": ["TS transfer", "confirmed pull", "cancellation", "SOAP stop"]
+  },
+  "cleanup": {
+    "mode": "quarantine",
+    "directory": ".manual-delete/20261107T030236Z-0f14229e",
+    "files_moved": 2893,
+    "bytes_moved": 2198364030,
+    "bytes_deleted": 0,
+    "paths": ["target", ".cache/local-joins", "scripts/__pycache__", "scripts/tests/__pycache__"],
+    "note": "Moving does not reclaim disk space. Original media samples, probe sources, licenses, vendor sources and Git history are preserved."
+  },
+  "github_actions": [
+    {"workflow": "windows.yml", "run": 42331936679, "conclusion": "success"},
+    {"workflow": "android.yml", "run": 42331936656, "conclusion": "success"},
+    {"workflow": "macos.yml", "run": 42331936659, "conclusion": "success"},
+    {"workflow": "ios.yml", "run": 42331936684, "conclusion": "success"},
+    {"workflow": "tvos.yml", "run": 42331936597, "conclusion": "success"},
+    {"workflow": "core-linux.yml", "run": 42331936670, "conclusion": "success"},
+    {"workflow": "native-linux.yml", "run": 42331936640, "conclusion": "success"}
+  ],
+  "limitations": [
+    "No physical receiver interoperability, CPU/RSS, end-to-end latency or two-hour stability measurement in this round.",
+    "Independent AirPlay protocol sources are unchanged; their separate workflow is not triggered."
+  ]
+}
