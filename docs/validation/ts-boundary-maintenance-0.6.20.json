@@ -2,6 +2,56 @@
   "version": "0.6.20",
   "build_number": 28,
   "date": "2026-11-08",
+  "source_commit": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 2127825315,
+    "after_bytes": 21719205,
+    "reclaimable_bytes": 2106106110,
+    "removed_bytes": 2106106110,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2812,
+        "bytes": 2089720508,
+        "fingerprint": "393417ac3119aa1393cf95f7a644e068fdbaf3b49d429779af4eaa595f52fd1f"
+      },
+      {
+        "path": ".cache/local-joins",
+        "category": "build",
+        "files": 15,
+        "bytes": 15968720,
+        "fingerprint": "03a95ed3bd68a91e6f230b6d0abdaa19f55366fe78382292652e14b45029bade"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 30,
+        "bytes": 243606,
+        "fingerprint": "4b09c339ade167685043d525705a9a426306353c1ee121ad9f9e2fca060027e9"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 24,
+        "bytes": 173276,
+        "fingerprint": "71d2a6548e6e4c69d26287eb5456b8bc1da0a45d5fb2b4cbda3ce9daf49f183d"
+      }
+    ],
+    "files": 2881,
+    "recheck_reclaimable_bytes": 0,
+    "additional_removed_files": [
+      {
+        "path": ".cache/ci-128434325929.log",
+        "category": "obsolete_ci_log",
+        "files": 1,
+        "bytes": 22077,
+        "fingerprint": "9c6944987c618ff748935a776dca735558ba9791308ea3d2d6397ebf44cfb4eb"
+      }
+    ]
+  },
   "regressions": {
     "failed_on_original_implementation": [
       "program_changes_after_the_first_idr_are_independent_of_write_boundaries",
@@ -24,6 +74,7 @@
     "cargo_fmt": "passed",
     "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
     "architecture": "passed",
+    "markdown_links": {"files": 32, "targets": 223, "missing": 0},
     "synthetic_ts": {
       "fixture": ".cache/synthetic-local.ts (retained synthetic fixture)",
       "packets_per_write": [1, 7, 348],
@@ -37,6 +88,180 @@
       "pull_cancellation_and_soap_stop": "passed"
     }
   },
+  "github_actions": [
+    {
+      "id": 42412822793,
+      "head_sha": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42412822793",
+      "workflow": "android.yml",
+      "artifacts": [
+        {
+          "id": 13590781711,
+          "name": "android-build-reports-0.6.20-28-Debug",
+          "size_in_bytes": 10222835
+        },
+        {
+          "id": 13590637169,
+          "name": "LanCast-Android-Sender-0.6.20-28-Debug",
+          "size_in_bytes": 35389552
+        },
+        {
+          "id": 13590607196,
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.20-28-Debug",
+          "size_in_bytes": 38822873
+        },
+        {
+          "id": 13590597212,
+          "name": "LanCast-Android-Receiver-Legacy-0.6.20-28-Debug",
+          "size_in_bytes": 30485119
+        },
+        {
+          "id": 13590462558,
+          "name": "android-sender-native-relink-sources-0.6.20-28-Debug",
+          "size_in_bytes": 12583089
+        },
+        {
+          "id": 13590397610,
+          "name": "LanCast-Android-Receiver-Standard-0.6.20-28-Debug",
+          "size_in_bytes": 34332548
+        },
+        {
+          "id": 13590337798,
+          "name": "airplay-source-and-dependencies-0.6.20-28-Debug",
+          "size_in_bytes": 56345334
+        }
+      ]
+    },
+    {
+      "id": 42412822834,
+      "head_sha": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42412822834",
+      "workflow": "core-linux.yml",
+      "artifacts": [
+        {
+          "id": 13590421228,
+          "name": "dependencies-ubuntu-24.04",
+          "size_in_bytes": 117187
+        }
+      ]
+    },
+    {
+      "id": 42412822854,
+      "head_sha": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42412822854",
+      "workflow": "macos.yml",
+      "artifacts": [
+        {
+          "id": 13590715785,
+          "name": "apple-macos-build-reports-0.6.20-28-Release",
+          "size_in_bytes": 86502
+        },
+        {
+          "id": 13590581168,
+          "name": "LanCast-macOS-Sender-Receiver-0.6.20-28-Release",
+          "size_in_bytes": 22357678
+        }
+      ]
+    },
+    {
+      "id": 42412822746,
+      "head_sha": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42412822746",
+      "workflow": "native-linux.yml",
+      "artifacts": [
+        {
+          "id": 13590650247,
+          "name": "native-build-evidence",
+          "size_in_bytes": 6201
+        }
+      ]
+    },
+    {
+      "id": 42412822723,
+      "head_sha": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42412822723",
+      "workflow": "tvos.yml",
+      "artifacts": [
+        {
+          "id": 13590710244,
+          "name": "apple-tvos-build-reports-0.6.20-28-Debug",
+          "size_in_bytes": 15533
+        },
+        {
+          "id": 13589224749,
+          "name": "LanCast-tvOS-Receiver-0.6.20-28-Debug",
+          "size_in_bytes": 20089427
+        }
+      ]
+    },
+    {
+      "id": 42412822761,
+      "head_sha": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42412822761",
+      "workflow": "ios.yml",
+      "artifacts": [
+        {
+          "id": 13590197639,
+          "name": "LanCast-iOS-Sender-Receiver-0.6.20-28-Debug",
+          "size_in_bytes": 54829112
+        },
+        {
+          "id": 13589929249,
+          "name": "apple-ios-build-reports-0.6.20-28-Debug",
+          "size_in_bytes": 15557
+        }
+      ]
+    },
+    {
+      "id": 42412822778,
+      "head_sha": "551700d93ff2f806cd58466d7b684a0cd297a07b",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42412822778",
+      "workflow": "windows.yml",
+      "artifacts": [
+        {
+          "id": 13590980168,
+          "name": "windows-native-relink-sources",
+          "size_in_bytes": 86999164
+        },
+        {
+          "id": 13590317350,
+          "name": "LanCast-Windows-x64-0.6.20-28-Release",
+          "size_in_bytes": 5098738
+        },
+        {
+          "id": 13590232844,
+          "name": "windows-synthetic-diagnostic-0.6.20-28-Release",
+          "size_in_bytes": 140001
+        },
+        {
+          "id": 13590197297,
+          "name": "dependencies-windows-2022",
+          "size_in_bytes": 114449
+        }
+      ]
+    }
+  ],
+  "ci_validation": {
+    "linux_core_all_features": {"passed": 121, "failed": 0},
+    "linux_core_no_default_features": {"passed": 84, "failed": 0},
+    "linux_core_legacy": {"passed": 85, "failed": 0},
+    "native_synthetic_ts_decode": "passed: nine join/batch combinations, four split headers and two HTTP outputs",
+    "airplay_protocol_workflow": "not triggered; independent protocol code unchanged"
+  },
   "resource_changes": [
     "Stop startup parsing at the first valid IDR packet and append the validated remainder directly",
     "Release PAT, PMT and PES scratch allocations immediately when the startup gate opens",
@@ -47,6 +272,7 @@
   "limitations": [
     "No physical-device, CPU/RSS, end-to-end latency or two-hour soak measurements",
     "Local synthetic validation reused an existing fixture; no new hardware capture or local media decode",
-    "Independent AirPlay protocol code was unchanged"
+    "Independent AirPlay protocol code was unchanged",
+    "Artifact metadata checked against source commit and product version; packages not downloaded or installed locally"
   ]
 }
