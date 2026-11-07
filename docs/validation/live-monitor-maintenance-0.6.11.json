@@ -1,0 +1,134 @@
+{
+  "version": "0.6.11",
+  "build_number": 19,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "source_commit": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+  "baseline_commit": "59e376b",
+  "local_validation": {
+    "architecture": "passed",
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "rust_workspace_all_features": 78,
+    "rust_workspace_no_default_features": 53,
+    "rust_workspace_no_default_features_legacy": 54,
+    "airplay_workspace": 33,
+    "python_unittest": 54,
+    "python_optimized_unittest": 54,
+    "validate_ts": "passed using existing synthetic-local.ts fixture",
+    "validate_live": {
+      "http_1_0": "passed",
+      "http_1_1": "passed",
+      "bytes_per_protocol": 1155072,
+      "checks": [
+        "startup notification",
+        "pull confirmation",
+        "cancellation",
+        "SOAP stop",
+        "changed renderer ownership"
+      ]
+    },
+    "new_regressions": [
+      "stalled_query_cannot_delay_pull_deadline_and_is_dropped",
+      "probe_deadline_wins_over_slow_queries_and_continuous_media",
+      "slow_queries_keep_their_cadence_and_success_resets_failures",
+      "recovery_requires_new_media_and_reports_resumed_pull",
+      "expired_pull_cannot_be_revived_by_late_media",
+      "renderer_stop_and_session_cancellation_release_pending_queries",
+      "readiness_notifies_waiters_without_polling_and_rejects_revocation",
+      "readiness_rejects_missing_and_late_start_points"
+    ]
+  },
+  "resource_changes": {
+    "startup_poll_interval_before_ms": 50,
+    "startup_wait_after": "notification with cancellation and absolute deadline",
+    "startup_deadline_seconds": 8,
+    "pull_deadline_seconds": 10,
+    "probe_deadline_seconds": 45,
+    "transport_query_interval_after_completion_seconds": 3,
+    "max_in_flight_transport_queries": 1,
+    "max_live_rebuilds": 1,
+    "new_runtime_dependencies": 0,
+    "new_detached_tasks": 0
+  },
+  "cleanup": {
+    "mode": "delete",
+    "files_deleted": 7079,
+    "bytes_deleted": 4768279354,
+    "current_generated_bytes_deleted": 2836771563,
+    "previous_quarantine_bytes_deleted": 1931507791,
+    "paths": [
+      "target",
+      "airplay-native/target",
+      ".cache/local-joins",
+      "scripts/__pycache__",
+      "scripts/tests/__pycache__",
+      ".manual-delete/20261107T033727Z-9d9ea768/target"
+    ],
+    "remaining_known_generated": [],
+    "note": "Current build outputs passed workspace_cleanup validation. The previous quarantine target additionally matched its original file count, bytes and metadata fingerprint before deletion. Source, licenses, Git history and original media samples are preserved."
+  },
+  "github_actions": [
+    {
+      "workflow": "android.yml",
+      "run": 42339714773,
+      "sha": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42339714773"
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 42339714679,
+      "sha": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42339714679"
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 42339714803,
+      "sha": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42339714803"
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 42339714666,
+      "sha": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42339714666"
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 42339714748,
+      "sha": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42339714748"
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 42339714723,
+      "sha": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42339714723"
+    },
+    {
+      "workflow": "windows.yml",
+      "run": 42339714664,
+      "sha": "33e0ba3337741e42fbbcc33f60f8c6acef1c9801",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42339714664"
+    }
+  ],
+  "limitations": [
+    "Timer removal and bounded concurrency describe implementation, not measured CPU/RSS or end-to-end latency improvements.",
+    "No physical receiver interoperability, real-device performance or two-hour stability measurement in this round.",
+    "Independent AirPlay protocol sources are unchanged; its 33 local tests passed, and its separate workflow was not triggered."
+  ]
+}
