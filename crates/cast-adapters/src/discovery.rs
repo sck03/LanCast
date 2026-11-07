@@ -15,12 +15,14 @@ use tokio::{task::JoinHandle, time::Instant};
 
 const SCAN_WINDOW: Duration = Duration::from_secs(4);
 const MAX_DEVICES: usize = 64;
+// Leave room in the 128 KiB host event for its envelope and scan generation.
+const MAX_RENDERER_BYTES: usize = 96 * 1024;
 
 /// Owns the one mDNS search for a host; replacing or stopping it joins cancellation.
 #[derive(Default)]
 pub(crate) struct ScanTask(Option<JoinHandle<()>>);
 impl ScanTask {
-    pub async fn start(&mut self, events: Events, generation: serde_json::Value) {
+    pub async fn start(&mut self, events: Events, generation: u64) {
         self.replace(async move {
             let body = match scan_lancast().await {
                 Ok(devices) => serde_json::json!({"devices":devices,"scanGeneration":generation}),
@@ -202,7 +204,8 @@ async fn collect_renderers(
     jobs: impl Stream<Item = anyhow::Result<Renderer>>,
     deadline: Instant,
 ) -> Vec<Renderer> {
-    let mut found = HashMap::new();
+    let mut found: HashMap<String, (Renderer, usize)> = HashMap::new();
+    let mut bytes = 2; // JSON array brackets; each entry also reserves a separator.
     tokio::pin!(jobs);
     // One deadline covers every batch and drops unfinished requests on return.
     while Instant::now() < deadline {
@@ -213,10 +216,21 @@ async fn collect_renderers(
             break;
         }
         if let Ok(renderer) = result {
-            found.insert(renderer.id.clone(), renderer);
+            let Ok(size) = crate::protocol::json_size(&renderer, MAX_RENDERER_BYTES) else {
+                continue;
+            };
+            let size = size + 1;
+            let previous = found.get(&renderer.id).map_or(0, |(_, size)| *size);
+            if (previous == 0 && found.len() == MAX_DEVICES)
+                || size > MAX_RENDERER_BYTES - (bytes - previous)
+            {
+                continue;
+            }
+            bytes = bytes - previous + size;
+            found.insert(renderer.id.clone(), (renderer, size));
         }
     }
-    found.into_values().collect()
+    found.into_values().map(|(renderer, _)| renderer).collect()
 }
 pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
     ensure!(
@@ -299,6 +313,86 @@ mod tests {
             },
             signature: String::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn oversized_descriptions_do_not_overflow_the_host_mailbox() {
+        let mut oversized = renderer();
+        oversized.id = "oversized".into();
+        oversized.name = "x".repeat(128 * 1024);
+        let jobs = stream::iter([Ok(oversized), Ok(renderer())]);
+        let found = collect_renderers(jobs, Instant::now() + SCAN_WINDOW).await;
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, "tv");
+        let stop = CancellationToken::new();
+        let (events, inbox) = crate::events::channel(2, stop.clone());
+        event(
+            &events,
+            "dlna.devices",
+            serde_json::json!({"devices":found,"scanGeneration":1}),
+        );
+        assert!(!stop.is_cancelled());
+        assert!(inbox.try_recv().unwrap().contains("dlna.devices"));
+    }
+
+    #[tokio::test]
+    async fn discovery_budget_counts_json_escaping_and_all_devices() {
+        let jobs = stream::iter((0..64).map(|n| {
+            let mut device = renderer();
+            device.id = n.to_string();
+            device.name = "\u{1}电视\\\"".repeat(1024);
+            Ok(device)
+        }));
+        let found = collect_renderers(jobs, Instant::now() + SCAN_WINDOW).await;
+        assert!(!found.is_empty() && found.len() < 64);
+        assert!(serde_json::to_vec(&found).unwrap().len() <= MAX_RENDERER_BYTES);
+        let stop = CancellationToken::new();
+        let (events, _) = crate::events::channel(2, stop.clone());
+        event(
+            &events,
+            "dlna.devices",
+            serde_json::json!({"devices":found}),
+        );
+        assert!(!stop.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn replacement_preserves_or_releases_its_previous_byte_budget() {
+        let device = |id: &str, kib: usize| {
+            let mut device = renderer();
+            device.id = id.into();
+            device.name = "x".repeat(kib * 1024);
+            Ok(device)
+        };
+        let jobs = stream::iter([device("a", 45), device("b", 45), device("a", 60)]);
+        let found = collect_renderers(jobs, Instant::now() + SCAN_WINDOW).await;
+        assert_eq!(found.len(), 2);
+        assert_eq!(
+            found.iter().find(|d| d.id == "a").unwrap().name.len(),
+            45 * 1024
+        );
+
+        let jobs = stream::iter([
+            device("a", 45),
+            device("b", 45),
+            device("a", 1),
+            device("c", 45),
+        ]);
+        let found = collect_renderers(jobs, Instant::now() + SCAN_WINDOW).await;
+        assert_eq!(found.len(), 3);
+        assert_eq!(found.iter().find(|d| d.id == "a").unwrap().name.len(), 1024);
+        assert!(serde_json::to_vec(&found).unwrap().len() <= MAX_RENDERER_BYTES);
+    }
+
+    #[tokio::test]
+    async fn collection_enforces_the_device_count_independently_of_the_source() {
+        let jobs = stream::iter((0..MAX_DEVICES + 10).map(|n| {
+            let mut device = renderer();
+            device.id = n.to_string();
+            Ok(device)
+        }));
+        let found = collect_renderers(jobs, Instant::now() + SCAN_WINDOW).await;
+        assert_eq!(found.len(), MAX_DEVICES);
     }
 
     #[tokio::test(start_paused = true)]

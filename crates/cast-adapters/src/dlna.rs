@@ -1,4 +1,7 @@
 //! UPnP control is deliberately independent from the authenticated mirror session.
+mod description;
+pub use description::parse_renderer;
+
 use anyhow::{Context, ensure};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -44,10 +47,7 @@ pub fn checked_url(raw: &str, source: IpAddr) -> anyhow::Result<Url> {
     Ok(url)
 }
 fn xml(raw: &str) -> anyhow::Result<roxmltree::Document<'_>> {
-    ensure!(
-        raw.len() <= MAX_XML && !raw.to_ascii_uppercase().contains("<!DOCTYPE"),
-        "UNSAFE_XML"
-    );
+    ensure!(raw.len() <= MAX_XML, "UNSAFE_XML");
     let doc = roxmltree::Document::parse_with_options(
         raw,
         roxmltree::ParsingOptions {
@@ -62,75 +62,6 @@ fn xml(raw: &str) -> anyhow::Result<roxmltree::Document<'_>> {
         "XML_TOO_DEEP"
     );
     Ok(doc)
-}
-pub fn parse_renderer(raw: &str, location: &str, source: IpAddr) -> anyhow::Result<Renderer> {
-    let location = checked_url(location, source)?;
-    let doc = xml(raw)?;
-    let text = |node: roxmltree::Node<'_, '_>, name: &str| {
-        node.children()
-            .find(|n| n.has_tag_name(name))
-            .and_then(|n| n.text())
-            .unwrap_or("")
-            .trim()
-            .to_string()
-    };
-    let base = doc
-        .descendants()
-        .find(|n| n.has_tag_name("URLBase"))
-        .and_then(|n| n.text())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| checked_url(s.trim(), source))
-        .transpose()?
-        .unwrap_or(location);
-    let device = doc
-        .descendants()
-        .find(|n| {
-            n.has_tag_name("device")
-                && text(*n, "deviceType").starts_with("urn:schemas-upnp-org:device:MediaRenderer:")
-        })
-        .context("NOT_RENDERER")?;
-    let list = device
-        .children()
-        .find(|n| n.has_tag_name("serviceList"))
-        .context("NO_SERVICES")?;
-    let mut services = Vec::new();
-    for node in list.children().filter(|n| n.has_tag_name("service")) {
-        let kind = text(node, "serviceType");
-        let control = base.join(&text(node, "controlURL"))?;
-        checked_url(control.as_str(), source)?;
-        services.push(Service {
-            kind,
-            control: control.to_string(),
-        });
-    }
-    let get = |suffix: &str| {
-        services
-            .iter()
-            .find(|s| {
-                s.kind
-                    .starts_with(&format!("urn:schemas-upnp-org:service:{suffix}:"))
-            })
-            .cloned()
-    };
-    let id = text(device, "UDN");
-    ensure!(!id.is_empty() && id.len() <= 256, "INVALID_UDN");
-    Ok(Renderer {
-        id,
-        name: text(device, "friendlyName"),
-        ip: source,
-        transport: get("AVTransport").context("NO_AVTRANSPORT")?,
-        signature: {
-            use sha2::{Digest, Sha256};
-            hex::encode(Sha256::digest(format!(
-                "{}|{}|{}|{}|{}",
-                text(device, "UDN"),
-                text(device, "manufacturer"),
-                text(device, "modelName"),
-                text(device, "modelNumber"),
-                text(device, "softwareVersion")
-            )))
-        },
-    })
 }
 pub fn escape(value: &str) -> String {
     value
@@ -309,6 +240,35 @@ pub async fn bounded(response: reqwest::Response) -> anyhow::Result<String> {
 mod tests {
     use super::*;
     #[test]
+    fn unrelated_services_cannot_hide_a_playable_renderer() {
+        let raw = "<root><device><deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType><UDN>uuid:tv</UDN><serviceList><service><serviceType>urn:vendor:service:Diagnostics:1</serviceType><controlURL>http://example.com/diagnostics</controlURL></service><service><serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType><controlURL>/control</controlURL></service></serviceList></device></root>";
+        let renderer = parse_renderer(
+            raw,
+            "http://192.168.1.5/device.xml",
+            "192.168.1.5".parse().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(renderer.transport.control, "http://192.168.1.5/control");
+    }
+
+    #[test]
+    fn missing_control_endpoint_is_not_the_description_endpoint() {
+        for control in ["", " ", "\n\t"] {
+            let raw = format!(
+                "<root><device><deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType><UDN>uuid:tv</UDN><serviceList><service><serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType><controlURL>{control}</controlURL></service></serviceList></device></root>"
+            );
+            assert!(
+                parse_renderer(
+                    &raw,
+                    "http://192.168.1.5/device.xml",
+                    "192.168.1.5".parse().unwrap()
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn rejects_ssrf_and_dtd() {
         let ip = "192.168.1.5".parse().unwrap();
         for url in [
@@ -321,6 +281,13 @@ mod tests {
             assert!(checked_url(url, ip).is_err());
         }
         assert!(xml("<!DOCTYPE x><x/>").is_err());
+        assert!(xml("<!DOCTYPE x [<!ENTITY a 'value'>]><x>&a;</x>").is_err());
+        assert!(xml("<!DOCTYPE x SYSTEM 'http://192.168.1.5/dtd'><x/>").is_err());
+        // Harmless comments are not declarations; the XML parser owns DTD rejection.
+        assert!(xml("<!-- <!DOCTYPE x> --><x/>").is_ok());
+        assert!(xml(&format!("<x>{}</x>", "x".repeat(MAX_XML))).is_err());
+        assert!(xml(&format!("<x>{}</x>", "<y/>".repeat(8192))).is_err());
+        assert!(xml(&format!("{}{}", "<x>".repeat(34), "</x>".repeat(34))).is_err());
     }
     #[test]
     fn device_service_is_required() {
@@ -332,6 +299,36 @@ mod tests {
         )
         .unwrap();
         assert_eq!(r.transport.control, "http://192.168.1.5/control");
+        for endpoint in ["http://192.168.1.6/control", "//example.com/control"] {
+            assert!(
+                parse_renderer(
+                    &raw.replace(">/control<", &format!(">{endpoint}<")),
+                    "http://192.168.1.5/device.xml",
+                    r.ip
+                )
+                .is_err()
+            );
+        }
+        let relative = raw.replace(">/control<", ">control<");
+        let based = relative.replace(
+            "<root>",
+            "<root><URLBase>http://192.168.1.5/upnp/</URLBase>",
+        );
+        assert_eq!(
+            parse_renderer(&based, "http://192.168.1.5/device.xml", r.ip)
+                .unwrap()
+                .transport
+                .control,
+            "http://192.168.1.5/upnp/control"
+        );
+        let nested = relative.replace("<device>", "<device><URLBase>http://192.168.1.6/</URLBase>");
+        assert_eq!(
+            parse_renderer(&nested, "http://192.168.1.5/upnp/device.xml", r.ip)
+                .unwrap()
+                .transport
+                .control,
+            "http://192.168.1.5/upnp/control"
+        );
         assert!(
             parse_renderer(
                 &raw.replace("AVTransport", "Unknown"),

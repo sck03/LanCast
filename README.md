@@ -13,7 +13,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - Android 发送：MediaProjection、硬件编码、合法内部声音、前台服务和授权撤销处理。
 - Apple：Mac 屏幕／窗口发送与接收、iPhone／iPad ReplayKit 广播与前台接收、Apple TV 接收，详见 [D09 架构、构建与安装](docs/11-苹果客户端架构与验收.md)。
 - AirPlay 按需接收：0.6.0新增独立Android Airplay接收APK，默认关闭、手动开启，包含现代HomeKit配对、旧镜像兼容、后台监听、电视确认和单路播放管理。[实现与审阅](docs/20-AirPlay实现与审阅指南.md)记录模块、GPL分发及验证边界；真实iPhone/电视互通仍待验收。
-- 0.6.13 Apple与AirPlay维护：[D28](docs/27-Apple采集与AirPlay媒体维护.md)采用macOS15采集基线与实际源尺寸，修复视频半包等待、AVC转换超限、重复配置重建和PCM误删，缩小初始媒体缓冲并合并密码依赖；包含2026-11-07上游技术复核。
+- 0.6.14 DLNA发现维护：[D29](docs/24-发现任务与工作区维护.md)限制设备结果的序列化字节数，避免异常描述关闭核心；拆分描述解析，修复无关服务误拒绝和空控制地址，减少XML与设备复制。[D28](docs/27-Apple采集与AirPlay媒体维护.md)保留macOS15采集与AirPlay媒体维护记录。
 - 性能维护：[媒体队列与资源回收](docs/21-AirPlay媒体队列与资源生命周期.md)、[HTTP共享缓冲与TS起播](docs/22-HTTP生命周期与直播分发.md)、[Android裁剪](docs/23-Android工具链与裁剪维护.md)、[发现与工作区清理](docs/24-发现任务与工作区维护.md)分别维护当前合同；历次修正和验证记录集中在[08](docs/08-实施进度与审阅入口.md)。
 - DLNA：发现与控制、合成画面／提示音测试、用户确认档案、通过后直播、拉流监控与一次恢复；MP4 文件能力独立。
 - Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 与固定上游 TLS 媒体桥。

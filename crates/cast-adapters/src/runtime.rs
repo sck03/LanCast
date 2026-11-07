@@ -359,9 +359,10 @@ impl Runtime {
                     .await;
             }
             "scan" => {
-                self.scan
-                    .start(self.events.clone(), c["scanGeneration"].clone())
-                    .await;
+                let generation = c["scanGeneration"]
+                    .as_u64()
+                    .context("SCAN_GENERATION_REQUIRED")?;
+                self.scan.start(self.events.clone(), generation).await;
             }
             "connect" => {
                 ensure!(
@@ -440,6 +441,9 @@ impl Runtime {
             }
             "dlna.scan" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
+                let generation = c["scanGeneration"]
+                    .as_u64()
+                    .context("SCAN_GENERATION_REQUIRED")?;
                 let interface = string(&c, "interface")?.parse()?;
                 self.renderers.clear();
                 let devices = match discovery::scan_dlna(interface).await {
@@ -448,19 +452,16 @@ impl Runtime {
                         event(
                             &self.events,
                             "dlna.devices",
-                            json!({"devices":[],"scanGeneration":c["scanGeneration"],"error":error.to_string()}),
+                            json!({"devices":[],"scanGeneration":generation,"error":error.to_string()}),
                         );
                         return Ok(());
                     }
                 };
-                for d in &devices {
-                    self.renderers.insert(d.id.clone(), d.clone());
+                let body = json!({"devices":devices,"scanGeneration":generation});
+                for device in devices {
+                    self.renderers.insert(device.id.clone(), device);
                 }
-                event(
-                    &self.events,
-                    "dlna.devices",
-                    json!({"devices":devices,"scanGeneration":c["scanGeneration"]}),
-                );
+                event(&self.events, "dlna.devices", body);
             }
             "file.share" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");

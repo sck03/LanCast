@@ -61,8 +61,7 @@ impl Message {
     pub(crate) fn from_value(value: Value) -> anyhow::Result<Self> {
         // A Value cannot contain duplicate keys. Count its wire size without
         // allocating/reparsing a temporary JSON string for native commands.
-        let mut limit = FrameLimit(0);
-        serde_json::to_writer(&mut limit, &value)?;
+        json_size(&value, MAX_FRAME)?;
         let message: Self = serde_json::from_value(value)?;
         message.validate()?;
         Ok(message)
@@ -103,13 +102,23 @@ impl Message {
     }
 }
 
-struct FrameLimit(usize);
+/// Count escaped wire bytes without allocating a second serialized copy.
+pub(crate) fn json_size(value: &impl Serialize, limit: usize) -> serde_json::Result<usize> {
+    let mut writer = FrameLimit { written: 0, limit };
+    serde_json::to_writer(&mut writer, value)?;
+    Ok(writer.written)
+}
+
+struct FrameLimit {
+    written: usize,
+    limit: usize,
+}
 impl std::io::Write for FrameLimit {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if bytes.len() > MAX_FRAME - self.0 {
+        if bytes.len() > self.limit - self.written {
             return Err(std::io::Error::other("FRAME_TOO_LARGE"));
         }
-        self.0 += bytes.len();
+        self.written += bytes.len();
         Ok(bytes.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {

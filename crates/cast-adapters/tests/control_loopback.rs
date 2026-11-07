@@ -113,6 +113,32 @@ fn stopped_discovery_cannot_deliver_late_results() {
     assert!(late.is_none(), "discovery outlived stop: {late:?}");
 }
 
+#[test]
+fn invalid_scan_generations_do_not_enter_network_work_or_close_the_engine() {
+    let engine = Engine::new().unwrap();
+    for op in ["scan", "dlna.scan"] {
+        if op == "dlna.scan" && !cfg!(feature = "sender") {
+            continue;
+        }
+        for generation in [
+            Value::Null,
+            json!(-1),
+            json!({"value":1}),
+            json!("x".repeat(96 * 1024)),
+        ] {
+            engine
+                .command(json!({"op":op,"scanGeneration":generation,"interface":"192.168.1.5"}))
+                .unwrap();
+            let failure = event(&engine, "error");
+            assert_eq!(failure["code"], "SCAN_GENERATION_REQUIRED");
+            assert!(failure["terminal"].is_null());
+        }
+    }
+    engine.command(json!({"op":"stop"})).unwrap();
+    event(&engine, "stopped");
+    engine.close();
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn sender_rejects_previous_receiver_before_sending_code() {
     use cast_adapters::{auth, protocol::Message};
