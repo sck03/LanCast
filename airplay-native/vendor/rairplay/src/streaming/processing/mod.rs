@@ -1,9 +1,8 @@
 use std::{io, net::IpAddr};
 
-use bytes::Buf;
 use tokio::{
     io::AsyncReadExt,
-    net::{TcpListener, TcpStream, UdpSocket},
+    net::{TcpListener, UdpSocket},
 };
 use tracing::Instrument;
 
@@ -11,14 +10,13 @@ use super::EncryptionMaterial;
 use crate::{
     crypto::{AesIv128, AesKey128, ChaCha20Poly1305Key},
     pairing::SessionKey,
-    playback::{
-        audio::{AudioPacket, AudioStream},
-        video::{PacketKind, VideoPacket, VideoStream},
-    },
+    playback::audio::{AudioPacket, AudioStream},
 };
 
 mod crypto;
 mod memory;
+mod video;
+pub use video::video_processor;
 
 #[derive(Debug)]
 pub enum Encryption {
@@ -90,7 +88,7 @@ pub async fn audio_realtime_processor(
     sample_rate: u32,
 ) -> io::Result<()> {
     let mut pkt_buf = [0u8; 16 * 1024];
-    let mut audio_buf = memory::BytesHunk::new(audio_buf_size as usize);
+    let mut audio_buf = memory::BytesHunk::new((audio_buf_size as usize).min(pkt_buf.len()));
     let cipher = build_audio_cipher(&encryption);
 
     loop {
@@ -99,7 +97,7 @@ pub async fn audio_realtime_processor(
 
             // Filter out unexpected addresses
             if expected_remote_addr == remote_addr.ip() {
-                if pkt_len < AudioPacket::HEADER_LEN {
+                if pkt_len < AudioPacket::HEADER_LEN || pkt_len > audio_buf_size as usize {
                     tracing::warn!(%pkt_len, "malformed packet");
                 } else {
                     let mut rtp = audio_buf.allocate_buf(pkt_len);
@@ -151,76 +149,6 @@ pub async fn control_processor(
     }
 }
 
-#[tracing::instrument(level = "DEBUG", skip(stream))]
-pub async fn video_processor(
-    mut tcp_stream: TcpStream,
-    stream: &impl VideoStream,
-    video_buf_size: u32,
-    encryption: Encryption,
-    clock: std::sync::Arc<crate::timing::Clock>,
-) -> io::Result<()> {
-    let mut video_buf = memory::BytesHunk::new(video_buf_size as usize);
-    let mut cipher = build_video_cipher(&encryption);
-
-    loop {
-        async {
-            let mut header = [0u8; _];
-            tcp_stream.read_exact(&mut header).await?;
-
-            let mut ptr = &header[..];
-            let payload_len = ptr.get_u32_le();
-            let packet_type = ptr.get_u16_le();
-            let unknown_field = ptr.get_u16_le();
-            let timestamp = ptr.get_u64_le();
-
-            if payload_len == 0 || payload_len > video_buf_size {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "video frame limit",
-                ));
-            }
-            let mut payload = video_buf.allocate_buf(payload_len as usize);
-            tcp_stream.read_exact(&mut payload).await?;
-
-            let kind = match packet_type {
-                1 => {
-                    if payload.len() >= 8 && &payload[4..8] == b"hvc1" {
-                        PacketKind::Hvc1(unknown_field)
-                    } else {
-                        PacketKind::AvcC(unknown_field)
-                    }
-                }
-                0 | 4096 => PacketKind::Payload,
-                5 => PacketKind::Plist,
-                other => PacketKind::Other(other),
-            };
-
-            let mut pkt = VideoPacket {
-                kind,
-                timestamp,
-                presentation_us: clock.local_us(timestamp),
-                payload,
-            };
-            tracing::trace!(?kind, %timestamp, unknown=%unknown_field, %payload_len, "packet read");
-
-            // Only payload need to be decrypted
-            // TODO: Other(_) too?
-            if matches!(kind, PacketKind::Payload) {
-                cipher.decrypt(header, &mut pkt.payload).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidData, "video authentication failed")
-                })?;
-            }
-
-            stream.on_data(pkt);
-            tokio::task::consume_budget().await;
-
-            io::Result::Ok(())
-        }
-        .instrument(tracing::debug_span!("packet.video"))
-        .await?;
-    }
-}
-
 fn build_audio_cipher(encryption: &Encryption) -> Box<dyn crypto::AudioCipher + Send + Sync> {
     match encryption {
         Encryption::ChaCha { key } => Box::new(crypto::ChachaAudioCipher::from_key(*key)),
@@ -235,8 +163,10 @@ fn build_audio_cipher(encryption: &Encryption) -> Box<dyn crypto::AudioCipher + 
     }
 }
 
-fn build_video_cipher(encryption: &Encryption) -> Box<dyn crypto::VideoCipher + Send + Sync> {
-    match encryption {
+fn build_video_cipher(
+    encryption: &Encryption,
+) -> io::Result<Box<dyn crypto::VideoCipher + Send + Sync>> {
+    Ok(match encryption {
         Encryption::HomeKit {
             key,
             stream_connection_id,
@@ -252,6 +182,11 @@ fn build_video_cipher(encryption: &Encryption) -> Box<dyn crypto::VideoCipher + 
             *key,
             *stream_connection_id,
         )),
-        _ => unreachable!(),
-    }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "unsupported video encryption",
+            ));
+        }
+    })
 }

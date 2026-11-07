@@ -254,7 +254,7 @@ fn tags(bytes: &[u8]) -> std::collections::BTreeMap<u8, Vec<u8>> {
 }
 fn hk(secret: &[u8], salt: &[u8], info: &[u8]) -> [u8; 32] {
     let mut key = [0; 32];
-    hkdf::Hkdf::<sha2_11::Sha512>::new(Some(salt), secret)
+    hkdf::Hkdf::<sha2::Sha512>::new(Some(salt), secret)
         .expand(info, &mut key)
         .unwrap();
     key
@@ -284,7 +284,7 @@ fn modern_pair(s: &mut TcpStream, wrong_pin: bool) -> Option<[u8; 32]> {
     assert_eq!(status, 200);
     let m2 = tags(&body);
     assert_eq!(m2[&6], [2]);
-    let client = srp::ClientG3072::<sha2_11::Sha512>::new_with_options(true);
+    let client = srp::ClientG3072::<sha2::Sha512>::new_with_options(true);
     let private = [7; 64];
     let public = client.compute_public_ephemeral(&private);
     let verifier = client
@@ -753,5 +753,16 @@ fn modern_encrypted_media_reaches_bounded_host_callbacks_with_protocol_timestamp
         panic!("volume was not routed")
     };
     assert_eq!(db, -12.5);
+    // A partial media frame must revoke the real session, not just its reader future.
+    video.write_all(&[1]).unwrap();
+    let Event::Closed {
+        session: closed,
+        reason,
+    } = rx.recv_timeout(Duration::from_secs(8)).unwrap()
+    else {
+        panic!("stalled video did not close its session")
+    };
+    assert_eq!(closed, session);
+    assert_eq!(reason, "VIDEO_TRANSPORT_FAILED");
     engine.stop();
 }

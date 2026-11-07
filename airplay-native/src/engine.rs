@@ -217,7 +217,12 @@ impl playback::Stream for VideoSink {
         match p.kind {
             PacketKind::AvcC(_) => match AvcConfig::parse(&p.payload) {
                 Ok(config) => {
-                    *self.config.lock().unwrap() = Some(config.clone());
+                    let mut current = self.config.lock().unwrap();
+                    if current.as_ref() == Some(&config) {
+                        return;
+                    }
+                    *current = Some(config.clone());
+                    drop(current);
                     self.host.emit(
                         Event::VideoConfig {
                             session: self.session,
@@ -358,10 +363,12 @@ impl playback::Stream for AudioSink {
             return;
         }
         *last = Some(seq);
-        let mut data = p.rtp[12..].to_vec();
-        if data == [0, 0x68, 0x34, 0] {
+        drop(last);
+        let payload = &p.rtp[12..];
+        if !self.pcm && payload == [0, 0x68, 0x34, 0] {
             return;
         }
+        let mut data = payload.to_vec();
         if self.pcm {
             for pair in data.as_chunks_mut::<2>().0 {
                 pair.swap(0, 1);
@@ -460,6 +467,82 @@ impl Drop for Running {
         self.host.stop_all();
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use playback::Stream;
+    struct Capture(std::sync::mpsc::Sender<Event>);
+    impl Output for Capture {
+        fn emit(&self, event: Event) -> bool {
+            self.0.send(event).is_ok()
+        }
+    }
+    struct Handle;
+    impl ChannelHandle for Handle {
+        fn close(&self) {}
+    }
+    fn host() -> (
+        Arc<Host>,
+        std::sync::mpsc::Receiver<Event>,
+        Arc<dyn ChannelHandle>,
+    ) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        (Host::new(Arc::new(Capture(tx))), rx, Arc::new(Handle))
+    }
+
+    #[test]
+    fn repeated_avc_configuration_does_not_restart_the_decoder() {
+        let (host, events, handle) = host();
+        let sink = VideoSink {
+            host,
+            session: 1,
+            config: Mutex::new(None),
+            handle: Arc::downgrade(&handle),
+            started: std::time::Instant::now(),
+        };
+        for _ in 0..3 {
+            sink.on_data(VideoPacket {
+                kind: PacketKind::AvcC(0),
+                timestamp: 0,
+                presentation_us: None,
+                payload: include_bytes!("../tests/fixtures/rx580-config.avcc")
+                    .as_slice()
+                    .into(),
+            });
+        }
+        assert!(matches!(events.try_recv(), Ok(Event::VideoConfig { .. })));
+        assert!(events.try_recv().is_err());
+    }
+
+    #[test]
+    fn encoded_silence_marker_is_not_discarded_from_pcm() {
+        for pcm in [false, true] {
+            let (host, events, handle) = host();
+            let sink = AudioSink {
+                host,
+                session: 1,
+                pcm,
+                sequence: Mutex::new(None),
+                handle: Arc::downgrade(&handle),
+            };
+            let mut rtp = vec![0; 12];
+            rtp.extend_from_slice(&[0, 0x68, 0x34, 0]);
+            sink.on_data(AudioPacket {
+                rtp: rtp.as_slice().into(),
+                presentation_us: Some(1),
+            });
+            if pcm {
+                let Event::Audio { data, .. } = events.try_recv().unwrap() else {
+                    panic!("missing PCM")
+                };
+                assert_eq!(data, [0x68, 0, 0, 0x34]);
+            } else {
+                assert!(events.try_recv().is_err());
+            }
         }
     }
 }

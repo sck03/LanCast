@@ -17,6 +17,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - 0.6.10控制层维护：[WSS生命周期](docs/14-控制连接生命周期与维护边界.md)统一持有连接任务，监听退出回收连接，发送队列溢出终止会话；JSON入口改为一次解析，WSS初始读取缓冲由128KiB降至16KiB，保留完整消息限制。
 - 0.6.11直播监控：[DLNA会话](docs/22-HTTP生命周期与直播分发.md)独立执行拉流检查、电视状态查询和Probe截止；慢查询不能拖延超时，起播改为通知唤醒，恢复拉流后重新报告播放状态。
 - 0.6.12起播维护：[节目表切换](docs/22-HTTP生命周期与直播分发.md#d27-节目表切换与解析分配)清除旧视频状态，防止跨PID复用SPS/PPS；校验PMT描述边界，复用PSI缓冲，完整PES头直接解析。
+- 0.6.13 Apple与AirPlay维护：[D28](docs/27-Apple采集与AirPlay媒体维护.md)采用macOS15采集基线与实际源尺寸，修复视频半包等待、AVC转换超限、重复配置重建和PCM误删，缩小初始媒体缓冲并合并密码依赖；包含2026-11-07上游技术复核。
 - 性能维护：[媒体队列与资源回收](docs/21-AirPlay媒体队列与资源生命周期.md)、[HTTP连接与共享直播缓冲](docs/22-HTTP生命周期与直播分发.md)、[Android工具链与Release裁剪](docs/23-Android工具链与裁剪维护.md)各自维护实现合同。
 - 0.6.5发现与工作区维护：搜索任务取消并等待，拒绝停止后的迟到结果；DLNA搜索增加整轮截止，开发构建减少调试/增量缓存，提供带预览与路径保护的清理脚本。详见[发现任务与工作区维护](docs/24-发现任务与工作区维护.md)。
 - DLNA：发现与控制、合成画面／提示音测试、用户确认档案、通过后直播、拉流监控与一次恢复；MP4 文件能力独立。
@@ -26,7 +27,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - WSS 客户端、服务端和帧收发独立封装；停止等待旧连接退出，取消配对及时释放名额并关闭对应确认框，详见[控制生命周期](docs/14-控制连接生命周期与维护边界.md)。
 - 构建报告包含可追溯的Rust源码依赖图和SPDX 2.3清单，保留开源许可证声明、来源及锁文件校验值，详见[依赖审阅契约](docs/15-Rust依赖清单与审阅契约.md)。
 
-Windows 需要 Windows 10 22H2 或 Windows 11、媒体组件与可用 D3D11 硬件 H.264 编码器。Android Sender 最低 API29，Receiver Standard 最低 API23，Legacy 最低 API21。不能假定所有电视均兼容。
+Windows 需要 Windows 10 22H2 或 Windows 11、媒体组件与可用 D3D11 硬件 H.264 编码器。Android Sender 最低 API29，Receiver Standard 最低 API23，Legacy 最低 API21；Mac最低macOS15。不能假定所有电视均兼容。
 
 ## 使用
 

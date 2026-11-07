@@ -2,7 +2,7 @@ name: LanCast
 options:
   bundleIdPrefix: dev.lancast
   deploymentTarget:
-    macOS: '13.0'
+    macOS: '15.0'
     iOS: '16.0'
     tvOS: '17.0'
 packages:

@@ -1,5 +1,6 @@
 //! Checked AVC configuration and access-unit conversion, independent of Android.
 use std::io;
+const MAX_FRAME_SIZE: usize = 2 * 1024 * 1024;
 fn bad() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "invalid H.264 access unit")
 }
@@ -18,10 +19,17 @@ impl AvcConfig {
             return Err(bad());
         }
         let length_size = usize::from(data[4] & 3) + 1;
+        // Three-byte lengths are reserved by AVCDecoderConfigurationRecord.
+        if length_size == 3 {
+            return Err(bad());
+        }
         let mut pos = 6;
         let mut sps = None;
         for _ in 0..(data[5] & 31) {
             let n = nal(data, &mut pos)?;
+            if n[0] & 0x9f != 7 {
+                return Err(bad());
+            }
             if sps.is_none() {
                 sps = Some(n.to_vec());
             }
@@ -31,15 +39,15 @@ impl AvcConfig {
         let mut pps = None;
         for _ in 0..count {
             let n = nal(data, &mut pos)?;
+            if n[0] & 0x9f != 8 {
+                return Err(bad());
+            }
             if pps.is_none() {
                 pps = Some(n.to_vec());
             }
         }
         let sps = sps.ok_or_else(bad)?;
         let pps = pps.ok_or_else(bad)?;
-        if sps[0] & 31 != 7 || pps[0] & 31 != 8 {
-            return Err(bad());
-        }
         let (width, height) = dimensions(&sps)?;
         Ok(Self {
             width,
@@ -50,31 +58,49 @@ impl AvcConfig {
         })
     }
     pub fn annex_b(&self, data: &[u8]) -> io::Result<(Vec<u8>, bool)> {
-        if data.is_empty() || data.len() > 2 * 1024 * 1024 {
+        if data.is_empty() || data.len() > MAX_FRAME_SIZE || !matches!(self.length_size, 1 | 2 | 4)
+        {
             return Err(bad());
         }
-        let mut result = Vec::with_capacity(data.len() + 64);
+        let (size, key) = self.scan(data)?;
+        let mut result = Vec::with_capacity(size);
         let mut pos = 0;
-        let mut key = false;
-        let mut count = 0;
         while pos < data.len() {
-            if pos + self.length_size > data.len() {
-                return Err(bad());
-            }
             let n = data[pos..pos + self.length_size]
+                .iter()
+                .fold(0usize, |n, b| (n << 8) | usize::from(*b));
+            pos += self.length_size;
+            result.extend_from_slice(&[0, 0, 0, 1]);
+            result.extend_from_slice(&data[pos..pos + n]);
+            pos += n;
+        }
+        Ok((result, key))
+    }
+    // Validate before allocating/copying, including expansion of short NAL lengths.
+    fn scan(&self, data: &[u8]) -> io::Result<(usize, bool)> {
+        let (mut pos, mut size, mut count, mut key) = (0, 0usize, 0, false);
+        while pos < data.len() {
+            let length = data.get(pos..pos + self.length_size).ok_or_else(bad)?;
+            let n = length
                 .iter()
                 .fold(0usize, |n, b| (n << 8) | usize::from(*b));
             pos += self.length_size;
             if n == 0 || n > data.len() - pos || count >= 1024 {
                 return Err(bad());
             }
-            key |= data[pos] & 31 == 5;
-            result.extend_from_slice(&[0, 0, 0, 1]);
-            result.extend_from_slice(&data[pos..pos + n]);
-            pos += n;
+            let header = data[pos];
+            if header & 0x80 != 0 || !matches!(header & 31, 1..=23) {
+                return Err(bad());
+            }
+            size += 4 + n;
+            if size > MAX_FRAME_SIZE {
+                return Err(bad());
+            }
+            key |= header & 31 == 5;
             count += 1;
+            pos += n;
         }
-        Ok((result, key))
+        Ok((size, key))
     }
 }
 fn nal<'a>(data: &'a [u8], pos: &mut usize) -> io::Result<&'a [u8]> {
@@ -160,7 +186,7 @@ pub fn dimensions(sps: &[u8]) -> io::Result<(u32, u32)> {
                     let mut next = 8;
                     for _ in 0..if i < 6 { 16 } else { 64 } {
                         if next != 0 {
-                            next = (last + b.se()? + 256) % 256;
+                            next = (last + b.se()?).rem_euclid(256);
                         }
                         if next != 0 {
                             last = next;
@@ -238,5 +264,44 @@ mod tests {
         let (data, key) = c.annex_b(&[0, 0, 0, 2, 0x65, 1]).unwrap();
         assert!(key);
         assert_eq!(data, [0, 0, 0, 1, 0x65, 1]);
+    }
+
+    #[test]
+    fn rejects_reserved_lengths_and_invalid_nal_headers() {
+        let fixture = include_bytes!("../tests/fixtures/rx580-config.avcc");
+        let mut config = AvcConfig::parse(fixture).unwrap();
+        let mut reserved = fixture.to_vec();
+        reserved[4] = (reserved[4] & !3) | 2;
+        assert!(AvcConfig::parse(&reserved).is_err());
+        for size in [0, 3, 5, usize::MAX] {
+            config.length_size = size;
+            assert!(config.annex_b(&[1, 0x65]).is_err());
+        }
+        config.length_size = 1;
+        for header in [0, 0x80, 0xe5, 24] {
+            assert!(config.annex_b(&[1, header]).is_err());
+        }
+        assert_eq!(
+            config.annex_b(&[1, 0x65, 1, 0x41]).unwrap(),
+            (vec![0, 0, 0, 1, 0x65, 0, 0, 0, 1, 0x41], true)
+        );
+    }
+
+    #[test]
+    fn converted_size_cannot_exceed_decoder_capacity() {
+        let mut config =
+            AvcConfig::parse(include_bytes!("../tests/fixtures/rx580-config.avcc")).unwrap();
+        config.length_size = 2;
+        let mut frame = Vec::new();
+        // 33 legal NAL units fit the input limit but exceed it after Annex B expansion.
+        for _ in 0..32 {
+            frame.extend_from_slice(&65533u16.to_be_bytes());
+            frame.push(0x41);
+            frame.resize(frame.len() + 65532, 0);
+        }
+        frame.extend_from_slice(&[0, 30, 0x41]);
+        frame.resize(frame.len() + 29, 0);
+        assert_eq!(frame.len(), MAX_FRAME_SIZE);
+        assert!(config.annex_b(&frame).is_err());
     }
 }

@@ -49,13 +49,13 @@ def find_builds(roots):
 def verify(*roots):
     reports, packages = [], []
     found = find_builds(roots)
-    for platform, scheme, minimum in [("macos", "LanCastMac", "13.0"), ("ios", "LanCastIOS", "16.0"), ("tvos", "LanCastTV", "17.0")]:
+    for platform, definition in PRODUCTS.items():
         if platform not in found:
             continue
         directory = found[platform]
         report = json.loads((directory / "build-report.json").read_text(encoding="utf-8"))
         require(report["platform"] == platform, 'Artifact validation failed')
-        definition = PRODUCTS[platform]
+        scheme, minimum = definition.scheme, definition.minimum_os
         if "role" in report:
             require(report["role"] == definition.role, "Product role mismatch")
             require(report["rustFeatures"] == definition.rust_features.split(","), "Product feature mismatch")

@@ -67,7 +67,9 @@ def main(target):
     run("ditto", "-x", "-k", CACHE / "webrtc.zip", DEPS)
     run("ditto", "-x", "-k", CACHE / "xcodegen.zip", CACHE)
     generator = CACHE / "xcodegen/bin/xcodegen"; generator.chmod(0o755)
-    env = dict(os.environ, MACOSX_DEPLOYMENT_TARGET="13.0", IPHONEOS_DEPLOYMENT_TARGET="16.0", TVOS_DEPLOYMENT_TARGET="17.0")
+    env = dict(os.environ, **{key: PRODUCTS[name].minimum_os for name, key in (
+        ("macos", "MACOSX_DEPLOYMENT_TARGET"), ("ios", "IPHONEOS_DEPLOYMENT_TARGET"),
+        ("tvos", "TVOS_DEPLOYMENT_TARGET"))})
     libraries = []
     for name, targets in TARGETS[args.platform]:
         slices = []

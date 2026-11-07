@@ -1,6 +1,5 @@
 import ScreenCaptureKit
 import CoreMedia
-import LanCastContracts
 
 /// Capture owns no signaling, credentials or player. The user explicitly selects a source.
 final class MacCapture: NSObject, SCStreamOutput, SCStreamDelegate {
@@ -21,16 +20,14 @@ final class MacCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let current = UUID(); generation = current
         let previous = stream; stream = nil; try? await previous?.stopCapture()
         guard generation == current else { return }
-        let config = SCStreamConfiguration()
-        config.width = 1280; config.height = 720; config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
-        config.queueDepth = 3; config.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-        config.colorSpaceName = CGColorSpace.itur_709; config.showsCursor = true
-        config.scalesToFit = true
-        config.capturesAudio = audio; config.sampleRate = 48000; config.channelCount = 2; config.excludesCurrentProcessAudio = true
+        let config = try MacCaptureConfiguration.make(contentRect: source.filter.contentRect,
+            pointPixelScale: source.filter.pointPixelScale, audio: audio)
         let stream = SCStream(filter: source.filter, configuration: config, delegate: self); self.stream = stream
-        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
-        if audio { try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: .main) }
-        do { try await stream.startCapture() }
+        do {
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
+            if audio { try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: .main) }
+            try await stream.startCapture()
+        }
         catch { if generation == current { self.stream = nil }; throw error }
         if generation != current { try? await stream.stopCapture() }
     }

@@ -26,15 +26,15 @@ bitflags = { version = "2", features = ["serde"] }
 plist = "1"
 
 rand = "0.10"
-sha2 = "0.11.0-rc.4"
+sha2 = "0.11.1"
 aes = "0.8"
 ctr = "0.9"
 cbc = "0.1.2"
 srp = "0.7.0-rc.2"
-hkdf = "0.13.0-rc.5"
-x25519-dalek = "3.0.0-pre.6"
-ed25519-dalek = "3.0.0-pre.6"
-chacha20poly1305 = { version = "0.11.0-rc.3", features = ["bytes"] }
+hkdf = "0.13"
+x25519-dalek = "3"
+ed25519-dalek = "3"
+chacha20poly1305 = { version = "0.11", features = ["bytes"] }
 
 http = "1"
 httparse = "1"
@@ -52,5 +52,6 @@ yoke = "0.8.1"
 cc = "1.0"
 
 [dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 hex = "0.4"
 base64 = "0.22"
