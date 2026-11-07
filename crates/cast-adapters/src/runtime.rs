@@ -576,13 +576,13 @@ impl Runtime {
                         json!({"state":"command_accepted","firstFrameMeasured":false}),
                     );
                 } else {
-                    let state = controller
+                    let response = controller
                         .command(string(&c, "action")?, c["positionMs"].as_u64())
                         .await?;
                     event(
                         &self.events,
                         "dlna.state",
-                        json!({"response":state,"firstFrameMeasured":false}),
+                        json!({"response":response,"firstFrameMeasured":false}),
                     );
                 }
             }

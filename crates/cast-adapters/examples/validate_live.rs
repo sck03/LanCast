@@ -105,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
                                 )
                             };
                             Ok::<_, Infallible>(Response::new(Full::new(Bytes::from(format!(
-                                "<Envelope><Body>{body}</Body></Envelope>"
+                                "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns=\"urn:schemas-upnp-org:service:AVTransport:1\">{body}</s:Body></s:Envelope>"
                             )))))
                         }
                     });

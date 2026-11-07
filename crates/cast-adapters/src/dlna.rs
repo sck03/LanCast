@@ -1,6 +1,8 @@
 //! UPnP control is deliberately independent from the authenticated mirror session.
 mod description;
+mod soap;
 pub use description::parse_renderer;
+pub use soap::CommandResult;
 
 use anyhow::{Context, ensure};
 use futures_util::StreamExt;
@@ -64,12 +66,18 @@ fn xml(raw: &str) -> anyhow::Result<roxmltree::Document<'_>> {
     Ok(doc)
 }
 pub fn escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&apos;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 #[derive(Clone)]
 pub struct Controller {
@@ -83,30 +91,15 @@ pub enum MediaKind {
 }
 impl Controller {
     pub async fn state(&self) -> anyhow::Result<String> {
-        let raw = self.command("state", None).await?;
-        let doc = xml(&raw)?;
-        Ok(doc
-            .descendants()
-            .find(|n| n.has_tag_name("CurrentTransportState"))
-            .and_then(|n| n.text())
-            .context("DLNA_STATE_MISSING")?
-            .to_owned())
+        self.query("GetTransportInfo", soap::state).await
     }
     pub async fn current_uri(&self) -> anyhow::Result<String> {
-        let raw = self
-            .action(
-                &self.device.transport,
-                "GetMediaInfo",
-                &[("InstanceID", "0".into())],
-            )
-            .await?;
-        let doc = xml(&raw)?;
-        Ok(doc
-            .descendants()
-            .find(|n| n.has_tag_name("CurrentURI"))
-            .and_then(|n| n.text())
-            .unwrap_or("")
-            .to_owned())
+        self.action(
+            "GetMediaInfo",
+            &[("InstanceID", "0".into())],
+            soap::current_uri,
+        )
+        .await
     }
     pub fn new(device: Renderer) -> anyhow::Result<Self> {
         Ok(Self {
@@ -114,17 +107,14 @@ impl Controller {
             device,
         })
     }
-    pub async fn action(
+    async fn action<T>(
         &self,
-        service: &Service,
         action: &str,
         arguments: &[(&str, String)],
-    ) -> anyhow::Result<String> {
+        decode: fn(roxmltree::Node<'_, '_>) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
+        let service = &self.device.transport;
         checked_url(&service.control, self.device.ip)?;
-        ensure!(
-            action.chars().all(|c| c.is_ascii_alphanumeric()),
-            "INVALID_ACTION"
-        );
         let args = arguments
             .iter()
             .map(|(key, value)| format!("<{key}>{}</{key}>", escape(value)))
@@ -141,20 +131,20 @@ impl Controller {
             .body(body)
             .send()
             .await?;
-        let status = response.status();
+        let status = response.status().as_u16();
         let raw = bounded(response).await?;
-        let doc = xml(&raw)?;
-        if doc.descendants().any(|n| n.has_tag_name("Fault")) {
-            anyhow::bail!(
-                "DLNA_SOAP_FAULT: {}",
-                doc.descendants()
-                    .find(|n| n.has_tag_name("errorCode"))
-                    .and_then(|n| n.text())
-                    .unwrap_or("unknown")
-            );
+        soap::decode(&raw, status, &service.kind, action, decode)
+    }
+    async fn query<T>(
+        &self,
+        action: &str,
+        decode: fn(roxmltree::Node<'_, '_>) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
+        let args = [("InstanceID", "0".into())];
+        match self.action(action, &args, decode).await {
+            Ok(result) => Ok(result),
+            Err(_) => self.action(action, &args, decode).await,
         }
-        ensure!(status.is_success(), "DLNA_HTTP_ERROR");
-        Ok(raw)
     }
     pub async fn load_media(&self, url: &str, title: &str, kind: MediaKind) -> anyhow::Result<()> {
         let mime = match kind {
@@ -167,18 +157,18 @@ impl Controller {
             escape(url)
         );
         self.action(
-            &self.device.transport,
             "SetAVTransportURI",
             &[
                 ("InstanceID", "0".into()),
                 ("CurrentURI", url.into()),
                 ("CurrentURIMetaData", didl),
             ],
+            |_| Ok(()),
         )
         .await?;
         Ok(())
     }
-    pub async fn command(&self, action: &str, value: Option<u64>) -> anyhow::Result<String> {
+    pub async fn command(&self, action: &str, value: Option<u64>) -> anyhow::Result<CommandResult> {
         let mut args = vec![("InstanceID", "0".into())];
         let action = match action {
             "play" => {
@@ -201,18 +191,17 @@ impl Controller {
                 ));
                 "Seek"
             }
-            "state" => "GetTransportInfo",
-            "position" => "GetPositionInfo",
+            "state" => {
+                return Ok(CommandResult::State {
+                    transport_state: self.state().await?,
+                });
+            }
+            "position" => return self.query("GetPositionInfo", soap::position).await,
             _ => anyhow::bail!("CAPABILITY_UNSUPPORTED"),
         };
         // Mutations are NEVER automatically retried: a timeout can mean already executed.
-        match self.action(&self.device.transport, action, &args).await {
-            Ok(v) => Ok(v),
-            Err(_) if matches!(action, "GetTransportInfo" | "GetPositionInfo") => {
-                self.action(&self.device.transport, action, &args).await
-            }
-            Err(e) => Err(e),
-        }
+        self.action(action, &args, |_| Ok(CommandResult::Accepted))
+            .await
     }
 }
 pub fn client() -> anyhow::Result<reqwest::Client> {
