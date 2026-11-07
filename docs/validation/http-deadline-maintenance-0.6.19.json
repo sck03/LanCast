@@ -1,0 +1,41 @@
+{
+  "version": "0.6.19",
+  "build_number": 27,
+  "date": "2026-11-08",
+  "regressions": {
+    "before": [
+      "successful_flush_does_not_extend_a_pending_write failed: a successful flush erased the pending write deadline",
+      "repeated_flush_before_shutdown_keeps_the_original_deadline failed: repeated flushes kept restarting shutdown's timeout"
+    ],
+    "after": [
+      "Writes, flushes and shutdown retain independent deadlines with one shared lazy timer",
+      "A real Hyper connection releases a stalled shutdown after 15 seconds despite repeated polls and cancels request work",
+      "Existing progress, idle-producer, late-readiness and vectored-write regressions pass",
+      "Media URL tokens preserve 256 random bits and use URL-safe encoding without padding",
+      "Existing file Range/HEAD/revocation, pinned HTTPS bridge and live HTTP tests pass"
+    ]
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": { "passed": 115, "failed": 0 },
+    "rust_no_default_features": { "passed": 83, "failed": 0 },
+    "rust_legacy": { "passed": 84, "failed": 0 },
+    "python_unittest": { "passed": 54, "failed": 0 },
+    "python_optimized_unittest": { "passed": 54, "failed": 0 },
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "architecture": "passed"
+  },
+  "resource_changes": [
+    "No timeout allocation until an output operation first blocks; at most one timer reused per connection",
+    "Successful I/O with no pending deadline does not read the clock",
+    "Media URL tokens are encoded directly, removing two string replacements per resource",
+    "File and live resources cache the complete path instead of formatting it for each request",
+    "No new runtime dependency, thread or queue"
+  ],
+  "limitations": [
+    "No physical-device, CPU/RSS, end-to-end latency or two-hour soak measurements",
+    "The HTTP shutdown regression uses real Hyper with a controlled stalled transport, not a physical TLS peer",
+    "Independent AirPlay protocol code was unchanged"
+  ]
+}

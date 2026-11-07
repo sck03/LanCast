@@ -71,7 +71,7 @@ pub fn parse_range(header: Option<&str>, length: u64) -> Range {
 pub struct Resource {
     file: Mutex<FileCursor>,
     pub length: u64,
-    token: String,
+    path: String,
     allowed: IpAddr,
     stop: CancellationToken,
 }
@@ -91,9 +91,7 @@ impl Resource {
                 position: Some(position),
             }),
             length: metadata.len(),
-            token: crate::auth::random_token()
-                .replace('/', "_")
-                .replace('+', "-"),
+            path: format!("/media/{}", crate::auth::random_url_token()),
             allowed,
             stop: CancellationToken::new(),
         }))
@@ -101,13 +99,10 @@ impl Resource {
     pub fn revoke(&self) {
         self.stop.cancel();
     }
-    pub fn path(&self) -> String {
-        format!("/media/{}", self.token)
-    }
     async fn respond(self: Arc<Self>, request: Request<Incoming>) -> Response<Body> {
         if self.stop.is_cancelled()
             || request.uri().query().is_some()
-            || !crate::auth::same_secret(request.uri().path(), &self.path())
+            || !crate::auth::same_secret(request.uri().path(), &self.path)
         {
             return empty(404);
         }
@@ -206,7 +201,7 @@ pub async fn bind_resource(
         "{}://{}{}",
         if tls.is_some() { "https" } else { "http" },
         listener.local_addr()?,
-        resource.path()
+        resource.path
     );
     let task = tokio::spawn(async move {
         let handler = resource.clone();

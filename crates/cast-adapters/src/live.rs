@@ -95,7 +95,7 @@ impl Drop for Subscription {
 }
 
 pub struct LiveResource {
-    token: String,
+    path: String,
     allowed: IpAddr,
     stop: CancellationToken,
     readers: Mutex<Vec<Reader>>,
@@ -108,9 +108,7 @@ pub struct LiveResource {
 impl LiveResource {
     pub fn new(allowed: IpAddr) -> Arc<Self> {
         Arc::new(Self {
-            token: crate::auth::random_token()
-                .replace('/', "_")
-                .replace('+', "-"),
+            path: format!("/live/{}.ts", crate::auth::random_url_token()),
             allowed,
             stop: CancellationToken::new(),
             readers: Mutex::new(Vec::new()),
@@ -235,7 +233,7 @@ impl LiveResource {
     async fn respond(self: Arc<Self>, request: Request<Incoming>) -> Response<Body> {
         if self.stop.is_cancelled()
             || request.uri().query().is_some()
-            || !crate::auth::same_secret(request.uri().path(), &format!("/live/{}.ts", self.token))
+            || !crate::auth::same_secret(request.uri().path(), &self.path)
         {
             return empty(404);
         }
@@ -276,7 +274,7 @@ impl LiveResource {
     ) -> anyhow::Result<(String, tokio::task::JoinHandle<()>)> {
         ensure!(!address.ip().is_unspecified(), "SELECT_LAN_INTERFACE");
         let listener = TcpListener::bind(address).await?;
-        let url = format!("http://{}/live/{}.ts", listener.local_addr()?, self.token);
+        let url = format!("http://{}{}", listener.local_addr()?, self.path);
         let handler = self.clone();
         let task = tokio::spawn(async move {
             let _ = http_server::serve(listener, self.allowed, None, self.stop.clone(), move |r| {

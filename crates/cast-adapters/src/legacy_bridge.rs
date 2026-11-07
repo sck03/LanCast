@@ -52,10 +52,7 @@ impl Bridge {
         let bridge = Arc::new(Self {
             client,
             upstream: url.to_string(),
-            path: format!(
-                "/bridge/{}",
-                auth::random_token().replace('/', "_").replace('+', "-")
-            ),
+            path: format!("/bridge/{}", auth::random_url_token()),
             stop: CancellationToken::new(),
         });
         let listener = TcpListener::bind("127.0.0.1:0").await?;

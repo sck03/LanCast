@@ -1,5 +1,8 @@
 use anyhow::{Context, ensure};
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{
+    Engine,
+    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+};
 use p256::{
     ecdsa::{
         Signature, SigningKey, VerifyingKey,
@@ -28,9 +31,15 @@ pub fn valid_pairing_code(value: &str) -> bool {
 }
 
 pub fn random_token() -> String {
-    let mut data = [0u8; 32];
+    STANDARD.encode(random_secret())
+}
+pub(crate) fn random_url_token() -> String {
+    URL_SAFE_NO_PAD.encode(random_secret())
+}
+fn random_secret() -> [u8; 32] {
+    let mut data = [0; 32];
     rand::rng().fill_bytes(&mut data);
-    STANDARD.encode(data)
+    data
 }
 pub fn same_secret(a: &str, b: &str) -> bool {
     use subtle::ConstantTimeEq;
@@ -191,6 +200,17 @@ pub fn pinned_config(fingerprint: &str) -> anyhow::Result<rustls::ClientConfig> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn media_tokens_are_url_safe_and_keep_all_256_bits() {
+        let token = random_url_token();
+        assert_eq!(token.len(), 43);
+        assert!(
+            token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        );
+        assert_eq!(URL_SAFE_NO_PAD.decode(token).unwrap().len(), 32);
+    }
     #[test]
     fn signature_binds_challenge_and_device() {
         let a = Identity::create().unwrap();

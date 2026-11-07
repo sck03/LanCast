@@ -100,6 +100,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        io,
+        pin::Pin,
+        task::{Context, Poll},
+    };
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpStream,
@@ -122,6 +127,73 @@ mod tests {
         let stop = CancellationToken::new();
         let task = tokio::spawn(serve(listener, address.ip(), None, stop.clone(), handler));
         (address, stop, task)
+    }
+
+    struct StalledClose(tokio::io::DuplexStream);
+
+    impl AsyncRead for StalledClose {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.get_mut().0).poll_read(cx, buf)
+        }
+    }
+
+    impl AsyncWrite for StalledClose {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            Pin::new(&mut self.get_mut().0).poll_write(cx, buf)
+        }
+        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.get_mut().0).poll_flush(cx)
+        }
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Pending
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn repeated_connection_polls_cannot_keep_stalled_shutdown_alive() {
+        let (server, mut client) = tokio::io::duplex(1024);
+        let (tx, mut rx) = mpsc::channel(1);
+        let task = connection(
+            StalledClose(server),
+            CancellationToken::new(),
+            move |request| {
+                tx.try_send(
+                    request
+                        .extensions()
+                        .get::<CancellationToken>()
+                        .unwrap()
+                        .clone(),
+                )
+                .unwrap();
+                async { empty(200) }
+            },
+        );
+        tokio::pin!(task);
+        client
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        assert!(futures_util::poll!(task.as_mut()).is_pending());
+        let request_stop = rx.try_recv().unwrap();
+        let mut response = [0; 1024];
+        let length = client.read(&mut response).await.unwrap();
+        assert!(response[..length].starts_with(b"HTTP/1.1 200"));
+        for _ in 0..14 {
+            tokio::time::advance(Duration::from_secs(1)).await;
+            assert!(futures_util::poll!(task.as_mut()).is_pending());
+            assert!(!request_stop.is_cancelled());
+        }
+        tokio::time::advance(Duration::from_secs(1)).await;
+        assert!(futures_util::poll!(task).is_ready());
+        assert!(request_stop.is_cancelled());
     }
 
     #[tokio::test(start_paused = true)]
