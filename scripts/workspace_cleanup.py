@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Report or remove known, ignored build outputs without following directory links."""
+"""Preview, remove or quarantine known, ignored outputs without following links."""
 import argparse
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD_PATHS = (
@@ -18,6 +20,7 @@ BUILD_PATHS = (
     "scripts/__pycache__", "scripts/tests/__pycache__",
     ".cache/ffmpeg-build-*", ".cache/ffmpeg-local-*", ".cache/media-local-*",
     ".cache/local-joins", ".cache/hardware-joins", ".cache/final-hardware-joins",
+    ".cache/media-maintenance",
 )
 DOWNLOAD_PATHS = (
     ".cache/artifacts", ".cache/ffmpeg-8.*", ".cache/actionlint", ".cache/format-tools",
@@ -132,28 +135,89 @@ def inventory(root=ROOT, include_downloads=False):
     return entries
 
 
-def clean(root, entries):
-    """Revalidate the entire plan before the first mutation, then each target again."""
-    root = root.resolve(strict=True)
+def validate_plan(root, entries):
+    """Revalidate the entire plan before the first mutation."""
     tracked = tracked_paths(root)
+    selected = []
     for entry in entries:
         if "blocked" in entry:
             raise ValueError(entry["blocked"])
+        path = checked_path(root, entry["path"])
+        if any(path == other or path.is_relative_to(other) or other.is_relative_to(path)
+               for other in selected):
+            raise ValueError(f"Overlapping cleanup paths: {entry['path']}")
+        selected.append(path)
         if inspect_candidate(root, entry["path"], tracked).fingerprint != entry["fingerprint"]:
             raise ValueError(f"Files changed since preview: {entry['path']}")
+
+
+def revalidate(root, entry):
+    path = checked_path(root, entry["path"])
+    if inspect_candidate(root, entry["path"], tracked_paths(root)).fingerprint != entry["fingerprint"]:
+        raise ValueError(f"Files changed before cleanup: {entry['path']}")
+    return path
+
+
+def clean(root, entries):
+    root = root.resolve(strict=True)
+    validate_plan(root, entries)
     for entry in entries:
-        path = checked_path(root, entry["path"])
-        if inspect_candidate(root, entry["path"], tracked_paths(root)).fingerprint != entry["fingerprint"]:
-            raise ValueError(f"Files changed before cleanup: {entry['path']}")
+        path = revalidate(root, entry)
         if path.is_dir():
             shutil.rmtree(path)
         else:
             path.unlink()
 
 
+def quarantine(root, entries):
+    """Rename outputs into a unique ignored folder; never copy or delete on failure."""
+    root = root.resolve(strict=True)
+    validate_plan(root, entries)
+    if not entries:
+        return None
+    parent = root / ".manual-delete"
+    # Never archive the destination itself or move tracked content into an ignored folder.
+    if any(parent == root / e["path"] or parent.is_relative_to(root / e["path"])
+           or (root / e["path"]).is_relative_to(parent) for e in entries):
+        raise ValueError("Quarantine destination overlaps cleanup paths")
+    parent.mkdir(exist_ok=True)
+    parent = checked_path(root, ".manual-delete")
+    if any(path.is_relative_to(parent) for path in tracked_paths(root)):
+        raise ValueError("Tracked quarantine destination is protected")
+    if subprocess.run(["git", "-C", str(root), "check-ignore", "-q", "--", ".manual-delete/"],
+                      capture_output=True).returncode != 0:
+        raise ValueError("Quarantine destination must be Git-ignored")
+    destination = parent / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8])
+    destination.mkdir()
+    manifest = {"workspace": str(root), "paths": [{**entry, "moved": False} for entry in entries]}
+    manifest_path = destination / "manifest.json"
+
+    def save_manifest():
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+    save_manifest()
+    for entry in manifest["paths"]:
+        try:
+            source = revalidate(root, entry)
+            target = destination / entry["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            # Both paths are within the verified workspace; rename preserves bytes
+            # and refuses cross-device moves instead of falling back to copy/delete.
+            source.rename(target)
+            entry["moved"] = True
+        except (OSError, ValueError) as error:
+            entry["error"] = str(error)
+            save_manifest()
+            raise
+        save_manifest()
+    return destination
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--clean", action="store_true", help="Remove the listed generated paths; default is preview")
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--clean", action="store_true", help="Remove the listed generated paths; default is preview")
+    action.add_argument("--quarantine", action="store_true", help="Move outputs into .manual-delete for manual deletion")
     parser.add_argument("--include-downloads", action="store_true", help="Also select reproducible dependency/artifact downloads")
     parser.add_argument("--json", action="store_true", help="Emit a machine-readable size and cleanup report")
     args = parser.parse_args()
@@ -161,18 +225,26 @@ def main():
     entries = inventory(include_downloads=args.include_downloads)
     if args.clean:
         clean(ROOT, entries)
+    destination = quarantine(ROOT, entries) if args.quarantine else None
     after = snapshot(ROOT) if args.clean else before
-    report = {"mode": "clean" if args.clean else "preview", "workspace": str(ROOT),
+    report = {"mode": "clean" if args.clean else "quarantine" if args.quarantine else "preview", "workspace": str(ROOT),
               "before_bytes": before.bytes, "after_bytes": after.bytes,
               "reclaimable_bytes": sum(entry.get("bytes", 0) for entry in entries),
               "removed_bytes": before.bytes - after.bytes if args.clean else 0, "paths": entries}
+    if args.quarantine:
+        report.update(quarantine_directory=str(destination) if destination else None,
+                      moved_bytes=sum(entry["bytes"] for entry in entries))
+        # Renaming does not reclaim disk space; include the new manifest in the total.
+        report["after_bytes"] = snapshot(ROOT).bytes
     if args.json:
         print(json.dumps(report, indent=2))
     else:
         for entry in entries:
             print(f"{entry['path']}: {entry.get('blocked') or str(entry['bytes']) + ' bytes'}")
-        print(f"Workspace: {after.bytes:,} bytes; "
+        print(f"Workspace: {report['after_bytes']:,} bytes; "
               f"{'removed' if args.clean else 'reclaimable'}: {report['removed_bytes' if args.clean else 'reclaimable_bytes']:,} bytes")
+        if args.quarantine:
+            print(f"Manual deletion folder: {destination}; no disk space freed by moving")
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ android/media-webrtc/libs/*.aar
 .idea/
 .vs/
 dist/
+/.manual-delete/
 **/jniLibs/**/*.so
 android/*-dependencies.txt
 __pycache__/

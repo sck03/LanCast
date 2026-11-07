@@ -1,10 +1,12 @@
 from pathlib import Path
 import os
+import json
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from scripts.workspace_cleanup import checked_path, clean, inventory, snapshot
+from scripts.workspace_cleanup import checked_path, clean, inventory, quarantine, snapshot
 
 
 class WorkspaceCleanupTests(unittest.TestCase):
@@ -13,7 +15,7 @@ class WorkspaceCleanupTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
-        self.write(".gitignore", "target/\n.cache/\n**/__pycache__/\n")
+        self.write(".gitignore", "target/\n.cache/\n**/__pycache__/\n.manual-delete/\n")
 
     def write(self, relative, content):
         path = self.root / relative
@@ -95,3 +97,69 @@ class WorkspaceCleanupTests(unittest.TestCase):
                     self.assertEqual((external / "keep").read_text(encoding="utf-8"), "outside")
                 finally:
                     path.rmdir() if os.name == "nt" else path.unlink()
+
+    def test_quarantine_preserves_content_and_records_original_paths(self):
+        self.write("target/debug/program", "binary")
+        self.write(".cache/artifacts/run/product.zip", "archive")
+        plan = inventory(self.root, include_downloads=True)
+        destination = quarantine(self.root, plan)
+        self.assertEqual((destination / "target/debug/program").read_text(), "binary")
+        self.assertEqual((destination / ".cache/artifacts/run/product.zip").read_text(), "archive")
+        manifest = json.loads((destination / "manifest.json").read_text())
+        self.assertTrue(all(entry["moved"] for entry in manifest["paths"]))
+        self.assertEqual([e["path"] for e in manifest["paths"]], [e["path"] for e in plan])
+        self.assertEqual(inventory(self.root, include_downloads=True), [])
+        self.assertIsNone(quarantine(self.root, []))
+        # A new run must preserve previous quarantines.
+        self.write("target/new", "replacement")
+        second = quarantine(self.root, inventory(self.root))
+        self.assertNotEqual(second, destination)
+        self.assertTrue((destination / "target/debug/program").exists())
+
+    def test_quarantine_rejects_changes_and_overlapping_plans_before_moving(self):
+        path = self.write("target/program", "binary")
+        plan = inventory(self.root)
+        with self.assertRaisesRegex(ValueError, "Overlapping"):
+            quarantine(self.root, plan + plan)
+        path.write_text("changed", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Files changed"):
+            quarantine(self.root, plan)
+        self.assertTrue(path.exists())
+        self.assertFalse((self.root / ".manual-delete").exists())
+
+    def test_quarantine_rejects_a_linked_destination(self):
+        self.write("target/program", "binary")
+        with tempfile.TemporaryDirectory() as other:
+            path = self.root / ".manual-delete"
+            if os.name == "nt":
+                subprocess.run(["cmd", "/c", "mklink", "/J", str(path), other], capture_output=True, check=True)
+            else:
+                path.symlink_to(other, target_is_directory=True)
+            try:
+                with self.assertRaisesRegex(ValueError, "[Ll]ink"):
+                    quarantine(self.root, inventory(self.root))
+                self.assertTrue((self.root / "target/program").exists())
+                self.assertEqual(list(Path(other).iterdir()), [])
+            finally:
+                path.rmdir() if os.name == "nt" else path.unlink()
+
+    def test_quarantine_failure_preserves_unmoved_files_and_a_recovery_manifest(self):
+        self.write("target/program", "binary")
+        self.write("scripts/__pycache__/stale.pyc", "bytecode")
+        rename = Path.rename
+
+        def fail_second(source, target):
+            if source.name == "__pycache__":
+                raise PermissionError("file in use")
+            return rename(source, target)
+
+        with patch.object(Path, "rename", fail_second), self.assertRaises(PermissionError):
+            quarantine(self.root, inventory(self.root))
+        manifests = list((self.root / ".manual-delete").glob("*/manifest.json"))
+        self.assertEqual(len(manifests), 1)
+        manifest = json.loads(manifests[0].read_text())
+        self.assertTrue(manifest["paths"][0]["moved"])
+        self.assertFalse(manifest["paths"][1]["moved"])
+        self.assertIn("file in use", manifest["paths"][1]["error"])
+        self.assertEqual((manifests[0].parent / "target/program").read_text(), "binary")
+        self.assertTrue((self.root / "scripts/__pycache__/stale.pyc").exists())

@@ -77,6 +77,7 @@ where
     F: Fn(Request<Incoming>) -> Fut + Send + 'static,
     Fut: Future<Output = Response<Body>> + Send + 'static,
 {
+    let stream = crate::write_timeout::WriteTimeout::new(stream, Duration::from_secs(15));
     let connection_stop = stop.child_token();
     let _cancel_on_exit = connection_stop.clone().drop_guard();
     let request_stop = connection_stop.clone();
@@ -121,6 +122,44 @@ mod tests {
         let stop = CancellationToken::new();
         let task = tokio::spawn(serve(listener, address.ip(), None, stop.clone(), handler));
         (address, stop, task)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stalled_response_releases_connection_and_cancels_request() {
+        let (server, mut client) = tokio::io::duplex(1024);
+        let stop = CancellationToken::new();
+        let (tx, mut rx) = mpsc::channel(1);
+        let mut task = tokio::spawn(connection(server, stop, move |request| {
+            tx.try_send(
+                request
+                    .extensions()
+                    .get::<CancellationToken>()
+                    .unwrap()
+                    .clone(),
+            )
+            .unwrap();
+            async {
+                Response::new(
+                    Full::new(Bytes::from(vec![0; 65536]))
+                        .map_err(|never| match never {})
+                        .boxed_unsync(),
+                )
+            }
+        }));
+        client
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        let request_stop = rx.recv().await.unwrap();
+        // Keep the peer open without reading its response. A full transport
+        // buffer must not retain one of the four HTTP slots forever.
+        let finished = tokio::time::timeout(Duration::from_secs(16), &mut task).await;
+        if finished.is_err() {
+            task.abort();
+            let _ = task.await;
+        }
+        assert!(finished.is_ok(), "stalled response retained its connection");
+        assert!(request_stop.is_cancelled());
     }
 
     #[tokio::test]

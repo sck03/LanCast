@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-07",
+  "version": "0.6.8",
+  "build_number": 16,
+  "base_commit": "3f631ff",
+  "regressions_reproduced_before_fix": [
+    "stalled_response_releases_connection_and_cancels_request",
+    "cancelled_save_keeps_disk_and_memory_at_the_previous_snapshot with expired prior evidence"
+  ],
+  "local_validation": [
+    {"command": "cargo fmt --all --check", "result": "passed"},
+    {"command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings", "result": "passed"},
+    {"command": "cargo test --workspace --all-features --locked", "result": "passed", "tests": 61},
+    {"command": "cargo test --workspace --no-default-features --locked", "result": "passed", "tests": 48},
+    {"command": "cargo test --workspace --no-default-features --features legacy --locked", "result": "passed", "tests": 49},
+    {"command": "python scripts/check-architecture.py", "result": "passed"},
+    {"command": "python -m unittest discover -s scripts/tests", "result": "passed", "tests": 54},
+    {"command": "python -O -m unittest discover -s scripts/tests", "result": "passed", "tests": 54},
+    {"command": "git diff --check", "result": "passed"}
+  ],
+  "cleanup": {
+    "mode": "quarantine",
+    "directory": ".manual-delete/20261107T021112Z-6da4e5a9",
+    "manifest": ".manual-delete/20261107T021112Z-6da4e5a9/manifest.json",
+    "moved_files": 2874,
+    "moved_bytes": 1930251150,
+    "removed_bytes": 0,
+    "active_workspace_bytes_at_cleanup": 19960220,
+    "scope": "Known build outputs plus 25 reviewed scratch files; original hardware streams, probe sources, licenses, vendor sources and committed evidence retained",
+    "disk_space": "Not reclaimed until the user deletes the quarantine folder"
+  },
+  "remote_checks": "Pending push",
+  "limits": [
+    "No new CPU/RSS, physical-device pause/resume, end-to-end latency or two-hour stability measurements",
+    "HTTP connections with no transport write progress for 15 seconds now close; paused players must reconnect",
+    "Profile schema 1 migration removed; unsupported files are preserved and rejected"
+  ]
+}

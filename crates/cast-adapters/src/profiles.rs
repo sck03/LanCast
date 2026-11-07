@@ -1,12 +1,13 @@
 //! Bounded, versioned local compatibility evidence. Discovery and HTTP pulls never imply success.
 use anyhow::{Context, ensure};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, io::Read, path::PathBuf};
 
 const SCHEMA: u32 = 2;
 const TTL: u64 = 30 * 24 * 60 * 60;
 const MAX_DEVICES: usize = 256;
 const MAX_PROFILES_PER_DEVICE: usize = 16;
+const MAX_BYTES: usize = 1024 * 1024;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Evidence {
@@ -22,11 +23,26 @@ struct Document {
     schema_version: u32,
     devices: BTreeMap<String, BTreeMap<String, Evidence>>,
 }
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct LegacyDocument {
-    schema_version: u32,
-    devices: BTreeMap<String, Evidence>,
+impl Document {
+    fn read(reader: impl Read) -> anyhow::Result<Self> {
+        // Bound the actual read, including files that grow after opening.
+        let mut bytes = Vec::new();
+        reader
+            .take((MAX_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)?;
+        ensure!(bytes.len() <= MAX_BYTES, "PROFILE_FILE_TOO_LARGE");
+        let document: Self = serde_json::from_slice(&bytes)?;
+        ensure!(
+            document.schema_version == SCHEMA
+                && document.devices.len() <= MAX_DEVICES
+                && document
+                    .devices
+                    .values()
+                    .all(|profiles| profiles.len() <= MAX_PROFILES_PER_DEVICE),
+            "PROFILE_SCHEMA_UNSUPPORTED"
+        );
+        Ok(document)
+    }
 }
 pub struct ProfileStore {
     path: PathBuf,
@@ -42,66 +58,21 @@ impl ProfileStore {
     ) -> anyhow::Result<Self> {
         check()?;
         ensure!(path.is_absolute(), "ABSOLUTE_PROFILE_PATH_REQUIRED");
-        let (document, migrated) = if path.exists() {
-            ensure!(
-                std::fs::metadata(&path)?.len() <= 1024 * 1024,
-                "PROFILE_FILE_TOO_LARGE"
-            );
-            let bytes = std::fs::read(&path)?;
-            match serde_json::from_slice::<Document>(&bytes) {
-                Ok(value) if value.schema_version == SCHEMA => {
-                    ensure!(
-                        value.devices.len() <= MAX_DEVICES,
-                        "PROFILE_SCHEMA_UNSUPPORTED"
-                    );
-                    ensure!(
-                        value
-                            .devices
-                            .values()
-                            .all(|profiles| profiles.len() <= MAX_PROFILES_PER_DEVICE),
-                        "PROFILE_SCHEMA_UNSUPPORTED"
-                    );
-                    (value, false)
-                }
-                _ => {
-                    let legacy: LegacyDocument = serde_json::from_slice(&bytes)?;
-                    ensure!(legacy.schema_version == 1, "PROFILE_SCHEMA_UNSUPPORTED");
-                    ensure!(
-                        legacy.devices.len() <= MAX_DEVICES,
-                        "PROFILE_SCHEMA_UNSUPPORTED"
-                    );
-                    let devices = legacy
-                        .devices
-                        .into_iter()
-                        .map(|(id, evidence)| {
-                            let profile = evidence.profile.clone();
-                            (id, BTreeMap::from([(profile, evidence)]))
-                        })
-                        .collect();
-                    (
-                        Document {
-                            schema_version: SCHEMA,
-                            devices,
-                        },
-                        true,
-                    )
-                }
+        let document = match std::fs::File::open(&path) {
+            Ok(file) => {
+                let metadata = file.metadata()?;
+                ensure!(metadata.is_file(), "INVALID_PROFILE_FILE");
+                ensure!(metadata.len() <= MAX_BYTES as u64, "PROFILE_FILE_TOO_LARGE");
+                Document::read(file)?
             }
-        } else {
-            (
-                Document {
-                    schema_version: SCHEMA,
-                    devices: BTreeMap::new(),
-                },
-                false,
-            )
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Document {
+                schema_version: SCHEMA,
+                devices: BTreeMap::new(),
+            },
+            Err(error) => return Err(error.into()),
         };
-        let store = Self { path, document };
-        if migrated {
-            store.persist(&check)?;
-        }
         check()?;
-        Ok(store)
+        Ok(Self { path, document })
     }
     pub fn get(&self, id: &str, signature: &str, profile: &str, now: u64) -> Option<&Evidence> {
         self.document.devices.get(id)?.get(profile).filter(|e| {
@@ -126,36 +97,36 @@ impl ProfileStore {
             id.len() <= 256 && evidence.signature.len() <= 256 && evidence.profile.len() <= 128,
             "INVALID_PROFILE"
         );
-        self.prune_expired(evidence.confirmed_at);
-        ensure!(
-            self.document.devices.contains_key(&id) || self.document.devices.len() < MAX_DEVICES,
-            "PROFILE_LIMIT_REACHED"
-        );
-        let old = self.document.clone();
-        let profiles = self.document.devices.entry(id.clone()).or_default();
-        ensure!(
-            profiles.contains_key(&evidence.profile) || profiles.len() < MAX_PROFILES_PER_DEVICE,
-            "PROFILE_LIMIT_REACHED"
-        );
-        profiles.insert(evidence.profile.clone(), evidence);
-        let result = self.persist(&check);
-        if result.is_err() {
-            self.document = old;
-        }
-        result
-    }
-    fn prune_expired(&mut self, now: u64) {
-        self.document.devices.retain(|_, profiles| {
+        let mut document = self.document.clone();
+        let now = evidence.confirmed_at;
+        document.devices.retain(|_, profiles| {
             profiles.retain(|_, evidence| {
                 !(now >= evidence.confirmed_at && now - evidence.confirmed_at > TTL)
             });
             !profiles.is_empty()
         });
+        ensure!(
+            document.devices.contains_key(&id) || document.devices.len() < MAX_DEVICES,
+            "PROFILE_LIMIT_REACHED"
+        );
+        let profiles = document.devices.entry(id).or_default();
+        ensure!(
+            profiles.contains_key(&evidence.profile) || profiles.len() < MAX_PROFILES_PER_DEVICE,
+            "PROFILE_LIMIT_REACHED"
+        );
+        profiles.insert(evidence.profile.clone(), evidence);
+        self.persist(&document, &check)?;
+        self.document = document;
+        Ok(())
     }
-    fn persist(&self, check: &impl Fn() -> anyhow::Result<()>) -> anyhow::Result<()> {
+    fn persist(
+        &self,
+        document: &Document,
+        check: &impl Fn() -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
         check()?;
-        let bytes = serde_json::to_vec_pretty(&self.document)?;
-        ensure!(bytes.len() <= 1024 * 1024, "PROFILE_FILE_TOO_LARGE");
+        let bytes = serde_json::to_vec_pretty(document)?;
+        ensure!(bytes.len() <= MAX_BYTES, "PROFILE_FILE_TOO_LARGE");
         let parent = self.path.parent().context("INVALID_PROFILE_PATH")?;
         std::fs::create_dir_all(parent)?;
         // A unique temporary file prevents one process from truncating another writer's temporary file.
@@ -276,11 +247,9 @@ mod tests {
             br#"{"schemaVersion":1,"devices":{"old":{"signature":"firmware1","profile":"720p-aac","confirmedAt":1000,"passed":true,"source":"user_confirmed_synthetic"}}}"#,
         )
         .unwrap();
-        let migrated = ProfileStore::open(path.clone()).unwrap();
-        assert!(migrated.get("old", "firmware1", "720p-aac", 1001).is_some());
-        let migrated_json: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        assert_eq!(migrated_json["schemaVersion"], 2);
+        let original = std::fs::read(&path).unwrap();
+        assert!(ProfileStore::open(path.clone()).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), original);
         std::fs::remove_file(path).unwrap();
     }
 
@@ -338,6 +307,9 @@ mod tests {
         let original = std::fs::read(&path).unwrap();
         let checks = std::cell::Cell::new(0);
         let mut replacement = evidence;
+        // Pruning must be part of the transaction too: cancellation must retain
+        // the previous snapshot even when the attempted save advances its clock.
+        replacement.confirmed_at += TTL + 1;
         replacement.passed = false;
         let result = store.save_checked("tv".into(), replacement, || {
             checks.set(checks.get() + 1);
@@ -353,5 +325,18 @@ mod tests {
                 .passed
         );
         assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn document_read_stops_at_the_byte_budget() {
+        let mut reader = std::io::Cursor::new(vec![b' '; MAX_BYTES * 2]);
+        assert!(
+            Document::read(&mut reader)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("PROFILE_FILE_TOO_LARGE")
+        );
+        assert_eq!(reader.position(), (MAX_BYTES + 1) as u64);
     }
 }
