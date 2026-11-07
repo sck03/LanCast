@@ -1,10 +1,11 @@
+mod mdns;
+mod results;
 mod tasks;
+pub use mdns::{Advertisement, scan_lancast};
+use results::{MAX_DEVICES, Results};
 pub(crate) use tasks::{DlnaDiscovery, ScanTask};
 
-use crate::{
-    auth,
-    dlna::{self, Renderer},
-};
+use crate::dlna::{self, Renderer};
 use anyhow::ensure;
 use futures_util::{Stream, StreamExt, stream};
 use std::{
@@ -15,121 +16,6 @@ use std::{
 use tokio::time::Instant;
 
 const SCAN_WINDOW: Duration = Duration::from_secs(4);
-const MAX_DEVICES: usize = 64;
-// Leave room in the 128 KiB host event for its envelope and scan generation.
-const MAX_RENDERER_BYTES: usize = 96 * 1024;
-
-/// Shutdown also runs after browse/register errors or cancellation of an async search.
-struct MdnsDaemon(mdns_sd::ServiceDaemon);
-impl MdnsDaemon {
-    fn new() -> anyhow::Result<Self> {
-        Ok(Self(mdns_sd::ServiceDaemon::new()?))
-    }
-}
-impl Drop for MdnsDaemon {
-    fn drop(&mut self) {
-        let _ = self.0.shutdown();
-    }
-}
-
-pub struct Advertisement {
-    daemon: MdnsDaemon,
-    name: String,
-}
-impl Advertisement {
-    pub fn start(
-        id: &str,
-        name: &str,
-        ip: Ipv4Addr,
-        port: u16,
-        variant: &str,
-        fingerprint: &str,
-    ) -> anyhow::Result<Self> {
-        let daemon = MdnsDaemon::new()?;
-        let pairing_version = auth::PAIRING_VERSION.to_string();
-        let bound_address = ip.to_string();
-        let info = mdns_sd::ServiceInfo::new(
-            "_lancast._tcp.local.",
-            name,
-            &format!("lancast-{id}.local."),
-            IpAddr::V4(ip),
-            port,
-            [
-                ("version", "1"),
-                ("deviceId", id),
-                ("variant", variant),
-                ("fingerprint", fingerprint),
-                ("pairingVersion", pairing_version.as_str()),
-                ("address", bound_address.as_str()),
-            ]
-            .as_slice(),
-        )?;
-        let name = info.get_fullname().to_string();
-        daemon.0.register(info)?;
-        Ok(Self { daemon, name })
-    }
-}
-impl Drop for Advertisement {
-    fn drop(&mut self) {
-        let _ = self.daemon.0.unregister(&self.name);
-    }
-}
-pub async fn scan_lancast() -> anyhow::Result<Vec<serde_json::Value>> {
-    let daemon = MdnsDaemon::new()?;
-    let events = daemon.0.browse("_lancast._tcp.local.")?;
-    let until = Instant::now() + SCAN_WINDOW;
-    let mut found = HashMap::new();
-    while found.len() < MAX_DEVICES && Instant::now() < until {
-        let Ok(Ok(message)) = tokio::time::timeout_at(until, events.recv_async()).await else {
-            break;
-        };
-        // flume can remain ready under a multicast burst; let abort/stop run too.
-        tokio::task::consume_budget().await;
-        if Instant::now() >= until {
-            break;
-        }
-        if let mdns_sd::ServiceEvent::ServiceResolved(info) = message {
-            let id = info
-                .get_property_val_str("deviceId")
-                .unwrap_or(info.get_fullname())
-                .to_string();
-            // Discovery is untrusted; TLS identity must still be verified by the user.
-            let addresses: Vec<String> =
-                info.get_addresses().iter().map(|a| a.to_string()).collect();
-            let Some(address) =
-                advertised_address(info.get_property_val_str("address"), &addresses)
-            else {
-                continue;
-            };
-            let addresses = vec![address];
-            let Some(fingerprint) = advertised_fingerprint(
-                info.get_property_val_str("fingerprint"),
-                info.get_property_val_str("pairingVersion"),
-            ) else {
-                continue;
-            };
-            found.insert(id.clone(),serde_json::json!({"id":id,"name":info.get_fullname(),"addresses":addresses,"port":info.get_port(),"fingerprint":fingerprint,"kind":"lancast_receiver","verification":"unverified"}));
-        }
-    }
-    Ok(found.into_values().collect())
-}
-// Public discovery hints are never a trust decision. The sender must compare the
-// full value with the receiver before passing it to the pinned TLS connection.
-fn advertised_fingerprint(value: Option<&str>, version: Option<&str>) -> Option<String> {
-    if version.and_then(|value| value.parse::<u64>().ok()) != Some(auth::PAIRING_VERSION) {
-        return None;
-    }
-    value
-        .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
-        .map(str::to_ascii_lowercase)
-}
-fn advertised_address(value: Option<&str>, resolved: &[String]) -> Option<String> {
-    value
-        .filter(|value| {
-            value.parse::<Ipv4Addr>().is_ok() && resolved.iter().any(|ip| ip.as_str() == *value)
-        })
-        .map(str::to_owned)
-}
 
 pub async fn scan_dlna(interface: Ipv4Addr) -> anyhow::Result<Vec<Renderer>> {
     ensure!(dlna::lan_ip(IpAddr::V4(interface)), "SELECT_LAN_INTERFACE");
@@ -172,8 +58,7 @@ async fn collect_renderers(
     jobs: impl Stream<Item = anyhow::Result<Renderer>>,
     deadline: Instant,
 ) -> Vec<Renderer> {
-    let mut found: HashMap<String, (Renderer, usize)> = HashMap::new();
-    let mut bytes = 2; // JSON array brackets; each entry also reserves a separator.
+    let mut found = Results::new();
     tokio::pin!(jobs);
     // One deadline covers every batch and drops unfinished requests on return.
     while Instant::now() < deadline {
@@ -184,21 +69,10 @@ async fn collect_renderers(
             break;
         }
         if let Ok(renderer) = result {
-            let Ok(size) = crate::protocol::json_size(&renderer, MAX_RENDERER_BYTES) else {
-                continue;
-            };
-            let size = size + 1;
-            let previous = found.get(&renderer.id).map_or(0, |(_, size)| *size);
-            if (previous == 0 && found.len() == MAX_DEVICES)
-                || size > MAX_RENDERER_BYTES - (bytes - previous)
-            {
-                continue;
-            }
-            bytes = bytes - previous + size;
-            found.insert(renderer.id.clone(), (renderer, size));
+            found.insert(renderer.id.clone(), renderer);
         }
     }
-    found.into_values().map(|(renderer, _)| renderer).collect()
+    found.into_devices()
 }
 pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
     ensure!(
@@ -223,6 +97,7 @@ pub fn ssdp_location(text: &str, source: IpAddr) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::results::MAX_RESULT_BYTES;
     use super::*;
     use crate::events::event;
     use tokio::sync::oneshot;
@@ -271,7 +146,7 @@ mod tests {
         }));
         let found = collect_renderers(jobs, Instant::now() + SCAN_WINDOW).await;
         assert!(!found.is_empty() && found.len() < 64);
-        assert!(serde_json::to_vec(&found).unwrap().len() <= MAX_RENDERER_BYTES);
+        assert!(serde_json::to_vec(&found).unwrap().len() <= MAX_RESULT_BYTES);
         let stop = CancellationToken::new();
         let (events, _) = crate::events::channel(2, stop.clone());
         event(
@@ -307,7 +182,7 @@ mod tests {
         let found = collect_renderers(jobs, Instant::now() + SCAN_WINDOW).await;
         assert_eq!(found.len(), 3);
         assert_eq!(found.iter().find(|d| d.id == "a").unwrap().name.len(), 1024);
-        assert!(serde_json::to_vec(&found).unwrap().len() <= MAX_RENDERER_BYTES);
+        assert!(serde_json::to_vec(&found).unwrap().len() <= MAX_RESULT_BYTES);
     }
 
     #[tokio::test]
@@ -376,31 +251,5 @@ mod tests {
         release.send(()).unwrap();
         let found = collection.await;
         assert!(found.is_empty());
-    }
-
-    #[test]
-    fn discovery_requires_current_pairing_and_full_pin() {
-        let resolved = vec!["192.168.1.2".to_owned(), "10.0.0.2".to_owned()];
-        assert_eq!(
-            advertised_address(Some("10.0.0.2"), &resolved),
-            Some("10.0.0.2".into())
-        );
-        assert_eq!(advertised_address(Some("10.0.0.3"), &resolved), None);
-        assert_eq!(advertised_address(None, &resolved), None);
-        assert_eq!(advertised_fingerprint(None, Some("2")), None);
-        assert_eq!(advertised_fingerprint(Some("abc"), Some("2")), None);
-        assert_eq!(
-            advertised_fingerprint(Some(&"g".repeat(64)), Some("2")),
-            None
-        );
-        assert_eq!(advertised_fingerprint(Some(&"a".repeat(64)), None), None);
-        assert_eq!(
-            advertised_fingerprint(Some(&"a".repeat(64)), Some("1")),
-            None
-        );
-        assert_eq!(
-            advertised_fingerprint(Some(&"A".repeat(64)), Some("2")),
-            Some("a".repeat(64))
-        );
     }
 }
