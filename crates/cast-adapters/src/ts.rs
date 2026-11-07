@@ -85,19 +85,79 @@ impl SectionAssembler {
     }
 }
 #[derive(Default)]
-pub struct StartGate {
-    pmt: Option<u16>,
-    video: Option<u16>,
+struct VideoStart {
+    continuity: Option<u8>,
+    header: Option<Vec<u8>>,
+    prefix: u32,
     sps: bool,
     pps: bool,
     idr: bool,
-    tail: Vec<u8>,
+}
+impl VideoStart {
+    fn push(&mut self, body: &[u8], start: bool, cc: u8) -> anyhow::Result<()> {
+        let mut body = body;
+        if body.is_empty() {
+            return Ok(());
+        }
+        if let Some(previous) = self.continuity {
+            ensure!(cc == (previous + 1) & 15, "VIDEO_CONTINUITY_LOST");
+        } else if !start {
+            // Joining in the middle of a PES cannot produce a decodable prefix.
+            return Ok(());
+        }
+        self.continuity = Some(cc);
+        if start {
+            self.header = Some(Vec::new());
+            self.prefix = u32::MAX;
+        }
+        let joined;
+        if let Some(header) = self.header.as_mut() {
+            header.extend_from_slice(body);
+            if header.len() < 9 {
+                return Ok(());
+            }
+            ensure!(
+                header[..3] == [0, 0, 1] && header[3] & 0xf0 == 0xe0,
+                "INVALID_VIDEO_PES"
+            );
+            let offset = 9 + header[8] as usize;
+            if header.len() < offset {
+                return Ok(());
+            }
+            joined = self.header.take().unwrap();
+            body = &joined[offset..];
+        }
+        // A rolling prefix handles split Annex B start codes without a per-packet
+        // scratch allocation or moving the previous packet's tail.
+        for byte in body {
+            self.prefix = (self.prefix << 8) | u32::from(*byte);
+            if self.prefix & 0xffff_ff00 != 0x0000_0100 {
+                continue;
+            }
+            match byte & 31 {
+                7 => self.sps = true,
+                8 if self.sps => self.pps = true,
+                5 if self.sps && self.pps => self.idr = true,
+                1 if !self.idr => {
+                    self.sps = false;
+                    self.pps = false;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+}
+#[derive(Default)]
+pub struct StartGate {
+    pmt: Option<u16>,
+    video: Option<u16>,
+    video_start: VideoStart,
     pending: Vec<u8>,
     ready: bool,
     pat_section: SectionAssembler,
     pmt_section: SectionAssembler,
     pat_packets: Vec<u8>,
-    pes_header: Option<Vec<u8>>,
 }
 impl StartGate {
     pub fn push(&mut self, data: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
@@ -108,7 +168,7 @@ impl StartGate {
         for p in data.as_chunks::<PACKET>().0 {
             let pid = ((p[1] as u16 & 31) << 8) | p[2] as u16;
             let start = p[1] & 0x40 != 0;
-            let mut body = payload(p)?;
+            let body = payload(p)?;
             if pid == 0 && !body.is_empty() {
                 if start {
                     self.pat_packets.clear();
@@ -121,13 +181,11 @@ impl StartGate {
                     let programs = pat.get(8..pat.len().saturating_sub(4)).unwrap_or_default();
                     for program in programs.as_chunks::<4>().0 {
                         if program[0] != 0 || program[1] != 0 {
-                            if !self.idr {
+                            if !self.video_start.idr {
                                 self.pmt =
                                     Some(((program[2] as u16 & 31) << 8) | program[3] as u16);
                                 self.video = None;
-                                self.sps = false;
-                                self.pps = false;
-                                self.tail.clear();
+                                self.video_start = VideoStart::default();
                                 self.pending.clear();
                                 self.pending.extend_from_slice(&self.pat_packets);
                                 self.pmt_section = SectionAssembler::default();
@@ -139,6 +197,9 @@ impl StartGate {
                 continue;
             }
             if self.pmt.is_none() {
+                continue;
+            }
+            if Some(pid) == self.video && !start && self.video_start.continuity.is_none() {
                 continue;
             }
             ensure!(
@@ -161,51 +222,11 @@ impl StartGate {
                         5 + (((pmt[offset + 3] & 15) as usize) << 8 | pmt[offset + 4] as usize);
                 }
             }
-            if Some(pid) != self.video || body.is_empty() {
-                continue;
-            }
-            if start {
-                self.pes_header = Some(Vec::new());
-                self.tail.clear();
-            }
-            let joined;
-            if let Some(header) = self.pes_header.as_mut() {
-                header.extend_from_slice(body);
-                if header.len() < 9 {
-                    continue;
-                }
-                ensure!(
-                    header[..3] == [0, 0, 1] && header[3] & 0xf0 == 0xe0,
-                    "INVALID_VIDEO_PES"
-                );
-                let offset = 9 + header[8] as usize;
-                if header.len() < offset {
-                    continue;
-                }
-                joined = self.pes_header.take().unwrap();
-                body = &joined[offset..];
-            }
-            self.tail.extend_from_slice(body);
-            for nal in self.tail.windows(4) {
-                if nal[..3] != [0, 0, 1] {
-                    continue;
-                }
-                match nal[3] & 31 {
-                    7 => self.sps = true,
-                    8 if self.sps => self.pps = true,
-                    5 if self.sps && self.pps => self.idr = true,
-                    1 if !self.idr => {
-                        self.sps = false;
-                        self.pps = false;
-                    }
-                    _ => {}
-                }
-            }
-            if self.tail.len() > 3 {
-                self.tail.drain(..self.tail.len() - 3);
+            if Some(pid) == self.video {
+                self.video_start.push(body, start, p[3] & 15)?;
             }
         }
-        if self.idr {
+        if self.video_start.idr {
             self.ready = true;
             Ok(Some(std::mem::take(&mut self.pending)))
         } else {
@@ -216,6 +237,129 @@ impl StartGate {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn packet(pid: u16, start: bool, cc: u8, body: &[u8]) -> [u8; PACKET] {
+        assert!(body.len() <= 182);
+        let mut packet = [0xff; PACKET];
+        packet[..4].copy_from_slice(&[
+            0x47,
+            (pid >> 8) as u8 | if start { 0x40 } else { 0 },
+            pid as u8,
+            0x30 | cc,
+        ]);
+        packet[4] = (183 - body.len()) as u8;
+        packet[5] = 0;
+        packet[PACKET - body.len()..].copy_from_slice(body);
+        packet
+    }
+
+    fn psi(pid: u16, section: &[u8]) -> [u8; PACKET] {
+        // Independently append the MPEG-2 CRC to a complete single-program section.
+        let mut crc = u32::MAX;
+        for byte in section {
+            crc ^= u32::from(*byte) << 24;
+            for _ in 0..8 {
+                crc = (crc << 1)
+                    ^ if crc & 0x8000_0000 != 0 {
+                        0x04c1_1db7
+                    } else {
+                        0
+                    };
+            }
+        }
+        let mut body = vec![0];
+        body.extend_from_slice(section);
+        body.extend_from_slice(&crc.to_be_bytes());
+        packet(pid, true, 0, &body)
+    }
+
+    fn tables(gate: &mut StartGate) {
+        let pat = psi(0, &[0, 0xb0, 13, 0, 1, 0xc1, 0, 0, 0, 1, 0xf0, 0]);
+        let pmt = psi(
+            0x1000,
+            &[
+                2, 0xb0, 18, 0, 1, 0xc1, 0, 0, 0xe1, 0, 0xf0, 0, 0x1b, 0xe1, 0, 0xf0, 0,
+            ],
+        );
+        assert!(gate.push(&pat).unwrap().is_none());
+        assert!(gate.push(&pmt).unwrap().is_none());
+    }
+
+    const PES: &[u8] = &[0, 0, 1, 0xe0, 0, 0, 0x80, 0, 0];
+    const KEYFRAME: &[u8] = &[0, 0, 1, 0x67, 0, 0, 1, 0x68, 0, 0, 1, 0x65];
+
+    #[test]
+    fn continuation_without_a_pes_start_cannot_open_the_gate() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        assert!(
+            gate.push(&packet(0x100, false, 7, KEYFRAME))
+                .unwrap()
+                .is_none()
+        );
+        let body = [PES, KEYFRAME].concat();
+        let accepted = gate.push(&packet(0x100, true, 8, &body)).unwrap().unwrap();
+        assert_eq!(accepted.len(), 3 * PACKET);
+    }
+
+    #[test]
+    fn new_pat_discards_an_unfinished_pes_header() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        assert!(
+            gate.push(&packet(0x100, true, 0, &PES[..2]))
+                .unwrap()
+                .is_none()
+        );
+        tables(&mut gate);
+        assert!(
+            gate.push(&packet(0x100, false, 1, KEYFRAME))
+                .unwrap()
+                .is_none()
+        );
+        assert!(gate.push(&packet(0x100, true, 2, PES)).unwrap().is_none());
+        assert!(
+            gate.push(&packet(0x100, false, 3, KEYFRAME))
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn lost_video_packet_cannot_publish_a_broken_start_point() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        let body = [PES, &KEYFRAME[..8]].concat();
+        assert!(
+            gate.push(&packet(0x100, true, 14, &body))
+                .unwrap()
+                .is_none()
+        );
+        assert!(gate.push(&packet(0x100, false, 0, &KEYFRAME[8..])).is_err());
+    }
+
+    #[test]
+    fn split_pes_and_start_codes_survive_continuity_wrap_and_adaptation_only() {
+        let body = [PES, KEYFRAME].concat();
+        for cut in 1..body.len() {
+            let mut gate = StartGate::default();
+            tables(&mut gate);
+            assert!(
+                gate.push(&packet(0x100, true, 15, &body[..cut]))
+                    .unwrap()
+                    .is_none()
+            );
+            let mut adaptation = [0xff; PACKET];
+            adaptation[..6].copy_from_slice(&[0x47, 1, 0, 0x2f, 183, 0]);
+            assert!(gate.push(&adaptation).unwrap().is_none());
+            assert!(
+                gate.push(&packet(0x100, false, 0, &body[cut..]))
+                    .unwrap()
+                    .is_some()
+            );
+        }
+    }
+
     #[test]
     fn rejects_invalid_framing_and_never_starts_on_a_flag() {
         for data in [vec![], vec![0; 188], vec![0x47; 189]] {

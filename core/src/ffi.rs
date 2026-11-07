@@ -56,10 +56,6 @@ pub fn destroy(handle: u64) {
     }
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn lancast_create() -> u64 {
-    create()
-}
-#[unsafe(no_mangle)]
 pub extern "C" fn lancast_abi_version() -> u32 {
     2
 }
@@ -76,7 +72,7 @@ pub unsafe extern "C" fn lancast_create_v2(config: *const Config) -> u64 {
     if config.is_null() {
         return 0;
     }
-    // Read the common header before accessing fields that may be absent in an older caller.
+    // Validate the declared size before accessing the complete current ABI config.
     let size = unsafe { std::ptr::addr_of!((*config).size).read() };
     if size < std::mem::size_of::<Config>() as u32 {
         return 0;

@@ -10,12 +10,11 @@ typedef struct LancastBuffer {
     uint8_t *data;
     size_t len;
 } LancastBuffer;
-LancastHandle lancast_create(void);
 typedef struct LancastConfig {
     uint32_t size, abi_version;
     uint64_t flags;
 } LancastConfig;
-/* ABI 2, flags=0. create() remains for ABI 1 hosts. Unknown required flags fail closed. */
+/* Current ABI 2 only, flags=0. Unknown required flags fail closed. */
 LancastHandle lancast_create_v2(const LancastConfig *config);
 uint32_t lancast_abi_version(void);
 /* Nonblocking. Continue polling until shutdown.completed, then destroy off the UI thread. */

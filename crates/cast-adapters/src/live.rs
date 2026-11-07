@@ -98,7 +98,7 @@ pub struct LiveResource {
     readers: Mutex<Vec<Reader>>,
     pulls: AtomicU64,
     ready: std::sync::atomic::AtomicBool,
-    ingress: Mutex<StartGate>,
+    ingress: Mutex<Option<StartGate>>,
     delivered: AtomicU64,
 }
 impl LiveResource {
@@ -112,7 +112,7 @@ impl LiveResource {
             readers: Mutex::new(Vec::new()),
             pulls: AtomicU64::new(0),
             ready: std::sync::atomic::AtomicBool::new(false),
-            ingress: Mutex::new(StartGate::default()),
+            ingress: Mutex::new(Some(StartGate::default())),
             delivered: AtomicU64::new(0),
         })
     }
@@ -149,15 +149,17 @@ impl LiveResource {
     pub fn write(&self, data: &[u8]) -> anyhow::Result<()> {
         ensure!(!self.stop.is_cancelled(), "RESOURCE_CLOSED");
         ts::validate(data)?;
-        if !self.ready()
-            && self
+        if !self.ready() {
+            let mut ingress = self
                 .ingress
                 .lock()
-                .map_err(|_| anyhow::anyhow!("RESOURCE_CLOSED"))?
-                .push(data)?
-                .is_some()
-        {
-            self.ready.store(true, Ordering::Release);
+                .map_err(|_| anyhow::anyhow!("RESOURCE_CLOSED"))?;
+            if let Some(gate) = ingress.as_mut()
+                && gate.push(data)?.is_some()
+            {
+                *ingress = None;
+                self.ready.store(true, Ordering::Release);
+            }
         }
         let mut readers = self
             .readers
