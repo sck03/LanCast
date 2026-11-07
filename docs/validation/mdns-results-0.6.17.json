@@ -1,0 +1,221 @@
+{
+  "version": "0.6.17",
+  "build_number": 25,
+  "date": "2026-11-07",
+  "source_commit": "59f68f4394ce4395413878a6c6249d0fd9948a39",
+  "regression": {
+    "test": "mdns_discovery_budget_prevents_host_shutdown",
+    "before": "64 resolved services with DNS labels <=63 bytes and TXT entries <=255 bytes triggered HOST_EVENT_QUEUE_OVERFLOW and cancelled the engine",
+    "after": "mDNS and DLNA share a 64-device, 96-KiB serialized-array budget; the devices event is delivered without cancelling the engine"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {
+      "passed": 104,
+      "failed": 0
+    },
+    "python_unittest": {
+      "passed": 54,
+      "failed": 0
+    },
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "architecture": "passed",
+    "markdown_links": {
+      "files": 29,
+      "targets": 216,
+      "missing": 0
+    }
+  },
+  "linux_core_validation": {
+    "run": 42382977201,
+    "all_features_passed": 105,
+    "no_default_features_passed": 73,
+    "legacy_passed": 74,
+    "note": "Linux includes an additional Unix-only file-descriptor integration test"
+  },
+  "cleanup": {
+    "mode": "clean",
+    "files": 2758,
+    "removed_bytes": 1512662737,
+    "paths": [
+      "target",
+      "scripts/__pycache__",
+      "scripts/tests/__pycache__"
+    ],
+    "recheck_reclaimable_bytes": 0,
+    "retained_ci_log": ".cache/ci-128434325929.log",
+    "retained_ci_log_reason": "Deletion rejected by automatic approval policy; ignored by Git"
+  },
+  "ci_retry": {
+    "run": 42382977218,
+    "first_attempt": "FFmpeg source download failed during TLS handshake: Connection reset by peer",
+    "action": "Reran failed jobs on the same source commit",
+    "result": "success"
+  },
+  "limitations": [
+    "No physical-device, CPU/RSS, end-to-end latency or two-hour soak measurements",
+    "No package download or device installation in this local session",
+    "Independent AirPlay protocol code was unchanged"
+  ],
+  "github_actions": [
+    {
+      "workflow": ".github/workflows/windows.yml",
+      "run": 42382977259,
+      "attempt": 1,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42382977259",
+      "artifacts": [
+        {
+          "name": "windows-synthetic-diagnostic-0.6.17-25-Release",
+          "bytes": 140001,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Windows-x64-0.6.17-25-Release",
+          "bytes": 5095442,
+          "expired": false
+        },
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 86986020,
+          "expired": false
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114446,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/android.yml",
+      "run": 42382977238,
+      "attempt": 1,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42382977238",
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Sender-0.6.17-25-Debug",
+          "bytes": 35373168,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.17-25-Debug",
+          "bytes": 38799857,
+          "expired": false
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.17-25-Debug",
+          "bytes": 56337733,
+          "expired": false
+        },
+        {
+          "name": "android-build-reports-0.6.17-25-Debug",
+          "bytes": 10222874,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.17-25-Debug",
+          "bytes": 34309533,
+          "expired": false
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.17-25-Debug",
+          "bytes": 12570287,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.17-25-Debug",
+          "bytes": 30479894,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/macos.yml",
+      "run": 42382977185,
+      "attempt": 1,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42382977185",
+      "artifacts": [
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.17-25-Release",
+          "bytes": 22353460,
+          "expired": false
+        },
+        {
+          "name": "apple-macos-build-reports-0.6.17-25-Release",
+          "bytes": 86931,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/ios.yml",
+      "run": 42382977298,
+      "attempt": 1,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42382977298",
+      "artifacts": [
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.17-25-Debug",
+          "bytes": 54821447,
+          "expired": false
+        },
+        {
+          "name": "apple-ios-build-reports-0.6.17-25-Debug",
+          "bytes": 15554,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/tvos.yml",
+      "run": 42382977195,
+      "attempt": 1,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42382977195",
+      "artifacts": [
+        {
+          "name": "apple-tvos-build-reports-0.6.17-25-Debug",
+          "bytes": 15531,
+          "expired": false
+        },
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.17-25-Debug",
+          "bytes": 20087617,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/core-linux.yml",
+      "run": 42382977201,
+      "attempt": 1,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42382977201",
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 117187,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/native-linux.yml",
+      "run": 42382977218,
+      "attempt": 2,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42382977218",
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6201,
+          "expired": false
+        }
+      ]
+    }
+  ]
+}
