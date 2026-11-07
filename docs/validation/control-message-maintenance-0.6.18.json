@@ -1,0 +1,277 @@
+{
+  "version": "0.6.18",
+  "build_number": 26,
+  "date": "2026-11-08",
+  "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+  "regressions": {
+    "before": [
+      "decoded_messages_reserve_space_for_host_delivery failed against the old parser: a 128-KiB message left no space for the host envelope",
+      "decoded_number_expansion_is_bounded failed against the old parser: roughly 50 KiB of compact numbers expanded beyond 160 KiB"
+    ],
+    "after": [
+      "Text and Value message entries enforce a 127-KiB canonical JSON budget",
+      "A malformed oversized remote message disconnects only its WebSocket client, without cancelling the engine",
+      "The maximum legal message plus receiver fingerprint fits the 128-KiB host event budget",
+      "Oversized outgoing messages are rejected before writing any socket bytes",
+      "Interrupted close retains the client task until a later close joins it; repeated close is safe",
+      "Typed statistics coalesce independently per session while preserving control order"
+    ]
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {
+      "passed": 111,
+      "failed": 0
+    },
+    "rust_no_default_features": {
+      "passed": 79,
+      "failed": 0
+    },
+    "rust_legacy": {
+      "passed": 80,
+      "failed": 0
+    },
+    "python_unittest": {
+      "passed": 54,
+      "failed": 0
+    },
+    "python_optimized_unittest": {
+      "passed": 54,
+      "failed": 0
+    },
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "architecture": "passed",
+    "markdown_links": {
+      "files": 34,
+      "targets": 222,
+      "missing": 0
+    }
+  },
+  "resource_changes": [
+    "Control messages serialize directly into host envelopes without intermediate Value trees",
+    "Statistics use UUID keys instead of allocated string keys",
+    "Receiver signals move into the outgoing queue without cloning the full message",
+    "A shared bounded writer stops oversized JSON serialization before completion",
+    "No new runtime dependency, thread or queue"
+  ],
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 1975879443,
+    "after_bytes": 21440608,
+    "reclaimable_bytes": 1954438835,
+    "removed_bytes": 1954438835,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2793,
+        "bytes": 1954021953,
+        "fingerprint": "281a047be4243d4a657f3df161b96aeb350955e8d115c8c3294f2dda8c09dd7f"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 30,
+        "bytes": 243606,
+        "fingerprint": "4a64b28c2391039cb9572b94f032204c370eae712502f9f1adecf90aa588e5d4"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 24,
+        "bytes": 173276,
+        "fingerprint": "7e4d36433c730bd3709c48784d1926cf70cdb1f4b2e18815390e424371448ea2"
+      }
+    ],
+    "files": 2847,
+    "recheck_reclaimable_bytes": 0
+  },
+  "limitations": [
+    "No physical-device, CPU/RSS, end-to-end latency or two-hour soak measurements",
+    "No package download or device installation in this local session",
+    "Independent AirPlay protocol code was unchanged"
+  ],
+  "github_actions": [
+    {
+      "workflow": ".github/workflows/macos.yml",
+      "run": 42391619708,
+      "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42391619708",
+      "artifacts": [
+        {
+          "name": "apple-macos-build-reports-0.6.18-26-Release",
+          "bytes": 86945,
+          "expired": false
+        },
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.18-26-Release",
+          "bytes": 22354953,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/android.yml",
+      "run": 42391619573,
+      "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42391619573",
+      "artifacts": [
+        {
+          "name": "android-sender-native-relink-sources-0.6.18-26-Debug",
+          "bytes": 12574314,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Sender-0.6.18-26-Debug",
+          "bytes": 35373168,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.18-26-Debug",
+          "bytes": 38800101,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.18-26-Debug",
+          "bytes": 30480255,
+          "expired": false
+        },
+        {
+          "name": "android-build-reports-0.6.18-26-Debug",
+          "bytes": 10222608,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.18-26-Debug",
+          "bytes": 34309778,
+          "expired": false
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.18-26-Debug",
+          "bytes": 56343075,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/core-linux.yml",
+      "run": 42391619588,
+      "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42391619588",
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 117188,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/native-linux.yml",
+      "run": 42391619607,
+      "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42391619607",
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6201,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/tvos.yml",
+      "run": 42391619531,
+      "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42391619531",
+      "artifacts": [
+        {
+          "name": "apple-tvos-build-reports-0.6.18-26-Debug",
+          "bytes": 15534,
+          "expired": false
+        },
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.18-26-Debug",
+          "bytes": 20087652,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/ios.yml",
+      "run": 42391619785,
+      "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42391619785",
+      "artifacts": [
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.18-26-Debug",
+          "bytes": 54823413,
+          "expired": false
+        },
+        {
+          "name": "apple-ios-build-reports-0.6.18-26-Debug",
+          "bytes": 15556,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "workflow": ".github/workflows/windows.yml",
+      "run": 42391619727,
+      "source_commit": "4f71d697ebca3cbed31fbb073c8cfeff4f5251a9",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42391619727",
+      "artifacts": [
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114448,
+          "expired": false
+        },
+        {
+          "name": "LanCast-Windows-x64-0.6.18-26-Release",
+          "bytes": 5097479,
+          "expired": false
+        },
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 86989538,
+          "expired": false
+        },
+        {
+          "name": "windows-synthetic-diagnostic-0.6.18-26-Release",
+          "bytes": 140002,
+          "expired": false
+        }
+      ]
+    }
+  ],
+  "linux_core_validation": {
+    "run": 42391619588,
+    "all_features_passed": 112,
+    "no_default_features_passed": 80,
+    "legacy_passed": 81,
+    "note": "Linux includes an additional Unix-only file-descriptor integration test"
+  }
+}
