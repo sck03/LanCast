@@ -7,6 +7,8 @@ use std::fmt;
 use uuid::Uuid;
 
 pub const MAX_FRAME: usize = 128 * 1024;
+// Reserve room for the host envelope and receiver-owned fingerprint enrichment.
+pub const MAX_MESSAGE: usize = MAX_FRAME - 1024;
 pub const MAX_SDP: usize = 96 * 1024;
 pub const MAX_ICE: usize = 4096;
 
@@ -59,9 +61,7 @@ impl Message {
         Ok(value)
     }
     pub(crate) fn from_value(value: Value) -> anyhow::Result<Self> {
-        // A Value cannot contain duplicate keys. Count its wire size without
-        // allocating/reparsing a temporary JSON string for native commands.
-        json_size(&value, MAX_FRAME)?;
+        // A Value cannot contain duplicate keys; move it into the typed message.
         let message: Self = serde_json::from_value(value)?;
         message.validate()?;
         Ok(message)
@@ -93,6 +93,9 @@ impl Message {
                 "INVALID_RTC_STATE"
             );
         }
+        // Raw text length is insufficient: numbers, UUIDs and omitted fields
+        // may grow when serialized. Both entry points use the canonical size.
+        json_size(self, MAX_MESSAGE)?;
         Ok(())
     }
     pub fn string(&self, field: &str) -> anyhow::Result<&str> {
@@ -104,25 +107,43 @@ impl Message {
 
 /// Count escaped wire bytes without allocating a second serialized copy.
 pub(crate) fn json_size(value: &impl Serialize, limit: usize) -> serde_json::Result<usize> {
-    let mut writer = FrameLimit { written: 0, limit };
+    let mut writer = LimitedWriter::new(std::io::sink(), limit);
     serde_json::to_writer(&mut writer, value)?;
     Ok(writer.written)
 }
 
-struct FrameLimit {
+/// Stop serialization at the budget instead of first allocating an oversized string.
+pub(crate) fn json_text(value: &impl Serialize, limit: usize) -> serde_json::Result<String> {
+    let mut writer = LimitedWriter::new(Vec::new(), limit);
+    serde_json::to_writer(&mut writer, value)?;
+    Ok(String::from_utf8(writer.inner).expect("JSON serialization produces UTF-8"))
+}
+
+struct LimitedWriter<W> {
+    inner: W,
     written: usize,
     limit: usize,
 }
-impl std::io::Write for FrameLimit {
+impl<W> LimitedWriter<W> {
+    fn new(inner: W, limit: usize) -> Self {
+        Self {
+            inner,
+            written: 0,
+            limit,
+        }
+    }
+}
+impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         if bytes.len() > self.limit - self.written {
             return Err(std::io::Error::other("FRAME_TOO_LARGE"));
         }
-        self.written += bytes.len();
-        Ok(bytes.len())
+        let written = self.inner.write(bytes)?;
+        self.written += written;
+        Ok(written)
     }
     fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
+        self.inner.flush()
     }
 }
 
@@ -191,6 +212,36 @@ impl<'de> Deserialize<'de> for Unique {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decoded_messages_reserve_space_for_host_delivery() {
+        let mut message = Message::new("session.state", serde_json::json!({"padding":""}));
+        let overhead = serde_json::to_string(&message).unwrap().len();
+        message.body["padding"] = Value::String("x".repeat(MAX_FRAME - overhead));
+        let wire = serde_json::to_string(&message).unwrap();
+        assert_eq!(wire.len(), MAX_FRAME);
+        assert!(
+            Message::parse(&wire).is_err(),
+            "no room for the host envelope"
+        );
+        assert!(Message::from_value(serde_json::to_value(message).unwrap()).is_err());
+    }
+
+    #[test]
+    fn decoded_number_expansion_is_bounded() {
+        let wire = serde_json::to_string(&Message::new("session.state", serde_json::json!({})))
+            .unwrap()
+            .replace(
+                r#""body":{}"#,
+                &format!(r#""body":{{"values":[{}0]}}"#, "1e15,".repeat(10_000)),
+            );
+        assert!(wire.len() < MAX_FRAME);
+        assert!(
+            Message::parse(&wire).is_err(),
+            "compact numbers expand past the event limit"
+        );
+    }
+
     #[test]
     fn recursive_values_keep_their_types_and_contents() {
         let body = r#"{"text":"电视\n\u7535\"\\","nested":[null,true,false,-1,1.25,-0.0,18446744073709551615,{"key":[] }]}"#;

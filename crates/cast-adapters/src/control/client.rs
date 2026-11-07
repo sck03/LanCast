@@ -2,7 +2,7 @@
 use super::wire::{receive, send, wire_config};
 use crate::{
     auth::{self, Identity},
-    events::{Events, event},
+    events::{self, Events, event},
     protocol::Message,
     rtc_recovery::{CAPABILITY, RtcRecovery},
 };
@@ -41,11 +41,12 @@ impl Client {
         self.sender.is_closed()
     }
 
-    pub(crate) async fn close(mut self) {
+    pub(crate) async fn close(&mut self) {
         self.cancel.cancel();
-        if let Some(task) = self.task.take() {
+        if let Some(task) = &mut self.task {
             let _ = task.await;
         }
+        self.task = None;
     }
 
     pub(crate) async fn connect(
@@ -122,7 +123,7 @@ impl Client {
                                 else if request.body["state"] != "connected" {
                                     let stop = request.reply("session.stop", json!({"reason":"RTC_CONNECTION_LOST"}));
                                     send(&mut ws, &stop).await?;
-                                    event(&events, "message", serde_json::to_value(stop)?);
+                                    events::message(&events, &stop);
                                 }
                                 continue;
                             }
@@ -155,14 +156,14 @@ impl Client {
                             }
                             if matches!(response.kind.as_str(), "rtc.answer" | "rtc.ice") && recovery.as_ref().is_some_and(|r| !r.accepts(&response)) { continue; }
                             if response.kind == "session.stop" || response.kind == "error" { recovery = None; }
-                            event(&events, "message", serde_json::to_value(response)?);
+                            events::message(&events, &response);
                         }
                         _ = tick.tick() => {
                             if rx.is_closed() { break; }
                             ensure!(last_seen.elapsed() < Duration::from_secs(15), "HEARTBEAT_TIMEOUT");
                             if let Some(message) = recovery.as_mut().and_then(|r| r.poll(epoch.elapsed().as_millis() as u64)) {
                                 if message.kind == "session.stop" { send(&mut ws, &message).await?; recovery = None; }
-                                event(&events, "message", serde_json::to_value(message)?);
+                                events::message(&events, &message);
                             }
                         }
                     }
@@ -196,7 +197,78 @@ impl Drop for Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::{FutureExt, SinkExt};
     use tokio_tungstenite::tungstenite::protocol::Role;
+
+    #[tokio::test]
+    async fn interrupted_close_keeps_the_worker_until_cleanup_finishes() {
+        let (sender, _receiver) = mpsc::channel(1);
+        let cancel = CancellationToken::new();
+        let worker_cancel = cancel.clone();
+        let (events, output) = crate::events::channel(4, CancellationToken::new());
+        let mut client = Client {
+            sender,
+            cancel,
+            task: Some(tokio::spawn(async move {
+                worker_cancel.cancelled().await;
+                tokio::task::yield_now().await;
+                event(&events, "disconnected", json!({"reason":"closed"}));
+            })),
+        };
+        // The command owner can cancel a reconnect while joining the previous client.
+        assert!(client.close().now_or_never().is_none());
+        assert!(client.task.is_some());
+        assert!(output.try_recv().is_err());
+        client.close().await;
+        assert!(client.task.is_none());
+        assert!(output.try_recv().unwrap().contains("disconnected"));
+        client.close().await;
+        assert_eq!(
+            output.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Disconnected)
+        );
+    }
+
+    #[tokio::test]
+    async fn oversized_remote_message_closes_only_its_connection() {
+        let (client, peer) = tokio::io::duplex(1024);
+        let client =
+            WebSocketStream::from_raw_socket(client, Role::Client, Some(wire_config())).await;
+        let mut peer =
+            WebSocketStream::from_raw_socket(peer, Role::Server, Some(wire_config())).await;
+        let shutdown = CancellationToken::new();
+        let (events, output) = crate::events::channel(4, shutdown.clone());
+        let mut client = Client::spawn(client, events);
+        // About 50 KiB on the wire, but over 160 KiB when normalized.
+        let wire = serde_json::to_string(&Message::new("session.state", json!({})))
+            .unwrap()
+            .replace(
+                r#""body":{}"#,
+                &format!(r#""body":{{"values":[{}0]}}"#, "1e15,".repeat(10_000)),
+            );
+        peer.send(tokio_tungstenite::tungstenite::Message::Text(wire.into()))
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !client.is_closed() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        client.close().await;
+        assert!(
+            !shutdown.is_cancelled(),
+            "peer input terminated the entire engine"
+        );
+        let event: serde_json::Value = serde_json::from_str(&output.try_recv().unwrap()).unwrap();
+        assert_eq!(event["type"], "disconnected");
+        assert_eq!(event["body"]["reason"], "connection_lost");
+        assert_eq!(
+            output.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Disconnected)
+        );
+    }
 
     #[test]
     fn signal_delivery_failure_cancels_the_connection() {
@@ -230,7 +302,7 @@ mod tests {
         let (stream, mut unresponsive_peer) = tokio::io::duplex(16);
         let ws = WebSocketStream::from_raw_socket(stream, Role::Client, Some(wire_config())).await;
         let (events, output) = crate::events::channel(16, CancellationToken::new());
-        let client = Client::spawn(ws, events);
+        let mut client = Client::spawn(ws, events);
         client
             .send(Message::new("session.start", json!({"mode":"file"})))
             .unwrap();

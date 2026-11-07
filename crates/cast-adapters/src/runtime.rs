@@ -369,9 +369,10 @@ impl Runtime {
                     self.client.as_ref().is_none_or(Client::is_closed),
                     "ALREADY_CONNECTED"
                 );
-                if let Some(client) = self.client.take() {
+                if let Some(client) = &mut self.client {
                     client.close().await;
                 }
+                self.client = None;
                 let client = Client::connect(
                     self.identity.clone(),
                     string(&c, "address")?,
@@ -411,9 +412,10 @@ impl Runtime {
                         let _ = task.await;
                     }
                 }
-                if let Some(client) = self.client.take() {
+                if let Some(client) = &mut self.client {
                     client.close().await;
                 }
+                self.client = None;
                 for resource in self.resources.drain(..) {
                     resource.revoke();
                 }

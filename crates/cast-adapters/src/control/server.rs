@@ -3,7 +3,7 @@ use super::wire::{receive, send, wire_config};
 use crate::{
     auth::{self, Identity, Invitation},
     capabilities::Profile,
-    events::{Events, event},
+    events::{self, Events, event},
     protocol::Message,
     rtc_recovery::CAPABILITY,
     session::Session,
@@ -108,6 +108,7 @@ impl Server {
             }
             active.ready()?;
         }
+        let stopping = msg.kind == "session.stop";
         let delivery = {
             let connections = self.connections.lock().await;
             let connection = connections
@@ -115,7 +116,7 @@ impl Server {
                 .context("CONTROL_CONNECTION_CLOSED")?;
             let result = connection
                 .sender
-                .try_send(msg.clone())
+                .try_send(msg)
                 .context("SIGNAL_QUEUE_FULL_OR_CLOSED");
             if result.is_err() {
                 // Never retain a live session whose stop/signal could not be delivered.
@@ -123,7 +124,7 @@ impl Server {
             }
             result
         };
-        if msg.kind == "session.stop" {
+        if stopping {
             active.stop();
             *session = None;
         }
@@ -430,7 +431,7 @@ async fn handle_request(
         "session.stop" => {}
         _ => anyhow::bail!("UNKNOWN_MESSAGE"),
     }
-    event(&server.events, "message", serde_json::to_value(&request)?);
+    events::message(&server.events, request);
     let response = request.reply("ack", json!({}));
     session.remember(request.id, response.clone(), Instant::now());
     if request.kind == "session.stop" {

@@ -1,6 +1,8 @@
 //! Bounded host mailbox. Telemetry coalesces; overflow revokes the whole engine.
 //! Producers never wait for the UI, and a terminal error always remains observable.
-use serde_json::{Value, json};
+use crate::protocol::{Message, json_text};
+use serde::Serialize;
+use serde_json::json;
 use std::{
     collections::VecDeque,
     sync::{
@@ -11,13 +13,19 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 const MAX_BYTES: usize = 2 * 1024 * 1024;
 const MAX_EVENT: usize = 128 * 1024;
 
 struct Entry {
     text: String,
-    telemetry: Option<String>,
+    telemetry: Option<Telemetry>,
+}
+#[derive(PartialEq)]
+enum Telemetry {
+    LiveStats,
+    Statistics(Option<Uuid>),
 }
 #[derive(Default)]
 struct Queue {
@@ -105,22 +113,39 @@ impl EventInbox {
     }
 }
 
-fn telemetry_key(value: &Value) -> Option<String> {
-    match value["type"].as_str()? {
-        "live.stats" => Some("live.stats".into()),
-        "message" if value["body"]["type"] == "statistics" => {
-            Some(format!("statistics:{}", value["body"]["sessionId"]))
-        }
-        _ => None,
-    }
+#[derive(Serialize)]
+struct HostEvent<'a, T> {
+    #[serde(rename = "type")]
+    kind: &'a str,
+    body: T,
 }
-pub(crate) fn emit(events: &Events, value: Value) {
-    let text = value.to_string();
-    let telemetry = telemetry_key(&value);
+
+fn overflow(events: &Events, queue: &mut Queue) {
+    // Replace stale signals with a reserved terminal event and revoke native resources.
+    let terminal = json!({"type":"error","body":{"code":"HOST_EVENT_QUEUE_OVERFLOW","terminal":true,"requiresNewConsent":true}}).to_string();
+    queue.entries.clear();
+    queue.bytes = terminal.len();
+    queue.entries.push_back(Entry {
+        text: terminal,
+        telemetry: None,
+    });
+    queue.failed = true;
+    events.0.shutdown.cancel();
+    events.0.ready.notify_all();
+}
+
+fn emit(events: &Events, kind: &str, body: impl Serialize, telemetry: Option<Telemetry>) {
+    let text = json_text(&HostEvent { kind, body }, MAX_EVENT);
     let mut queue = events.0.queue.lock().unwrap_or_else(|e| e.into_inner());
     if queue.failed || queue.closed {
         return;
     }
+    let Ok(text) = text else {
+        if telemetry.is_none() {
+            overflow(events, &mut queue);
+        }
+        return;
+    };
     if let Some(key) = &telemetry {
         if let Some(index) = queue
             .entries
@@ -131,10 +156,7 @@ pub(crate) fn emit(events: &Events, value: Value) {
             queue.bytes -= old.text.len();
         }
         // Telemetry may be omitted when full; it cannot evict control events.
-        if text.len() > MAX_EVENT
-            || queue.entries.len() >= events.0.capacity
-            || queue.bytes + text.len() > MAX_BYTES
-        {
+        if queue.entries.len() >= events.0.capacity || queue.bytes + text.len() > MAX_BYTES {
             return;
         }
     }
@@ -152,33 +174,77 @@ pub(crate) fn emit(events: &Events, value: Value) {
             queue.bytes -= old.text.len();
         }
     }
-    if text.len() > MAX_EVENT
-        || queue.entries.len() >= events.0.capacity
-        || queue.bytes + text.len() > MAX_BYTES
-    {
-        // Replace stale signals with a reserved terminal event and revoke native resources.
-        let terminal = json!({"type":"error","body":{"code":"HOST_EVENT_QUEUE_OVERFLOW","terminal":true,"requiresNewConsent":true}}).to_string();
-        queue.entries.clear();
-        queue.bytes = terminal.len();
-        queue.entries.push_back(Entry {
-            text: terminal,
-            telemetry: None,
-        });
-        queue.failed = true;
-        events.0.shutdown.cancel();
-    } else {
-        queue.bytes += text.len();
-        queue.entries.push_back(Entry { text, telemetry });
+    if queue.entries.len() >= events.0.capacity || queue.bytes + text.len() > MAX_BYTES {
+        overflow(events, &mut queue);
+        return;
     }
+    queue.bytes += text.len();
+    queue.entries.push_back(Entry { text, telemetry });
     events.0.ready.notify_all();
 }
-pub(crate) fn event(events: &Events, kind: &str, body: Value) {
-    emit(events, json!({"type":kind,"body":body}));
+pub(crate) fn event(events: &Events, kind: &str, body: impl Serialize) {
+    emit(
+        events,
+        kind,
+        body,
+        (kind == "live.stats").then_some(Telemetry::LiveStats),
+    );
+}
+pub(crate) fn message(events: &Events, message: &Message) {
+    let telemetry =
+        (message.kind == "statistics").then_some(Telemetry::Statistics(message.session_id));
+    emit(events, "message", message, telemetry);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
+
+    #[test]
+    fn maximum_message_with_receiver_enrichment_fits_the_host_event() {
+        use crate::protocol::{MAX_MESSAGE, json_size};
+        let shutdown = CancellationToken::new();
+        let (events, inbox) = channel(4, shutdown.clone());
+        let mut body = Message::new(
+            "file.load",
+            json!({"padding":"","url":"https://127.0.0.1/media/token","mime":"video/mp4"}),
+        );
+        let overhead = json_size(&body, MAX_MESSAGE).unwrap();
+        body.body["padding"] = Value::String("x".repeat(MAX_MESSAGE - overhead));
+        let wire = json_text(&body, MAX_MESSAGE).unwrap();
+        assert_eq!(wire.len(), MAX_MESSAGE);
+        let mut body = Message::parse(&wire).unwrap();
+        Message::from_value(serde_json::to_value(&body).unwrap()).unwrap();
+        body.body["fingerprint"] = Value::String("a".repeat(64));
+        message(&events, &body);
+        assert!(!shutdown.is_cancelled());
+        let delivered = inbox.try_recv().unwrap();
+        assert!(delivered.len() <= MAX_EVENT);
+        let delivered: Value = serde_json::from_str(&delivered).unwrap();
+        assert_eq!(delivered["type"], "message");
+        assert_eq!(delivered["body"], serde_json::to_value(body).unwrap());
+    }
+
+    #[test]
+    fn typed_statistics_coalesce_per_session_and_preserve_control_order() {
+        let shutdown = CancellationToken::new();
+        let (events, inbox) = channel(4, shutdown.clone());
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        for (session, n) in [(first, 1), (second, 2), (first, 3)] {
+            let mut stats = Message::new("statistics", json!({"n":n}));
+            stats.session_id = Some(session);
+            message(&events, &stats);
+        }
+        event(&events, "stopped", json!({}));
+        for expected in [2, 3] {
+            let event: Value = serde_json::from_str(&inbox.try_recv().unwrap()).unwrap();
+            assert_eq!(event["body"]["body"]["n"], expected);
+        }
+        assert!(inbox.try_recv().unwrap().contains("stopped"));
+        assert!(!shutdown.is_cancelled());
+    }
 
     #[test]
     fn overflow_revokes_engine_and_keeps_one_terminal_event() {
@@ -202,11 +268,7 @@ mod tests {
         let (events, inbox) = channel(3, stop.clone());
         event(&events, "session.started", json!({}));
         for n in 0..1000 {
-            event(
-                &events,
-                "message",
-                json!({"type":"statistics","sessionId":"a","body":{"n":n}}),
-            );
+            message(&events, &Message::new("statistics", json!({"n":n})));
         }
         event(&events, "message", json!({"type":"session.stop"}));
         event(&events, "live.stats", json!({"pulls":1}));

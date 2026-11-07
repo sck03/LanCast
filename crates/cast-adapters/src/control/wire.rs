@@ -1,5 +1,5 @@
 //! Bounded WSS framing shared by both control roles.
-use crate::protocol::{MAX_FRAME, Message};
+use crate::protocol::{MAX_FRAME, MAX_MESSAGE, Message, json_text};
 use anyhow::Context;
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
@@ -22,7 +22,7 @@ pub(super) async fn send<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin
     ws: &mut WebSocketStream<S>,
     message: &Message,
 ) -> anyhow::Result<()> {
-    send_frame(ws, Frame::Text(serde_json::to_string(message)?.into())).await
+    send_frame(ws, Frame::Text(json_text(message, MAX_MESSAGE)?.into())).await
 }
 async fn send_frame<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     ws: &mut WebSocketStream<S>,
@@ -48,6 +48,26 @@ pub(super) async fn receive<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Un
 mod tests {
     use super::*;
     use tokio_tungstenite::tungstenite::protocol::Role;
+
+    #[tokio::test]
+    async fn oversized_outgoing_message_is_rejected_before_any_socket_write() {
+        use tokio::io::AsyncReadExt;
+        let (client, mut peer) = tokio::io::duplex(1024);
+        let mut client =
+            WebSocketStream::from_raw_socket(client, Role::Client, Some(wire_config())).await;
+        let message = Message::new(
+            "session.state",
+            serde_json::json!({"padding":"x".repeat(MAX_MESSAGE)}),
+        );
+        assert!(
+            send(&mut client, &message)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("FRAME_TOO_LARGE")
+        );
+        assert!(futures_util::FutureExt::now_or_never(peer.read(&mut [0])).is_none());
+    }
 
     #[tokio::test]
     async fn large_sdp_crosses_small_transport_and_read_buffers() {
