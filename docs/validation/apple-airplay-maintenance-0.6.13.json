@@ -1,0 +1,289 @@
+{
+  "version": "0.6.13",
+  "build_number": 21,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "baseline_commit": "4abe32c",
+  "source_commit": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+  "local_validation": {
+    "architecture": "passed",
+    "rustfmt_both_workspaces": "passed",
+    "clippy_both_workspaces_all_targets_deny_warnings": "passed",
+    "rust_core_all_features_tests": 84,
+    "airplay_tests": 41,
+    "python_tests": 54,
+    "production_partial_video_deadline": "passed: real encrypted session closes with VIDEO_TRANSPORT_FAILED",
+    "documentation_links": "passed"
+  },
+  "resource_changes": {
+    "airplay_lockfile_packages_before": 199,
+    "airplay_lockfile_packages_after": 184,
+    "video_initial_buffer_bytes_before": 2097152,
+    "video_initial_buffer_bytes_after": 65536,
+    "audio_initial_buffer_bytes_before": 262144,
+    "audio_initial_buffer_bytes_after": 16384,
+    "new_runtime_dependencies": 0,
+    "new_background_tasks": 0,
+    "runtime_memory_or_latency_benchmark": null
+  },
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 2569715749,
+    "after_bytes": 20671401,
+    "reclaimable_bytes": 2549044348,
+    "removed_bytes": 2549044348,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2731,
+        "bytes": 1503772359,
+        "fingerprint": "67325f051a391cb834066de45812f5f7572a07446fd17e437766bc22e6a698cd"
+      },
+      {
+        "path": "airplay-native/target",
+        "category": "build",
+        "files": 2286,
+        "bytes": 1045063548,
+        "fingerprint": "bcb3be52b0f3f9b4fd4050a5fe97c30838f61c76bcc78f44c17d77dc67d01c0f"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 15,
+        "bytes": 121803,
+        "fingerprint": "ba91ade3b13669c979e81b8fc417358d15cf2a41208cc3e8731ebb7cf58d6935"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 12,
+        "bytes": 86638,
+        "fingerprint": "134c5746658d8e4722d7875bb17da0ed17b34f3aa0cf0633ddd5d27b65ae414a"
+      }
+    ]
+  },
+  "upstream_checked": {
+    "rairplay": "7a0ec4036905afe0c8de16881d85d5846dc938a7",
+    "UxPlay": "05b0275cb1b726592700e47a6e0307544b3d3a52",
+    "CastBay": "8834aeff1d9c59131dbd9ae7ef2e90da0ce30163",
+    "shairplay-rust": "34ff8ad5e91b081a78fd439c5628d88ea9493f33",
+    "android-airplay-server": "a46cca0a6a1274e9e33c0e750f0f1c1eb1d881ea"
+  },
+  "platform_workflows": [
+    {
+      "workflow": "airplay.yml",
+      "run": 42347983931,
+      "sha": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42347983931"
+    },
+    {
+      "workflow": "android.yml",
+      "run": 42347983986,
+      "sha": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42347983986"
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 42347983945,
+      "sha": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42347983945"
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 42347984005,
+      "sha": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42347984005"
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 42347983948,
+      "sha": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42347983948"
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 42347983950,
+      "sha": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42347983950"
+    },
+    {
+      "workflow": "windows.yml",
+      "run": 42347984083,
+      "sha": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42347984083"
+    }
+  ],
+  "not_run": [
+    "Physical iPhone/Android TV AirPlay interoperability",
+    "Physical Mac capture and long-duration performance measurements"
+  ],
+  "apple_build_evidence": [
+    {
+      "run": 42347983948,
+      "artifacts": [
+        {
+          "name": "apple-macos-build-reports-0.6.13-21-Release",
+          "bytes": 86953
+        },
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.13-21-Release",
+          "bytes": 22322856
+        }
+      ],
+      "tests": [
+        "2026-11-07T06:42:22.4272920Z \t Executed 3 tests, with 0 failures (0 unexpected) in 0.005 (0.005) seconds",
+        "2026-11-07T06:42:22.4315260Z \t Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds",
+        "2026-11-07T06:42:22.4318970Z \t Executed 7 tests, with 0 failures (0 unexpected) in 0.006 (0.007) seconds",
+        "2026-11-07T06:42:22.4322190Z \t Executed 7 tests, with 0 failures (0 unexpected) in 0.006 (0.009) seconds",
+        "2026-11-07T06:43:23.2574850Z \t Executed 3 tests, with 0 failures (0 unexpected) in 0.022 (0.024) seconds",
+        "2026-11-07T06:43:23.3116250Z \t Executed 2 tests, with 0 failures (0 unexpected) in 0.004 (0.007) seconds",
+        "2026-11-07T06:43:25.2002120Z \t Executed 2 tests, with 0 failures (0 unexpected) in 1.799 (1.799) seconds",
+        "2026-11-07T06:43:25.3040120Z \t Executed 4 tests, with 0 failures (0 unexpected) in 0.023 (0.025) seconds",
+        "2026-11-07T06:43:25.3244390Z \t Executed 11 tests, with 0 failures (0 unexpected) in 1.848 (1.856) seconds",
+        "2026-11-07T06:43:25.3419480Z \t Executed 11 tests, with 0 failures (0 unexpected) in 1.848 (1.857) seconds"
+      ]
+    },
+    {
+      "run": 42347984005,
+      "artifacts": [
+        {
+          "name": "apple-ios-build-reports-0.6.13-21-Debug",
+          "bytes": 15556
+        },
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.13-21-Debug",
+          "bytes": 54764145
+        }
+      ]
+    },
+    {
+      "run": 42347983950,
+      "artifacts": [
+        {
+          "name": "apple-tvos-build-reports-0.6.13-21-Debug",
+          "bytes": 15533
+        },
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.13-21-Debug",
+          "bytes": 20053074
+        }
+      ]
+    }
+  ],
+  "macos_build_report": {
+    "commit": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+    "platform": "macos",
+    "role": "sender-receiver",
+    "rustFeatures": [
+      "sender",
+      "legacy"
+    ],
+    "webrtcVersion": "150.7871.02",
+    "webrtcSha256": "a523cd141d2aa6c3638d49fea1f72b0aafd28a8818c35fc240e08418da3d2fda",
+    "buildConfig": {
+      "platform": "macos",
+      "version": "0.6.13",
+      "build_number": 21,
+      "configuration": "Release",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "e05cd6598747fb572e76dc1f531daeb162f1539f",
+      "source_dirty": false,
+      "source_tree_sha256": "cd2b5865c63008de53a6f74c041c2f692089244b54b8f1dab5fc837edf3b0aae",
+      "artifact_label": "0.6.13-21-Release",
+      "signing": "development or unsigned; no production signing credentials used"
+    },
+    "xcodegenVersion": "2.44.1",
+    "xcodegenSha256": "a2e905fb68446e9bb4008cdfe2e13e3f176d0cbcca828b71770f8e53fca91b73",
+    "xcode": "Xcode 16.4\nBuild version 16F6",
+    "rust": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "targets": [
+      [
+        "macos",
+        [
+          "aarch64-apple-darwin",
+          "x86_64-apple-darwin"
+        ]
+      ]
+    ],
+    "deviceSigning": "unsigned; user signing required",
+    "binaries": [
+      {
+        "product": "Release",
+        "kind": "Universal",
+        "architectures": [
+          "x86_64",
+          "arm64"
+        ]
+      }
+    ],
+    "scope": "Builds and automated tests only; no physical device or performance acceptance",
+    "artifacts": [
+      {
+        "file": "LanCastMac-Sender-Receiver-Universal-0.6.13-21-Release.zip",
+        "product": "Release",
+        "kind": "Universal",
+        "bytes": 22302556,
+        "sha256": "5608595d7af0214b39e2410d194e328cee17d9f33e6447d9e123ae3f4f45cdf0"
+      }
+    ]
+  },
+  "android_artifacts": [
+    {
+      "name": "android-sender-native-relink-sources-0.6.13-21-Debug",
+      "bytes": 12300052
+    },
+    {
+      "name": "LanCast-Android-Sender-0.6.13-21-Debug",
+      "bytes": 35307632
+    },
+    {
+      "name": "LanCast-Android-Receiver-Legacy-0.6.13-21-Debug",
+      "bytes": 30406302
+    },
+    {
+      "name": "airplay-source-and-dependencies-0.6.13-21-Debug",
+      "bytes": 56318356
+    },
+    {
+      "name": "android-build-reports-0.6.13-21-Debug",
+      "bytes": 10221976
+    },
+    {
+      "name": "LanCast-Android-Receiver-Standard-0.6.13-21-Debug",
+      "bytes": 34251942
+    },
+    {
+      "name": "LanCast-Android-Receiver-AirPlay-0.6.13-21-Debug",
+      "bytes": 38742262
+    }
+  ],
+  "macos_package_verification": {
+    "sha256": "5608595d7af0214b39e2410d194e328cee17d9f33e6447d9e123ae3f4f45cdf0",
+    "minimum_os": "15.0",
+    "version": "0.6.13",
+    "build": "21",
+    "verified": "passed"
+  },
+  "unchanged_workflows_not_triggered": [
+    "native-linux.yml"
+  ]
+}
