@@ -4,6 +4,7 @@
   "date": "2026-11-07",
   "timezone": "Asia/Shanghai",
   "baseline_commit": "3d8478b",
+  "source_commit": "a3a8c14efb87f59708e77a451512def99079a09b",
   "local_validation": {
     "architecture": "passed",
     "cargo_fmt": "passed",
@@ -46,10 +47,69 @@
     "files_deleted": 2893,
     "bytes_deleted": 2202111400,
     "paths": ["target", ".cache/local-joins", "scripts/__pycache__", "scripts/tests/__pycache__"],
+    "remaining_known_generated": [],
     "note": "Known ignored outputs were previewed and revalidated with workspace_cleanup; source, licenses, Git history and original media samples are preserved."
   },
-  "github_actions": [],
-  "github_actions_status": "pending source push",
+  "github_actions": [
+    {
+      "workflow": "windows.yml",
+      "run": 42343614153,
+      "sha": "a3a8c14efb87f59708e77a451512def99079a09b",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42343614153"
+    },
+    {
+      "workflow": "android.yml",
+      "run": 42343614262,
+      "sha": "a3a8c14efb87f59708e77a451512def99079a09b",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42343614262"
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 42343614164,
+      "sha": "a3a8c14efb87f59708e77a451512def99079a09b",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42343614164"
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 42343614162,
+      "sha": "a3a8c14efb87f59708e77a451512def99079a09b",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42343614162"
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 42343614161,
+      "sha": "a3a8c14efb87f59708e77a451512def99079a09b",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42343614161"
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 42343614208,
+      "sha": "a3a8c14efb87f59708e77a451512def99079a09b",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42343614208"
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 42343614169,
+      "sha": "a3a8c14efb87f59708e77a451512def99079a09b",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42343614169"
+    }
+  ],
+  "github_actions_status": "all seven triggered workflows passed for the source commit",
+  "airplay_workflow": "not triggered: standalone protocol source unchanged; Android still builds the AirPlay receiver product",
   "limits": [
     "No new physical-device CPU/RSS, latency or long-duration measurements",
     "Standalone AirPlay protocol code is unchanged; its workspace was not retested locally",
