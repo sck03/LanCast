@@ -1,0 +1,287 @@
+{
+  "version": "0.6.21",
+  "build_number": 29,
+  "date": "2026-11-08",
+  "source_commit": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+  "regressions": {
+    "failed_on_original_implementation": [
+      "repeated_offer_cannot_reactivate_the_transport_awaiting_replacement",
+      "invalid_offer_cannot_replace_the_current_negotiation"
+    ],
+    "additional_coverage": [
+      "deadlines_follow_retry_schedule_and_disarm_after_recovery",
+      "initial_deadline_caps_retries_and_late_reports_still_stop",
+      "saturated_clock_deadline_can_be_reached",
+      "heartbeat_deadline_resets_only_on_received_messages",
+      "recovery_deadlines_survive_replayed_offer_and_old_success_reports"
+    ],
+    "after": "All seven new regressions and existing control tests pass"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {
+      "passed": 127,
+      "failed": 0
+    },
+    "rust_no_default_features": {
+      "passed": 90,
+      "failed": 0
+    },
+    "rust_legacy": {
+      "passed": 91,
+      "failed": 0
+    },
+    "python_unittest": {
+      "passed": 54,
+      "failed": 0
+    },
+    "python_optimized_unittest": {
+      "passed": 54,
+      "failed": 0
+    },
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "architecture": "passed",
+    "markdown_links": {
+      "files": 32,
+      "targets": 226,
+      "missing": 0
+    }
+  },
+  "resource_changes": {
+    "sender_periodic_poll_interval_ms_before": 250,
+    "sender_periodic_poll_removed": true,
+    "reused_deadline_timer_count": 1,
+    "recovery_timer_while_established": "not scheduled",
+    "new_runtime_dependencies": 0,
+    "new_threads": 0,
+    "shared_negotiation_filter": "state reports reuse accepts",
+    "performance_measurements": "No CPU, RSS or end-to-end latency claim"
+  },
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 2133471244,
+    "after_bytes": 21832648,
+    "reclaimable_bytes": 2111638596,
+    "removed_bytes": 2111638596,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2818,
+        "bytes": 2111221714,
+        "fingerprint": "48cc95e322c8fa07b718caf2b139331f8a95c0e5d45e612635cd2185f0f8db5b"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 30,
+        "bytes": 243606,
+        "fingerprint": "0b9d604cbf7251bd23756a9225fd253e1056456d39267021ad5dab43dc3d25ce"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 24,
+        "bytes": 173276,
+        "fingerprint": "378be71c7b208d17b7af0cfc63b8c8250a84d37e1064d69f79943fdc6836a9e9"
+      }
+    ],
+    "files": 2872,
+    "recheck_reclaimable_bytes": 0
+  },
+  "github_actions": [
+    {
+      "workflow": "core-linux.yml",
+      "id": 42483334985,
+      "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42483334985",
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 117186,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        }
+      ]
+    },
+    {
+      "workflow": "native-linux.yml",
+      "id": 42483334979,
+      "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42483334979",
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6201,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "id": 42483335027,
+      "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42483335027",
+      "artifacts": [
+        {
+          "name": "apple-tvos-build-reports-0.6.21-29-Debug",
+          "bytes": 15534,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.21-29-Debug",
+          "bytes": 20089725,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "id": 42483334980,
+      "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42483334980",
+      "artifacts": [
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.21-29-Release",
+          "bytes": 22358140,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "apple-macos-build-reports-0.6.21-29-Release",
+          "bytes": 86913,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "id": 42483334984,
+      "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42483334984",
+      "artifacts": [
+        {
+          "name": "apple-ios-build-reports-0.6.21-29-Debug",
+          "bytes": 15555,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.21-29-Debug",
+          "bytes": 54830410,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        }
+      ]
+    },
+    {
+      "workflow": "windows.yml",
+      "id": 42483334988,
+      "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42483334988",
+      "artifacts": [
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 87004451,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "LanCast-Windows-x64-0.6.21-29-Release",
+          "bytes": 5099251,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "windows-synthetic-diagnostic-0.6.21-29-Release",
+          "bytes": 140000,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114447,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        }
+      ]
+    },
+    {
+      "workflow": "android.yml",
+      "id": 42483334982,
+      "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42483334982",
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.21-29-Debug",
+          "bytes": 34333070,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.21-29-Debug",
+          "bytes": 30485645,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.21-29-Debug",
+          "bytes": 12588500,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.21-29-Debug",
+          "bytes": 56358025,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "LanCast-Android-Sender-0.6.21-29-Debug",
+          "bytes": 35389552,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.21-29-Debug",
+          "bytes": 38823394,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        },
+        {
+          "name": "android-build-reports-0.6.21-29-Debug",
+          "bytes": 10222423,
+          "head_sha": "0d8ed3ad2c8022a648c2e35da098549cea65a612"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Paused-clock WebSocket tests use in-memory transports, not physical devices",
+    "Device permissions, cross-platform outages, CPU/RSS, end-to-end latency and two-hour stability were not tested",
+    "Product binary verification runs in GitHub Actions; no local package download or installation"
+  ],
+  "linux_validation": {
+    "rust_all_features": {
+      "passed": 128,
+      "failed": 0
+    },
+    "rust_no_default_features": {
+      "passed": 91,
+      "failed": 0
+    },
+    "rust_legacy": {
+      "passed": 92,
+      "failed": 0
+    },
+    "note": "Includes one Unix-only transferred-file-descriptor regression."
+  },
+  "untriggered_workflows": [
+    {
+      "workflow": "airplay.yml",
+      "reason": "Isolated AirPlay sources were unchanged; Android AirPlay APK was built and verified by android.yml."
+    }
+  ]
+}
