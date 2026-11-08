@@ -2,6 +2,7 @@
   "version": "0.6.22",
   "build_number": 30,
   "date": "2026-11-09",
+  "source_commit": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
   "regressions": {
     "failed_with_previous_interval_after_unifying_async_clock": [
       "receiver_timeout_follows_last_message_and_releases_session",
@@ -23,7 +24,7 @@
     "cargo_fmt": "passed",
     "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
     "architecture": "passed",
-    "markdown_links": {"files": 32, "targets": 226, "missing": 0}
+    "markdown_links": {"files": 32, "targets": 227, "missing": 0}
   },
   "resource_changes": {
     "shared_receive_timeout_ms": 15000,
@@ -34,9 +35,195 @@
     "new_threads": 0,
     "performance_measurements": "No CPU, RSS or end-to-end latency claim"
   },
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 1980927406,
+    "after_bytes": 22013827,
+    "removed_bytes": 1958913579,
+    "files": 2847,
+    "paths": [
+      {"path": "target", "files": 2793, "bytes": 1958496697},
+      {"path": "scripts/__pycache__", "files": 30, "bytes": 243606},
+      {"path": "scripts/tests/__pycache__", "files": 24, "bytes": 173276}
+    ],
+    "recheck_reclaimable_bytes": 0,
+    "temporary_validation_files_removed_after_archiving": 8
+  },
+  "github_actions": [
+    {
+      "workflow": "windows.yml",
+      "id": 42518995733,
+      "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42518995733",
+      "artifacts": [
+        {
+          "name": "LanCast-Windows-x64-0.6.22-30-Release",
+          "bytes": 5098083,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 87008790,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "windows-synthetic-diagnostic-0.6.22-30-Release",
+          "bytes": 140000,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114447,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        }
+      ]
+    },
+    {
+      "workflow": "android.yml",
+      "id": 42518995917,
+      "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42518995917",
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.22-30-Debug",
+          "bytes": 34314382,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.22-30-Debug",
+          "bytes": 12593008,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "LanCast-Android-Sender-0.6.22-30-Debug",
+          "bytes": 35389552,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "android-build-reports-0.6.22-30-Debug",
+          "bytes": 10222821,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.22-30-Debug",
+          "bytes": 38804709,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.22-30-Debug",
+          "bytes": 56361431,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.22-30-Debug",
+          "bytes": 30483470,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "id": 42518995961,
+      "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42518995961",
+      "artifacts": [
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.22-30-Release",
+          "bytes": 22358480,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "apple-macos-build-reports-0.6.22-30-Release",
+          "bytes": 85418,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "id": 42518995947,
+      "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42518995947",
+      "artifacts": [
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.22-30-Debug",
+          "bytes": 54831840,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "apple-ios-build-reports-0.6.22-30-Debug",
+          "bytes": 15555,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "id": 42518995873,
+      "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42518995873",
+      "artifacts": [
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.22-30-Debug",
+          "bytes": 20090143,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        },
+        {
+          "name": "apple-tvos-build-reports-0.6.22-30-Debug",
+          "bytes": 15533,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        }
+      ]
+    },
+    {
+      "workflow": "core-linux.yml",
+      "id": 42518995877,
+      "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42518995877",
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 117187,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        }
+      ]
+    },
+    {
+      "workflow": "native-linux.yml",
+      "id": 42518995674,
+      "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42518995674",
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6199,
+          "head_sha": "f83c061e9f1cd95c4c0d2b097e47cc344971ed25"
+        }
+      ]
+    }
+  ],
+  "untriggered_workflows": [
+    {"workflow": "airplay.yml", "reason": "Isolated AirPlay sources were unchanged; Android AirPlay APK was built and verified by android.yml."}
+  ],
   "limits": [
     "Paused-clock WebSocket tests use in-memory transports, not physical devices",
     "Socket writes retain their independent five-second timeout and cancellation; receive expiry is checked before the next loop and on received messages",
-    "Device permissions, cross-platform outages, CPU/RSS, end-to-end latency and two-hour stability were not tested"
+    "Device permissions, cross-platform outages, CPU/RSS, end-to-end latency and two-hour stability were not tested",
+    "Product binary verification runs in GitHub Actions; artifact source/version metadata was checked without local package downloads or device installation"
   ]
 }
