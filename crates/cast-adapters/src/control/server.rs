@@ -1,5 +1,8 @@
 //! Receiver pairing, session ownership and signaling. No platform media or UI types.
-use super::wire::{receive, send, wire_config};
+use super::{
+    heartbeat::Heartbeat,
+    wire::{receive, send, wire_config},
+};
 use crate::{
     auth::{self, Identity, Invitation},
     capabilities::Profile,
@@ -276,15 +279,29 @@ async fn receiver_connection<
             },
         );
     }
-    let mut heartbeat = tokio::time::interval(Duration::from_secs(5));
-    let mut last_seen = Instant::now();
+    let mut heartbeat = Heartbeat::new();
+    let mut next_ping = tokio::time::Instant::now();
+    let timer = tokio::time::sleep_until(next_ping);
+    tokio::pin!(timer);
     let run = async {
         send(&mut ws,&pair.reply("pair.accepted",json!({"pairingVersion":auth::PAIRING_VERSION,"receiverDeviceId":server.identity.id,"deviceToken":auth::random_token(),"receiverPublicKey":server.identity.public_key,"trust":"session_only"}))).await?;
         loop {
+            heartbeat.check()?;
+            if tokio::time::Instant::now() >= next_ping {
+                send(
+                    &mut ws,
+                    &Message::new("ping", json!({"nonce":Uuid::new_v4()})),
+                )
+                .await?;
+                // Schedule from completion: a stalled task never replays missed pings.
+                next_ping = tokio::time::Instant::now() + Duration::from_secs(5);
+            }
+            timer.as_mut().reset(next_ping.min(heartbeat.deadline()));
             tokio::select! {
+                _ = &mut timer => {}
                 received = receive(&mut ws) => {
                     let mut request = received?;
-                    last_seen = Instant::now();
+                    heartbeat.received()?;
                     if request.kind == "ping" {
                         send(&mut ws, &request.reply("pong", request.body.clone())).await?;
                         continue;
@@ -297,10 +314,6 @@ async fn receiver_connection<
                 message = outgoing.recv() => {
                     let Some(message) = message else { break; };
                     send(&mut ws, &message).await?;
-                }
-                _ = heartbeat.tick() => {
-                    ensure!(last_seen.elapsed() < Duration::from_secs(15), "HEARTBEAT_TIMEOUT");
-                    send(&mut ws, &Message::new("ping", json!({"nonce":Uuid::new_v4()}))).await?;
                 }
             }
         }
@@ -444,6 +457,129 @@ async fn handle_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::FutureExt;
+    use tokio_tungstenite::tungstenite::protocol::Role;
+
+    async fn paired_connection() -> (
+        Arc<Server>,
+        WebSocketStream<tokio::io::DuplexStream>,
+        tokio::task::JoinHandle<anyhow::Result<()>>,
+        crate::events::EventInbox,
+    ) {
+        let (events, output) = crate::events::channel(16, CancellationToken::new());
+        let server = Arc::new(Server::new(
+            Arc::new(Identity::create().unwrap()),
+            "standard",
+            events,
+        ));
+        let (receiver, peer) = tokio::io::duplex(16 * 1024);
+        let receiver =
+            WebSocketStream::from_raw_socket(receiver, Role::Server, Some(wire_config())).await;
+        let mut peer =
+            WebSocketStream::from_raw_socket(peer, Role::Client, Some(wire_config())).await;
+        let task = tokio::spawn(receiver_connection(
+            receiver,
+            "127.0.0.1".parse().unwrap(),
+            server.clone(),
+        ));
+        let challenge = receive(&mut peer).await.unwrap();
+        let identity = Identity::create().unwrap();
+        let pair = Message::new(
+            "pair.request",
+            json!({
+                "pairingVersion": auth::PAIRING_VERSION,
+                "invite": server.invitation().await,
+                "senderDeviceId": identity.id,
+                "senderName": "heartbeat test",
+                "senderPublicKey": identity.public_key,
+                "signature": identity.sign(challenge.string("nonce").unwrap()).unwrap(),
+            }),
+        );
+        send(&mut peer, &pair).await.unwrap();
+        let approval = loop {
+            if let Ok(text) = output.try_recv() {
+                let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+                assert_eq!(value["type"], "pair.request");
+                break Uuid::parse_str(value["body"]["connectionId"].as_str().unwrap()).unwrap();
+            }
+            tokio::task::yield_now().await;
+        };
+        server.approve(approval, true).await;
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "pair.accepted");
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "ping");
+        assert!(output.try_recv().unwrap().contains("pair.closed"));
+        (server, peer, task, output)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn receiver_timeout_follows_last_message_and_releases_session() {
+        let (server, mut peer, task, output) = paired_connection().await;
+        tokio::time::advance(Duration::from_millis(123)).await;
+        send(
+            &mut peer,
+            &Message::new("session.start", json!({"mode":"file"})),
+        )
+        .await
+        .unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "session.accepted");
+        assert!(output.try_recv().unwrap().contains("session.started"));
+        tokio::time::advance(Duration::from_millis(14_999)).await;
+        tokio::task::yield_now().await;
+        assert!(!task.is_finished());
+        tokio::time::advance(Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
+        assert!(
+            task.is_finished(),
+            "receiver retained an expired connection"
+        );
+        assert_eq!(
+            task.await.unwrap().unwrap_err().to_string(),
+            "HEARTBEAT_TIMEOUT"
+        );
+        assert!(server.session.lock().await.is_none());
+        assert!(server.connections.lock().await.is_empty());
+        assert!(output.try_recv().unwrap().contains("session.closed"));
+        assert!(output.try_recv().is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn receiver_renews_only_after_receiving_peer_traffic() {
+        let (_server, mut peer, task, _output) = paired_connection().await;
+        tokio::time::advance(Duration::from_secs(14)).await;
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "ping");
+        let ping = Message::new("ping", json!({}));
+        send(&mut peer, &ping).await.unwrap();
+        let pong = receive(&mut peer).await.unwrap();
+        assert_eq!(pong.kind, "pong");
+        assert_eq!(pong.reply_to, Some(ping.id));
+        tokio::time::advance(Duration::from_secs(14)).await;
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "ping");
+        assert!(!task.is_finished());
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+        assert!(
+            task.is_finished(),
+            "outgoing traffic extended the receive deadline"
+        );
+        assert_eq!(
+            task.await.unwrap().unwrap_err().to_string(),
+            "HEARTBEAT_TIMEOUT"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn receiver_does_not_burst_missed_heartbeats() {
+        let (_server, mut peer, task, _output) = paired_connection().await;
+        tokio::time::advance(Duration::from_secs(12)).await;
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "ping");
+        tokio::task::yield_now().await;
+        assert!(
+            receive(&mut peer).now_or_never().is_none(),
+            "missed heartbeats were replayed"
+        );
+        task.abort();
+        let _ = task.await;
+    }
 
     #[tokio::test]
     async fn listener_abort_releases_incomplete_handshakes() {

@@ -1,0 +1,42 @@
+{
+  "version": "0.6.22",
+  "build_number": 30,
+  "date": "2026-11-09",
+  "regressions": {
+    "failed_with_previous_interval_after_unifying_async_clock": [
+      "receiver_timeout_follows_last_message_and_releases_session",
+      "receiver_does_not_burst_missed_heartbeats"
+    ],
+    "additional_coverage": [
+      "receiver_renews_only_after_receiving_peer_traffic",
+      "late_receive_cannot_rearm_an_expired_deadline"
+    ],
+    "after": "All four new regressions and existing sender recovery and control tests pass"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {"passed": 131, "failed": 0},
+    "rust_no_default_features": {"passed": 94, "failed": 0},
+    "rust_legacy": {"passed": 95, "failed": 0},
+    "python_unittest": {"passed": 54, "failed": 0},
+    "python_optimized_unittest": {"passed": 54, "failed": 0},
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "architecture": "passed",
+    "markdown_links": {"files": 32, "targets": 226, "missing": 0}
+  },
+  "resource_changes": {
+    "shared_receive_timeout_ms": 15000,
+    "receiver_ping_interval_ms_after_send_completion": 5000,
+    "receiver_missed_ping_catch_up_removed": true,
+    "receiver_reused_deadline_timer_count": 1,
+    "new_runtime_dependencies": 0,
+    "new_threads": 0,
+    "performance_measurements": "No CPU, RSS or end-to-end latency claim"
+  },
+  "limits": [
+    "Paused-clock WebSocket tests use in-memory transports, not physical devices",
+    "Socket writes retain their independent five-second timeout and cancellation; receive expiry is checked before the next loop and on received messages",
+    "Device permissions, cross-platform outages, CPU/RSS, end-to-end latency and two-hour stability were not tested"
+  ]
+}

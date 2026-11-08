@@ -1,5 +1,8 @@
 //! Sender control connection and RTC recovery coordination.
-use super::wire::{receive, send, wire_config};
+use super::{
+    heartbeat::Heartbeat,
+    wire::{receive, send, wire_config},
+};
 use crate::{
     auth::{self, Identity},
     events::{self, Events, event},
@@ -103,8 +106,8 @@ impl Client {
         let worker_cancel = cancel.clone();
         let task = tokio::spawn(async move {
             let epoch = Instant::now();
-            let mut last_seen = Instant::now();
-            let timer = tokio::time::sleep(Duration::from_secs(15));
+            let mut heartbeat = Heartbeat::new();
+            let timer = tokio::time::sleep_until(heartbeat.deadline());
             tokio::pin!(timer);
             let mut recovery: Option<RtcRecovery> = None;
             let mut pending_recovery = None;
@@ -113,8 +116,7 @@ impl Client {
                     if rx.is_closed() {
                         break;
                     }
-                    let heartbeat_deadline = last_seen + Duration::from_secs(15);
-                    ensure!(Instant::now() < heartbeat_deadline, "HEARTBEAT_TIMEOUT");
+                    heartbeat.check()?;
                     if let Some(message) = recovery
                         .as_mut()
                         .and_then(|r| r.poll(epoch.elapsed().as_millis() as u64))
@@ -129,8 +131,8 @@ impl Client {
                         .as_ref()
                         .and_then(RtcRecovery::next_deadline)
                         .map(|ms| epoch + Duration::from_millis(ms))
-                        .map_or(heartbeat_deadline, |deadline| {
-                            deadline.min(heartbeat_deadline)
+                        .map_or(heartbeat.deadline(), |deadline| {
+                            deadline.min(heartbeat.deadline())
                         });
                     timer.as_mut().reset(deadline);
                     tokio::select! {
@@ -157,8 +159,7 @@ impl Client {
                         }
                         response = receive(&mut ws) => {
                             let response = response?;
-                            ensure!(Instant::now() < heartbeat_deadline, "HEARTBEAT_TIMEOUT");
-                            last_seen = Instant::now();
+                            heartbeat.received()?;
                             let now = epoch.elapsed().as_millis() as u64;
                             if response.kind == "ping" {
                                 send(&mut ws, &response.reply("pong", response.body.clone())).await?;
