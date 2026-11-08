@@ -8,12 +8,8 @@ use crate::{
 };
 use anyhow::{Context, ensure};
 use serde_json::json;
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::{sync::mpsc, task::JoinHandle};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tokio_tungstenite::{Connector, WebSocketStream};
 use tokio_util::sync::CancellationToken;
 
@@ -108,15 +104,38 @@ impl Client {
         let task = tokio::spawn(async move {
             let epoch = Instant::now();
             let mut last_seen = Instant::now();
-            let mut tick = tokio::time::interval(Duration::from_millis(250));
+            let timer = tokio::time::sleep(Duration::from_secs(15));
+            tokio::pin!(timer);
             let mut recovery: Option<RtcRecovery> = None;
             let mut pending_recovery = None;
             let run = async {
                 loop {
+                    if rx.is_closed() {
+                        break;
+                    }
+                    let heartbeat_deadline = last_seen + Duration::from_secs(15);
+                    ensure!(Instant::now() < heartbeat_deadline, "HEARTBEAT_TIMEOUT");
+                    if let Some(message) = recovery
+                        .as_mut()
+                        .and_then(|r| r.poll(epoch.elapsed().as_millis() as u64))
+                    {
+                        if message.kind == "session.stop" {
+                            send(&mut ws, &message).await?;
+                            recovery = None;
+                        }
+                        events::message(&events, &message);
+                    }
+                    let deadline = recovery
+                        .as_ref()
+                        .and_then(RtcRecovery::next_deadline)
+                        .map(|ms| epoch + Duration::from_millis(ms))
+                        .map_or(heartbeat_deadline, |deadline| {
+                            deadline.min(heartbeat_deadline)
+                        });
+                    timer.as_mut().reset(deadline);
                     tokio::select! {
                         request = rx.recv() => {
                             let Some(request) = request else { break };
-                            if rx.is_closed() { break; }
                             let now = epoch.elapsed().as_millis() as u64;
                             if request.kind == "rtc.state" {
                                 if let Some(r) = recovery.as_mut() { r.report(&request, false, now); }
@@ -138,6 +157,7 @@ impl Client {
                         }
                         response = receive(&mut ws) => {
                             let response = response?;
+                            ensure!(Instant::now() < heartbeat_deadline, "HEARTBEAT_TIMEOUT");
                             last_seen = Instant::now();
                             let now = epoch.elapsed().as_millis() as u64;
                             if response.kind == "ping" {
@@ -158,14 +178,7 @@ impl Client {
                             if response.kind == "session.stop" || response.kind == "error" { recovery = None; }
                             events::message(&events, &response);
                         }
-                        _ = tick.tick() => {
-                            if rx.is_closed() { break; }
-                            ensure!(last_seen.elapsed() < Duration::from_secs(15), "HEARTBEAT_TIMEOUT");
-                            if let Some(message) = recovery.as_mut().and_then(|r| r.poll(epoch.elapsed().as_millis() as u64)) {
-                                if message.kind == "session.stop" { send(&mut ws, &message).await?; recovery = None; }
-                                events::message(&events, &message);
-                            }
-                        }
+                        _ = &mut timer => {}
                     }
                 }
                 Ok(())
@@ -199,6 +212,116 @@ mod tests {
     use super::*;
     use futures_util::{FutureExt, SinkExt};
     use tokio_tungstenite::tungstenite::protocol::Role;
+
+    async fn test_connection() -> (
+        Client,
+        WebSocketStream<tokio::io::DuplexStream>,
+        crate::events::EventInbox,
+    ) {
+        let (client, peer) = tokio::io::duplex(4096);
+        let client =
+            WebSocketStream::from_raw_socket(client, Role::Client, Some(wire_config())).await;
+        let peer = WebSocketStream::from_raw_socket(peer, Role::Server, Some(wire_config())).await;
+        let (events, output) = crate::events::channel(16, CancellationToken::new());
+        (Client::spawn(client, events), peer, output)
+    }
+
+    async fn heartbeat(peer: &mut WebSocketStream<tokio::io::DuplexStream>) {
+        let ping = Message::new("ping", json!({}));
+        send(peer, &ping).await.unwrap();
+        let pong = receive(peer).await.unwrap();
+        assert_eq!(pong.kind, "pong");
+        assert_eq!(pong.reply_to, Some(ping.id));
+    }
+
+    fn host_message(output: &crate::events::EventInbox) -> Message {
+        let event: serde_json::Value = serde_json::from_str(&output.try_recv().unwrap()).unwrap();
+        assert_eq!(event["type"], "message");
+        serde_json::from_value(event["body"].clone()).unwrap()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn heartbeat_deadline_resets_only_on_received_messages() {
+        let (mut client, mut peer, output) = test_connection().await;
+        heartbeat(&mut peer).await;
+        tokio::time::advance(Duration::from_secs(14)).await;
+        heartbeat(&mut peer).await;
+        tokio::time::advance(Duration::from_secs(14)).await;
+        client.send(Message::new("ping", json!({}))).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "ping");
+        assert!(!client.is_closed());
+        assert!(output.try_recv().is_err());
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+        assert!(client.is_closed());
+        let event: serde_json::Value = serde_json::from_str(&output.try_recv().unwrap()).unwrap();
+        assert_eq!(event["type"], "disconnected");
+        assert_eq!(event["body"]["reason"], "connection_lost");
+        client.close().await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn recovery_deadlines_survive_replayed_offer_and_old_success_reports() {
+        let (mut client, mut peer, output) = test_connection().await;
+        let start = Message::new(
+            "session.start",
+            json!({"mode":"mirror","rtcRecovery":CAPABILITY}),
+        );
+        client.send(start.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, start.id);
+        let session = uuid::Uuid::new_v4();
+        let mut accepted = start.reply("session.accepted", json!({"rtcRecovery":CAPABILITY}));
+        accepted.session_id = Some(session);
+        send(&mut peer, &accepted).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).kind, "session.accepted");
+        let mut offer = Message::new(
+            "rtc.offer",
+            json!({"sdp":"test","negotiationId":uuid::Uuid::new_v4()}),
+        );
+        offer.session_id = Some(session);
+        client.send(offer.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, offer.id);
+
+        // An off-grid failure verifies the deadline is relative to the report,
+        // rather than rounded to a periodic polling tick.
+        tokio::time::advance(Duration::from_millis(123)).await;
+        let mut state = Message::new(
+            "rtc.state",
+            json!({"state":"failed","negotiationId":offer.body["negotiationId"]}),
+        );
+        state.session_id = Some(session);
+        client.send(state.clone()).unwrap();
+        client.send(Message::new("ping", json!({}))).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().kind, "ping");
+        tokio::time::advance(Duration::from_millis(999)).await;
+        tokio::task::yield_now().await;
+        assert!(output.try_recv().is_err());
+        tokio::time::advance(Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(host_message(&output).body["attempt"], 1);
+
+        client.send(offer.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, offer.id);
+        state.body["state"] = json!("connected");
+        client.send(state.clone()).unwrap();
+        send(&mut peer, &state).await.unwrap();
+        heartbeat(&mut peer).await;
+        for (delay, attempt) in [(4, 2), (5, 3)] {
+            tokio::time::advance(Duration::from_secs(delay)).await;
+            tokio::task::yield_now().await;
+            let restart = host_message(&output);
+            assert_eq!(restart.kind, "rtc.restart");
+            assert_eq!(restart.body["attempt"], attempt);
+        }
+        tokio::time::advance(Duration::from_secs(5)).await;
+        let stop = receive(&mut peer).await.unwrap();
+        assert_eq!(stop.kind, "session.stop");
+        assert_eq!(stop.body["reason"], "RTC_RECOVERY_EXHAUSTED");
+        assert_eq!(host_message(&output).id, stop.id);
+        assert!(!client.is_closed());
+        client.close().await;
+    }
 
     #[tokio::test]
     async fn interrupted_close_keeps_the_worker_until_cleanup_finishes() {

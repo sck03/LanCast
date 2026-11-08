@@ -33,26 +33,40 @@ impl RtcRecovery {
     }
 
     pub fn offer(&mut self, message: &Message) {
-        if message.session_id == Some(self.session) {
-            self.negotiation = message.body["negotiationId"]
-                .as_str()
-                .and_then(|s| Uuid::parse_str(s).ok());
-            self.awaiting_offer = false;
+        if message.session_id != Some(self.session) {
+            return;
         }
+        let Some(id) = message.body["negotiationId"]
+            .as_str()
+            .and_then(|s| Uuid::parse_str(s).ok())
+        else {
+            return;
+        };
+        let previous = match message.body.get("previousNegotiationId") {
+            None => None,
+            Some(value) => match value.as_str().and_then(|s| Uuid::parse_str(s).ok()) {
+                Some(id) => Some(id),
+                None => return,
+            },
+        };
+        // The receiver enforces the same parent chain. Replayed offers must
+        // never reopen reports from a transport already marked for replacement.
+        if Some(id) == self.negotiation || previous != self.negotiation {
+            return;
+        }
+        self.negotiation = Some(id);
+        self.awaiting_offer = false;
     }
 
     pub fn report(&mut self, message: &Message, remote: bool, now_ms: u64) {
-        let id = message.body["negotiationId"]
-            .as_str()
-            .and_then(|s| Uuid::parse_str(s).ok());
-        if !self.awaiting_offer
-            && self.negotiation.is_some()
-            && id == self.negotiation
-            && message.session_id == Some(self.session)
-        {
+        if self.accepts(message) {
             self.policy
                 .report(remote, message.body["state"] == "connected", now_ms);
         }
+    }
+
+    pub fn next_deadline(&self) -> Option<u64> {
+        self.policy.next_deadline()
     }
 
     pub fn poll(&mut self, now_ms: u64) -> Option<Message> {
@@ -81,6 +95,56 @@ impl RtcRecovery {
 mod tests {
     use super::*;
     #[test]
+    fn repeated_offer_cannot_reactivate_the_transport_awaiting_replacement() {
+        let session = Uuid::new_v4();
+        let negotiation = Uuid::new_v4();
+        let mut recovery = RtcRecovery::new(session, 0);
+        let mut offer = Message::new("rtc.offer", json!({"negotiationId":negotiation}));
+        offer.session_id = Some(session);
+        recovery.offer(&offer);
+        let mut state = offer.clone();
+        state.kind = "rtc.state".into();
+        state.body["state"] = json!("failed");
+        recovery.report(&state, false, 0);
+        assert_eq!(recovery.poll(1000).unwrap().kind, "rtc.restart");
+
+        recovery.offer(&offer);
+        state.body["state"] = json!("connected");
+        recovery.report(&state, false, 1001);
+        recovery.report(&state, true, 1001);
+        assert!(!recovery.accepts(&state));
+        assert_eq!(recovery.poll(5000).unwrap().body["attempt"], 2);
+        assert_eq!(recovery.poll(15000).unwrap().kind, "session.stop");
+    }
+
+    #[test]
+    fn invalid_offer_cannot_replace_the_current_negotiation() {
+        let session = Uuid::new_v4();
+        let first = Uuid::new_v4();
+        let next = Uuid::new_v4();
+        let mut recovery = RtcRecovery::new(session, 0);
+        let mut offer = Message::new("rtc.offer", json!({"negotiationId":first}));
+        offer.session_id = Some(session);
+        recovery.offer(&offer);
+        for body in [
+            json!({"negotiationId":next}),
+            json!({"negotiationId":next,"previousNegotiationId":Uuid::new_v4()}),
+            json!({"negotiationId":"invalid","previousNegotiationId":first}),
+            json!({"negotiationId":next,"previousNegotiationId":null}),
+        ] {
+            let mut invalid = offer.clone();
+            invalid.body = body;
+            recovery.offer(&invalid);
+            assert!(recovery.accepts(&offer));
+        }
+        let mut replacement = offer.clone();
+        replacement.body = json!({"negotiationId":next,"previousNegotiationId":first});
+        recovery.offer(&replacement);
+        assert!(recovery.accepts(&replacement));
+        assert!(!recovery.accepts(&offer));
+    }
+
+    #[test]
     fn old_transport_and_other_session_cannot_cancel_recovery() {
         let session = Uuid::new_v4();
         let first = Uuid::new_v4();
@@ -98,6 +162,7 @@ mod tests {
         r.report(&m, true, 1001);
         let mut offer = m.clone();
         offer.body["negotiationId"] = json!(second);
+        offer.body["previousNegotiationId"] = json!(first);
         r.offer(&offer);
         r.report(&m, false, 1100);
         r.report(&m, true, 1100);

@@ -6,6 +6,9 @@ pub enum Action {
     Stop,
 }
 
+const RETRY_DELAYS: [u64; 3] = [1_000, 5_000, 10_000];
+const OUTAGE_TIMEOUT: u64 = 15_000;
+
 /// One initial connection deadline and one fixed deadline per outage. Repeated
 /// failures never extend it. Only both endpoints on the current transport recover it.
 #[derive(Debug)]
@@ -38,7 +41,7 @@ impl Recovery {
         }
         // A late state report must not revive a deadline that has already
         // expired.  Check before applying the new state so the boundary is
-        // deterministic even when a report races the periodic poll.
+        // deterministic even when a report races the deadline timer.
         if self.expired(now_ms) {
             self.deadline_reached = true;
             return;
@@ -65,7 +68,7 @@ impl Recovery {
         }
         if let Some(started) = self.outage {
             let elapsed = now_ms.saturating_sub(started);
-            if let Some(delay) = [1_000, 5_000, 10_000].get(usize::from(self.attempts))
+            if let Some(delay) = RETRY_DELAYS.get(usize::from(self.attempts))
                 && elapsed >= *delay
             {
                 self.attempts += 1;
@@ -77,17 +80,82 @@ impl Recovery {
         }
         Action::Wait
     }
+
+    /// Absolute injected-clock deadline for the next action. A healthy,
+    /// established transport needs no recovery timer until a failure report.
+    pub fn next_deadline(&self) -> Option<u64> {
+        if self.stopped {
+            return None;
+        }
+        let initial = (!self.established).then_some(self.initial_deadline);
+        let outage = self.outage.map(|started| {
+            started.saturating_add(
+                RETRY_DELAYS
+                    .get(usize::from(self.attempts))
+                    .copied()
+                    .unwrap_or(OUTAGE_TIMEOUT),
+            )
+        });
+        initial.into_iter().chain(outage).min()
+    }
+
     fn expired(&self, now_ms: u64) -> bool {
         (!self.established && now_ms >= self.initial_deadline)
             || self
                 .outage
-                .is_some_and(|started| now_ms.saturating_sub(started) >= 15_000)
+                .is_some_and(|started| now_ms >= started.saturating_add(OUTAGE_TIMEOUT))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deadlines_follow_retry_schedule_and_disarm_after_recovery() {
+        let mut r = Recovery::new(100);
+        assert_eq!(r.next_deadline(), Some(20_100));
+        r.report(false, true, 200);
+        r.report(true, true, 300);
+        assert_eq!(r.next_deadline(), None);
+        r.report(false, false, 400);
+        for (deadline, attempt) in [(1400, 1), (5400, 2), (10400, 3)] {
+            assert_eq!(r.next_deadline(), Some(deadline));
+            assert_eq!(r.poll(deadline - 1), Action::Wait);
+            assert_eq!(r.poll(deadline), Action::Restart { attempt });
+        }
+        assert_eq!(r.next_deadline(), Some(15400));
+        r.report(false, true, 11000);
+        r.report(true, true, 11001);
+        assert_eq!(r.next_deadline(), None);
+        r.report(true, false, 30000);
+        assert_eq!(r.next_deadline(), Some(31000));
+        assert_eq!(r.poll(45000), Action::Stop);
+        assert_eq!(r.next_deadline(), None);
+    }
+
+    #[test]
+    fn initial_deadline_caps_retries_and_late_reports_still_stop() {
+        let mut r = Recovery::new(0);
+        r.report(false, false, 19000);
+        assert_eq!(r.next_deadline(), Some(20000));
+        r.report(false, true, 20000);
+        r.report(true, true, 20000);
+        assert_eq!(r.next_deadline(), Some(20000));
+        assert_eq!(r.poll(20000), Action::Stop);
+        assert_eq!(r.next_deadline(), None);
+    }
+
+    #[test]
+    fn saturated_clock_deadline_can_be_reached() {
+        let mut r = Recovery::new(u64::MAX - 100);
+        r.report(false, true, u64::MAX - 99);
+        r.report(true, true, u64::MAX - 98);
+        r.report(false, false, u64::MAX - 97);
+        assert_eq!(r.next_deadline(), Some(u64::MAX));
+        assert_eq!(r.poll(u64::MAX), Action::Stop);
+        assert_eq!(r.next_deadline(), None);
+    }
 
     #[test]
     fn repeated_failures_cannot_extend_outage_or_retry_forever() {
