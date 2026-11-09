@@ -1,0 +1,219 @@
+{
+  "version": "0.6.27",
+  "build_number": 35,
+  "date": "2026-11-10",
+  "source_commit": "f360b4298dfa03af9d2342c7b65fa2b3a76e43b2",
+  "upstream_review": {
+    "adopted": {
+      "mdns-sd": "0.17.2 -> 0.21.7",
+      "tokio": "1.53.1 (base), 1.53.2 (AirPlay) -> 1.54.1",
+      "rustls": "0.23.45 -> 0.23.46",
+      "tokio-tungstenite": "0.28.0 -> 0.30.0",
+      "libdatachannel": "0.24.6, commit 6b1e2e620f1e37f0eafeee702eaea0043cb305fd",
+      "mbedtls": "3.6.7, commit 068ff080b369adfac81509f9b57b2afabaf82dc5",
+      "android_webrtc": "150.7871.01 -> 150.7871.04",
+      "apple_webrtc": "150.7871.02 -> 150.7871.05"
+    },
+    "unchanged_latest": {
+      "media3": "1.11.1",
+      "rairplay": "7a0ec4036905afe0c8de16881d85d5846dc938a7"
+    },
+    "reviewed_not_upgraded": {
+      "mbedtls_4.2.0": "The adopted libdatachannel CMake configuration requires Mbed TLS 3; API migration remains separate",
+      "reqwest_0.13.5": "New TLS features introduce a platform certificate verifier; pinned media TLS needs separate review",
+      "jni_0.22.4": "JNI boundary migration remains separate",
+      "ffmpeg_n9.0.2": "Official source archive HEAD request failed certificate verification on this host; keep verified 8.0.1 input"
+    },
+    "sources_and_rationale": "docs/05-构建依赖与包体控制.md, D42"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {
+      "passed": 145,
+      "failed": 0
+    },
+    "rust_no_default_features": {
+      "passed": 103,
+      "failed": 0
+    },
+    "rust_legacy": {
+      "passed": 104,
+      "failed": 0
+    },
+    "python_unittest": {
+      "passed": 57,
+      "failed": 0
+    },
+    "python_optimized_unittest": {
+      "passed": 57,
+      "failed": 0
+    },
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "ffi_check_no_default_features": "passed",
+    "ffi_check_legacy": "passed",
+    "architecture": "passed",
+    "markdown_links": {
+      "files": 34,
+      "targets": 235,
+      "missing": 0
+    }
+  },
+  "download_regressions": [
+    "Corrupted cache is replaced only after successful hash verification",
+    "Valid cache works when the source is unavailable",
+    "Hash mismatch preserves the old cache and deletes partial data",
+    "Interrupted download preserves the old cache and deletes partial data",
+    "32 MiB input hash requires less than 1 MiB traced Python allocation"
+  ],
+  "hash_memory_comparison": {
+    "method": "Python 3.13 tracemalloc; identical 32 MiB local input; whole-file read+sha256 versus hashlib.file_digest; hashing only",
+    "input_bytes": 33554432,
+    "whole_file_peak_python_bytes": 33563058,
+    "streaming_peak_python_bytes": 271719,
+    "matching_sha256": "05f052c8f6da8ee5228ec291820b559c4be183773b9e97a6b82e30dacff85dd3",
+    "boundary": "Build-time Python allocations; not process RSS or media playback performance"
+  },
+  "cleanup": {
+    "mode": "clean",
+    "files_removed": 3357,
+    "bytes_removed": 2474669728,
+    "paths": [
+      "target",
+      "scripts/__pycache__",
+      "scripts/tests/__pycache__"
+    ],
+    "remaining_known_reclaimable_bytes": 0,
+    "obsolete_tracked_file_removed": "scripts/patch-datachannel.cmake",
+    "protection": "Preview and revalidate containment, tracked files, ignored paths, links, signing material and nested repositories; retain original media samples",
+    "download_copy": {
+      "files": 20,
+      "bytes": 11601050,
+      "path": ".cache/artifacts"
+    },
+    "temporary_evidence": {
+      "files": 14,
+      "bytes": 1993149,
+      "paths": [
+        ".cache/ci-129444005457.log",
+        ".cache/ci-129444005682.log",
+        ".cache/ci-129444006092.log",
+        ".cache/ci-129444006357.log",
+        ".cache/ci-129444010269.log",
+        ".cache/ci-129444010290.log",
+        ".cache/ci-129444010417.log",
+        ".cache/ci-129444011790.log",
+        ".cache/ci-129444013127.log",
+        ".cache/upstream-review-0.6.27.json",
+        ".cache/hash-memory-0.6.27.json",
+        ".cache/ci-review-0.6.27.json",
+        ".cache/cleanup-0.6.27.json",
+        ".cache/cleanup-package-0.6.27.json"
+      ],
+      "logs_preserved_as": "GitHub Actions runs; local log SHA-256 recorded above"
+    },
+    "total_files_removed": 3391,
+    "total_bytes_removed": 2488263927
+  },
+  "limits": [
+    "No real-device interoperability or two-hour stability run",
+    "No measured media CPU, RSS or end-to-end latency improvement",
+    "Not all dependencies were upgraded to their latest major version; explicit decisions are recorded above",
+    "No old application protocol fallback added"
+  ],
+  "ci": {
+    "source_commit": "f360b4298dfa03af9d2342c7b65fa2b3a76e43b2",
+    "runs": [
+      {
+        "workflow": "windows.yml",
+        "run": 42700611598,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611598"
+      },
+      {
+        "workflow": "android.yml",
+        "run": 42700611686,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611686"
+      },
+      {
+        "workflow": "macos.yml",
+        "run": 42700611447,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611447"
+      },
+      {
+        "workflow": "ios.yml",
+        "run": 42700611588,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611588"
+      },
+      {
+        "workflow": "tvos.yml",
+        "run": 42700611682,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611682"
+      },
+      {
+        "workflow": "core-linux.yml",
+        "run": 42700611480,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611480"
+      },
+      {
+        "workflow": "native-linux.yml",
+        "run": 42700611632,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611632"
+      },
+      {
+        "workflow": "airplay.yml",
+        "run": 42700611735,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42700611735"
+      }
+    ],
+    "linux_tests": {
+      "all_features": 146,
+      "no_default_features": 104,
+      "legacy": 105
+    },
+    "airplay_tests": 41,
+    "windows_native_tests": 7,
+    "macos_contract_tests": 7,
+    "macos_integration_tests": 11,
+    "android": "All four Debug products and main-branch Release contract checks passed with WebRTC 150.7871.04",
+    "apple": "Three platform builds, identity, target and archive checks passed with WebRTC 150.7871.05",
+    "artifact_metadata": "Five platform product artifacts identify 0.6.27 build 35 and source commit f360b4298dfa03af9d2342c7b65fa2b3a76e43b2",
+    "log_sha256": {
+      "129444005457": "36960249a72537243c2bf5678689ba4dfffb1b1070779c5998796231737e5aa5",
+      "129444005682": "e7f5baf7329bd1a1065f98b9c57b4f56557218c1cc94649feed55d4ad8fa17d8",
+      "129444006092": "87e715a9b7389a6df286c593c9f3bbaacedb40aeb4282907f1c5c3a54357bd48",
+      "129444006357": "0cd3b000673f9edd0153bcf4c431de2d69acc2f691a74bdda2161075993f006e",
+      "129444010269": "1f559dddd89ec783c816a33b652091e25955c77b9bd074a02c25484d654ace85",
+      "129444010290": "b4db1782eb5f6cec158175734713b8ac66fcd3c309d090dedee7f54515847a83",
+      "129444010417": "c1e30f691750f783fb71b688d5f8297f8dc5a6b3c20782c318617867091c5ffe",
+      "129444011790": "3d6a6047caf13aa12b9ca89b4602fe53660ca70e0dee59aa1d96cde1291af411",
+      "129444013127": "c907e4dcb8a31468059037733d76abc7d98a6ab8159bd7aca0550984d637c3ec"
+    }
+  },
+  "windows_download_validation": {
+    "run": 42700611598,
+    "files": 20,
+    "bytes": 11601050,
+    "actions_archive_bytes": 5162193,
+    "source_commit": "f360b4298dfa03af9d2342c7b65fa2b3a76e43b2",
+    "source_dirty": false,
+    "source_tree_sha256": "419bb1e4567ae8fa6d0a04f3d3f7d4ed9b4c2e307fdf9b7fbbcab23397ffce50",
+    "validation": "python -B -O scripts/verify-windows.py; package hashes, x64 PE imports, DLL dependencies and TS symbols passed",
+    "device_installation": false
+  }
+}
