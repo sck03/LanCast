@@ -1,0 +1,69 @@
+{
+  "version": "0.6.26",
+  "build_number": 34,
+  "date": "2026-11-10",
+  "source_commit": "c5ae3f6905554551856fe72e038ab85c5348fd4c",
+  "regressions": {
+    "failed_before_fix": [
+      "stale_offers_never_reach_the_peer_or_replace_current_signals",
+      "negotiated_recovery_relays_new_transport_and_filters_stale_signals (extended)"
+    ],
+    "observed_failure": "A rejected offer still reached the peer; a real TLS/WSS receiver returned STALE_NEGOTIATION and the sender cleared its current session",
+    "after": "Both regressions pass; valid replacement, current answer/ICE/ready, retry deadlines and cancellation remain covered",
+    "method": "Real WebSocket frames over in-memory duplex transport, paused Tokio clock, and two Engine instances using pinned TLS/WSS with receiver approval"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {"passed": 145, "failed": 0},
+    "rust_no_default_features": {"passed": 103, "failed": 0},
+    "rust_legacy": {"passed": 104, "failed": 0},
+    "python_unittest": {"passed": 54, "failed": 0},
+    "python_optimized_unittest": {"passed": 54, "failed": 0},
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "ffi_check_no_default_features": "passed",
+    "ffi_check_legacy": "passed",
+    "architecture": "passed",
+    "markdown_links": {"files": 32, "targets": 233, "missing": 0}
+  },
+  "resource_changes": {
+    "new_runtime_dependencies": 0,
+    "new_threads": 0,
+    "new_periodic_timers": 0,
+    "new_history_caches": 0,
+    "description": "The recovery adapter returns a must-use offer decision, consumed by the session adapter before WSS serialization; stale SDP no longer incurs network writes, receiver parsing or error replies"
+  },
+  "ci": {
+    "source_commit": "c5ae3f6905554551856fe72e038ab85c5348fd4c",
+    "runs": [
+      {"workflow": "windows.yml", "run": 42690396473, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42690396473"},
+      {"workflow": "android.yml", "run": 42690397032, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42690397032"},
+      {"workflow": "macos.yml", "run": 42690397041, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42690397041"},
+      {"workflow": "ios.yml", "run": 42690396930, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42690396930"},
+      {"workflow": "tvos.yml", "run": 42690397027, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42690397027"},
+      {"workflow": "core-linux.yml", "run": 42690398121, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42690398121"},
+      {"workflow": "native-linux.yml", "run": 42690397158, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42690397158"}
+    ],
+    "independent_airplay_workflow": "not triggered",
+    "linux_tests": {"all_features": 146, "no_default_features": 104, "legacy": 105},
+    "windows_native_tests": {"passed": 7, "failed": 0},
+    "windows_package_checks": "verify-windows.py passed",
+    "android": "All four products and main-branch Release contract verification passed",
+    "apple": "macOS integration tests and all three platforms' identity, target and archive validation passed",
+    "artifact_metadata": "All five platform artifacts use the source commit above and identify 0.6.26 build 34",
+    "package_validation_boundary": "Workflow package checks completed; no local artifact download or device installation in this iteration"
+  },
+  "cleanup": {
+    "mode": "clean",
+    "files_removed": 2943,
+    "bytes_removed": 1975063752,
+    "paths": ["target", "scripts/__pycache__", "scripts/tests/__pycache__"],
+    "remaining_known_reclaimable_bytes": 0,
+    "protection": "Preview and revalidate tracked files, ignored paths, containment, links, signing material, nested repositories and metadata before deletion; retain original media samples"
+  },
+  "limits": [
+    "No real-device interoperability or two-hour stability run in this iteration",
+    "No measured CPU, RSS or end-to-end latency improvement",
+    "Existing Android Legacy product remains part of the supported feature matrix; no old application protocol fallback added"
+  ]
+}
