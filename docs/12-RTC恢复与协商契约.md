@@ -17,7 +17,7 @@
 
 ## 协议增量
 
-保留协议 version=1，以 `session.start.body.rtcRecovery="replace-v1"` 请求能力；接收端在 `session.accepted` 和本地 `session.started` 中回显。未协商能力的旧客户端维持断流终止行为。
+保留协议 version=1，以 `session.start.body.rtcRecovery="replace-v1"` 请求能力；接收端在 `session.accepted` 和本地 `session.started` 中回显。未协商恢复能力的会话在断流时终止；这属于会话能力判断，不提供旧配对协议回退。
 
 | 消息 | 方向与字段 | 约束 |
 |---|---|---|
@@ -29,6 +29,8 @@
 | session.stop | 双向 | 恢复耗尽 reason=RTC_RECOVERY_EXHAUSTED |
 
 offer 保留请求 ID 幂等缓存；错误的父代次不改变当前状态。接收端旧媒体回调产生的本地 answer/ICE/state/ready 不得使新会话失败。连接关闭不发起自动配对，也不复用已消费邀请。
+
+D40将发送端当前会话及启动请求关联移入`control/client_session`。旧会话的stop/error不能取消当前恢复，重复确认不能重新创建恢复计时；本机过期会话信令在网络发送前过滤。具体规则和文件会话共同维护于[14](14-控制连接生命周期与维护边界.md#d40-发送会话关联与过期消息隔离)。
 
 ## 时间与失败行为
 

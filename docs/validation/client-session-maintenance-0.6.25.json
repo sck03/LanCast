@@ -1,0 +1,52 @@
+{
+  "version": "0.6.25",
+  "build_number": 33,
+  "date": "2026-11-09",
+  "regressions": {
+    "failed_before_fix": [
+      "stale_session_signals_cannot_stop_or_disable_current_recovery",
+      "file_session_filters_stale_messages_and_duplicate_acceptance"
+    ],
+    "additional_coverage": [
+      "acceptance_and_errors_must_match_the_latest_start",
+      "rejected_or_malformed_start_cannot_create_a_session",
+      "current_stop_retires_signals_until_a_new_correlated_acceptance"
+    ],
+    "after": "All five new regressions and existing control, RTC recovery and real WSS loopback tests pass",
+    "method": "Real WebSocket frames over in-memory duplex transport, paused Tokio clock for recovery deadlines, and pure sender session correlation tests"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {"passed": 144, "failed": 0},
+    "rust_no_default_features": {"passed": 102, "failed": 0},
+    "rust_legacy": {"passed": 103, "failed": 0},
+    "python_unittest": {"passed": 54, "failed": 0},
+    "python_optimized_unittest": {"passed": 54, "failed": 0},
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "ffi_check_no_default_features": "passed",
+    "ffi_check_legacy": "passed",
+    "architecture": "passed",
+    "markdown_links": {"files": 32, "targets": 231, "missing": 0},
+    "version_config_after_bump": {"passed": 5, "failed": 0}
+  },
+  "resource_changes": {
+    "new_runtime_dependencies": 0,
+    "new_threads": 0,
+    "new_periodic_timers": 0,
+    "description": "Bounded sender session correlation filters obsolete messages before network serialization or host event serialization; no history cache or platform resources in the session module"
+  },
+  "cleanup": {
+    "mode": "clean",
+    "files_removed": 2968,
+    "bytes_removed": 2129761734,
+    "paths": ["target", "scripts/__pycache__", "scripts/tests/__pycache__"],
+    "remaining_known_reclaimable_bytes": 0,
+    "protection": "Preview and revalidate tracked files, ignored paths, containment, links, signing material, nested repositories and metadata before deletion; retain original media samples"
+  },
+  "limits": [
+    "No real-device interoperability or two-hour stability run in this iteration",
+    "No measured CPU, RSS or end-to-end latency improvement",
+    "Existing Android Legacy product remains part of the supported feature matrix; no old application protocol fallback added"
+  ]
+}

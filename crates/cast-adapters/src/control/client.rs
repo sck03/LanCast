@@ -1,5 +1,6 @@
 //! Sender control connection and RTC recovery coordination.
 use super::{
+    client_session::{ClientSession, Outgoing},
     heartbeat::Heartbeat,
     wire::{receive, send, wire_config},
 };
@@ -7,7 +8,6 @@ use crate::{
     auth::{self, Identity},
     events::{self, Events, event},
     protocol::Message,
-    rtc_recovery::{CAPABILITY, RtcRecovery},
 };
 use anyhow::{Context, ensure};
 use serde_json::json;
@@ -109,27 +109,21 @@ impl Client {
             let mut heartbeat = Heartbeat::new();
             let timer = tokio::time::sleep_until(heartbeat.deadline());
             tokio::pin!(timer);
-            let mut recovery: Option<RtcRecovery> = None;
-            let mut pending_recovery = None;
+            let mut session = ClientSession::default();
             let run = async {
                 loop {
                     if rx.is_closed() {
                         break;
                     }
                     heartbeat.check()?;
-                    if let Some(message) = recovery
-                        .as_mut()
-                        .and_then(|r| r.poll(epoch.elapsed().as_millis() as u64))
-                    {
+                    if let Some(message) = session.poll(epoch.elapsed().as_millis() as u64) {
                         if message.kind == "session.stop" {
                             send(&mut ws, &message).await?;
-                            recovery = None;
                         }
                         events::message(&events, &message);
                     }
-                    let deadline = recovery
-                        .as_ref()
-                        .and_then(RtcRecovery::next_deadline)
+                    let deadline = session
+                        .next_deadline()
                         .map(|ms| epoch + Duration::from_millis(ms))
                         .map_or(heartbeat.deadline(), |deadline| {
                             deadline.min(heartbeat.deadline())
@@ -139,23 +133,14 @@ impl Client {
                         request = rx.recv() => {
                             let Some(request) = request else { break };
                             let now = epoch.elapsed().as_millis() as u64;
-                            if request.kind == "rtc.state" {
-                                if let Some(r) = recovery.as_mut() { r.report(&request, false, now); }
-                                else if request.body["state"] != "connected" {
-                                    let stop = request.reply("session.stop", json!({"reason":"RTC_CONNECTION_LOST"}));
+                            match session.outgoing(request, now) {
+                                Outgoing::Forward(request) => send(&mut ws, &request).await?,
+                                Outgoing::Stop(stop) => {
                                     send(&mut ws, &stop).await?;
                                     events::message(&events, &stop);
                                 }
-                                continue;
+                                Outgoing::Ignore => {}
                             }
-                            if request.kind == "session.start" {
-                                pending_recovery = (request.body["mode"] == "mirror" && request.body["rtcRecovery"] == CAPABILITY).then_some(request.id);
-                                recovery = None;
-                            }
-                            if request.kind == "rtc.offer" && let Some(r) = recovery.as_mut() { r.offer(&request); }
-                            if request.kind == "rtc.ice" && recovery.as_ref().is_some_and(|r| !r.accepts(&request)) { continue; }
-                            if request.kind == "session.stop" { recovery = None; pending_recovery = None; }
-                            send(&mut ws, &request).await?;
                         }
                         response = receive(&mut ws) => {
                             let response = response?;
@@ -165,19 +150,9 @@ impl Client {
                                 send(&mut ws, &response.reply("pong", response.body.clone())).await?;
                                 continue;
                             }
-                            if response.kind == "session.accepted" && pending_recovery.is_some() && response.reply_to == pending_recovery {
-                                if response.body["rtcRecovery"] == CAPABILITY {
-                                    recovery = Some(RtcRecovery::new(response.session_id.context("SESSION_REQUIRED")?, now));
-                                }
-                                pending_recovery = None;
+                            if response.kind != "pong" && session.incoming(&response, now)? {
+                                events::message(&events, &response);
                             }
-                            if response.kind == "rtc.state" {
-                                if let Some(r) = recovery.as_mut() { r.report(&response, true, now); }
-                                continue;
-                            }
-                            if matches!(response.kind.as_str(), "rtc.answer" | "rtc.ice") && recovery.as_ref().is_some_and(|r| !r.accepts(&response)) { continue; }
-                            if response.kind == "session.stop" || response.kind == "error" { recovery = None; }
-                            events::message(&events, &response);
                         }
                         _ = &mut timer => {}
                     }
@@ -211,6 +186,7 @@ impl Drop for Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rtc_recovery::CAPABILITY;
     use futures_util::{FutureExt, SinkExt};
     use tokio_tungstenite::tungstenite::protocol::Role;
 
@@ -239,6 +215,103 @@ mod tests {
         let event: serde_json::Value = serde_json::from_str(&output.try_recv().unwrap()).unwrap();
         assert_eq!(event["type"], "message");
         serde_json::from_value(event["body"].clone()).unwrap()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stale_session_signals_cannot_stop_or_disable_current_recovery() {
+        let (mut client, mut peer, output) = test_connection().await;
+        let start = Message::new(
+            "session.start",
+            json!({"mode":"mirror","rtcRecovery":CAPABILITY}),
+        );
+        client.send(start.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, start.id);
+        let session = uuid::Uuid::new_v4();
+        let mut accepted = start.reply("session.accepted", json!({"rtcRecovery":CAPABILITY}));
+        accepted.session_id = Some(session);
+        send(&mut peer, &accepted).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).kind, "session.accepted");
+        let mut offer = Message::new(
+            "rtc.offer",
+            json!({"sdp":"test","negotiationId":uuid::Uuid::new_v4()}),
+        );
+        offer.session_id = Some(session);
+        client.send(offer.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, offer.id);
+
+        let stale_session = uuid::Uuid::new_v4();
+        for kind in ["session.stop", "error", "session.state"] {
+            let mut stale = Message::new(kind, json!({"code":"OLD_SESSION"}));
+            stale.session_id = Some(stale_session);
+            send(&mut peer, &stale).await.unwrap();
+        }
+        heartbeat(&mut peer).await;
+        assert!(
+            output.try_recv().is_err(),
+            "stale remote signals reached the current host session"
+        );
+
+        let mut stale_stop = Message::new("session.stop", json!({}));
+        stale_stop.session_id = Some(stale_session);
+        client.send(stale_stop).unwrap();
+        let ping = Message::new("ping", json!({}));
+        client.send(ping.clone()).unwrap();
+        assert_eq!(
+            receive(&mut peer).await.unwrap().id,
+            ping.id,
+            "stale local stop reached the peer"
+        );
+
+        let mut failed = Message::new(
+            "rtc.state",
+            json!({"state":"failed","negotiationId":offer.body["negotiationId"]}),
+        );
+        failed.session_id = Some(session);
+        client.send(failed).unwrap();
+        client.send(ping.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, ping.id);
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(host_message(&output).kind, "rtc.restart");
+        let mut stop = Message::new("session.stop", json!({}));
+        stop.session_id = Some(session);
+        send(&mut peer, &stop).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).id, stop.id);
+        tokio::time::advance(Duration::from_secs(5)).await;
+        tokio::task::yield_now().await;
+        assert!(output.try_recv().is_err());
+        client.close().await;
+    }
+
+    #[tokio::test]
+    async fn file_session_filters_stale_messages_and_duplicate_acceptance() {
+        let (mut client, mut peer, output) = test_connection().await;
+        let start = Message::new("session.start", json!({"mode":"file"}));
+        client.send(start.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, start.id);
+        let mut accepted = start.reply("session.accepted", json!({}));
+        accepted.session_id = Some(uuid::Uuid::new_v4());
+        send(&mut peer, &accepted).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).id, accepted.id);
+        send(&mut peer, &accepted).await.unwrap();
+        let mut stale = Message::new("error", json!({"code":"STALE_NEGOTIATION"}));
+        stale.session_id = Some(uuid::Uuid::new_v4());
+        send(&mut peer, &stale).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert!(output.try_recv().is_err());
+        let mut current = Message::new("session.state", json!({"state":"ready"}));
+        current.session_id = accepted.session_id;
+        send(&mut peer, &current).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).id, current.id);
+        let error = current.error("MEDIA_UNSUPPORTED");
+        send(&mut peer, &error).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).id, error.id);
+        client.close().await;
     }
 
     #[tokio::test(start_paused = true)]
