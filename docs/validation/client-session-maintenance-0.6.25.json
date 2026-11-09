@@ -2,6 +2,7 @@
   "version": "0.6.25",
   "build_number": 33,
   "date": "2026-11-09",
+  "source_commit": "e87ff2f74c668c66df4788b00f18a086fa508d3a",
   "regressions": {
     "failed_before_fix": [
       "stale_session_signals_cannot_stop_or_disable_current_recovery",
@@ -35,6 +36,25 @@
     "new_threads": 0,
     "new_periodic_timers": 0,
     "description": "Bounded sender session correlation filters obsolete messages before network serialization or host event serialization; no history cache or platform resources in the session module"
+  },
+  "ci": {
+    "source_commit": "e87ff2f74c668c66df4788b00f18a086fa508d3a",
+    "runs": [
+      {"workflow": "windows.yml", "run": 42644181249, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42644181249"},
+      {"workflow": "android.yml", "run": 42644180818, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42644180818"},
+      {"workflow": "macos.yml", "run": 42644180773, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42644180773"},
+      {"workflow": "ios.yml", "run": 42644180802, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42644180802"},
+      {"workflow": "tvos.yml", "run": 42644180804, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42644180804"},
+      {"workflow": "core-linux.yml", "run": 42644180723, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42644180723"},
+      {"workflow": "native-linux.yml", "run": 42644180769, "conclusion": "success", "url": "https://github.com/sck03/LanCast/actions/runs/42644180769"}
+    ],
+    "independent_airplay_workflow": "not triggered",
+    "linux_tests": {"all_features": 145, "no_default_features": 103, "legacy": 104},
+    "windows_native_tests": {"passed": 7, "failed": 0},
+    "windows_package_checks": "SHA-256, x64 PE imports, runtime dependencies and Release TS symbol policy passed",
+    "android": "All four products and main-branch Release contract verification passed",
+    "artifact_metadata": "All five platform runs use the source commit above; product artifact names identify 0.6.25 build 33",
+    "package_validation_boundary": "Workflow package checks completed; no local artifact download or device installation in this iteration"
   },
   "cleanup": {
     "mode": "clean",
