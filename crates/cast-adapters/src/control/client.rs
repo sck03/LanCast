@@ -383,12 +383,26 @@ mod tests {
             "a rejected offer was still written to the peer"
         );
 
+        for id in [serde_json::Value::Null, json!("invalid"), json!(first)] {
+            let mut ready =
+                Message::new("session.state", json!({"state":"ready","negotiationId":id}));
+            ready.session_id = accepted.session_id;
+            send(&mut peer, &ready).await.unwrap();
+        }
         let mut answer = Message::new("rtc.answer", json!({"sdp":"test","negotiationId":next}));
         answer.session_id = accepted.session_id;
         send(&mut peer, &answer).await.unwrap();
         heartbeat(&mut peer).await;
         assert_eq!(host_message(&output).id, answer.id);
         assert!(output.try_recv().is_err());
+        let mut ready = Message::new(
+            "session.state",
+            json!({"state":"ready","negotiationId":next}),
+        );
+        ready.session_id = accepted.session_id;
+        send(&mut peer, &ready).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).id, ready.id);
         client.close().await;
     }
 
@@ -440,6 +454,12 @@ mod tests {
         state.body["state"] = json!("connected");
         client.send(state.clone()).unwrap();
         send(&mut peer, &state).await.unwrap();
+        let mut ready = Message::new(
+            "session.state",
+            json!({"state":"ready","negotiationId":offer.body["negotiationId"]}),
+        );
+        ready.session_id = Some(session);
+        send(&mut peer, &ready).await.unwrap();
         heartbeat(&mut peer).await;
         for (delay, attempt) in [(4, 2), (5, 3)] {
             tokio::time::advance(Duration::from_secs(delay)).await;

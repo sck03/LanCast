@@ -90,16 +90,16 @@ impl ClientSession {
             // Session signals always carry an ID; unscoped acknowledgements are harmless.
             return Ok(response.kind == "ack");
         }
+        let transport_signal = matches!(response.kind.as_str(), "rtc.answer" | "rtc.ice")
+            || (response.kind == "session.state" && response.body["state"] == "ready");
+        if transport_signal && self.recovery.as_ref().is_some_and(|r| !r.accepts(response)) {
+            return Ok(false);
+        }
         match response.kind.as_str() {
             "rtc.state" => {
                 if let Some(recovery) = &mut self.recovery {
                     recovery.report(response, true, now);
                 }
-                return Ok(false);
-            }
-            "rtc.answer" | "rtc.ice"
-                if self.recovery.as_ref().is_some_and(|r| !r.accepts(response)) =>
-            {
                 return Ok(false);
             }
             "session.stop" | "error" => self.clear(),
@@ -130,6 +130,52 @@ impl ClientSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ready_requires_the_current_transport_and_cannot_cross_a_restart() {
+        let mut session = ClientSession::default();
+        let start = Message::new(
+            "session.start",
+            json!({"mode":"mirror","rtcRecovery":CAPABILITY}),
+        );
+        session.outgoing(start.clone(), 0);
+        let mut accepted = start.reply("session.accepted", json!({"rtcRecovery":CAPABILITY}));
+        accepted.session_id = Some(Uuid::new_v4());
+        assert!(session.incoming(&accepted, 0).unwrap());
+        let mut ready = Message::new("session.state", json!({"state":"ready"}));
+        ready.session_id = accepted.session_id;
+        assert!(!session.incoming(&ready, 1).unwrap());
+
+        let first = Uuid::new_v4();
+        let next = Uuid::new_v4();
+        let mut offer = Message::new("rtc.offer", json!({"negotiationId":first}));
+        offer.session_id = accepted.session_id;
+        assert!(matches!(
+            session.outgoing(offer.clone(), 1),
+            Outgoing::Forward(_)
+        ));
+        for id in [serde_json::Value::Null, json!("invalid"), json!(next)] {
+            ready.body["negotiationId"] = id;
+            assert!(!session.incoming(&ready, 2).unwrap());
+        }
+        ready.body["negotiationId"] = json!(first);
+        assert!(session.incoming(&ready, 2).unwrap());
+        let mut failed = offer.clone();
+        failed.kind = "rtc.state".into();
+        failed.body["state"] = json!("failed");
+        session.outgoing(failed, 3);
+        assert_eq!(session.poll(1003).unwrap().kind, "rtc.restart");
+        assert!(!session.incoming(&ready, 1004).unwrap());
+        offer.body = json!({"negotiationId":next,"previousNegotiationId":first});
+        assert!(matches!(
+            session.outgoing(offer, 1004),
+            Outgoing::Forward(_)
+        ));
+        assert!(!session.incoming(&ready, 1005).unwrap());
+        ready.body["negotiationId"] = json!(next);
+        assert!(session.incoming(&ready, 1006).unwrap());
+        assert_eq!(session.next_deadline(), Some(5003));
+    }
 
     #[test]
     fn acceptance_and_errors_must_match_the_latest_start() {

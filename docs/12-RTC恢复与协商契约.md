@@ -25,7 +25,7 @@
 | rtc.answer / rtc.ice | 原有方向与字段 | 只投递给当前会话和协商；重建前的 SDP/ICE 被丢弃 |
 | rtc.state | 媒体→本地控制；接收端经 WSS 转发给发送端 | negotiationId；state 仅 connected/disconnected/failed；发送端自己的报告不发往网络 |
 | rtc.restart | 发送端控制→本地媒体，永不发往接收端 | 当前 negotiationId、attempt；媒体完成新 offer 后恢复投递 |
-| session.state ready | 接收→发送 | 启用恢复时必须带当前 negotiationId；重复 ready 幂等 |
+| session.state ready | 接收→发送 | 镜像必须已有当前 negotiationId；发送端恢复等待新offer时丢弃旧ready；文件播放不需要协商ID，重复ready幂等 |
 | session.stop | 双向 | 恢复耗尽 reason=RTC_RECOVERY_EXHAUSTED |
 
 发送端在写入网络前丢弃重复、过期及父代次不匹配的offer；接收端保留请求 ID 幂等缓存和独立校验。错误的父代次不改变当前状态。接收端旧媒体回调产生的本地 answer/ICE/state/ready 不得使新会话失败。连接关闭不发起自动配对，也不复用已消费邀请。
@@ -63,3 +63,13 @@ D40将发送端当前会话及启动请求关联移入`control/client_session`�
 `RtcRecovery::offer`返回是否接受本次协商，`client_session`仅放行接受的offer。状态更新与发送判定使用同一套会话、UUID和父代次规则；网络循环无需增加协商判断。重复当前offer、旧offer、新ID但缺少/错误父代次，以及显式null父字段均在WSS序列化前丢弃。首个合法offer及正确继承当前代次的替换offer仍正常传送，当前answer/ICE/ready继续交付。未协商恢复的会话仍遵循原有能力规则。
 
 回归还验证等待重建时重复offer不能重新开放旧connected报告，第1、5、10秒重试和第15秒终止保持有效。新增返回值不增加状态、历史缓存、依赖、线程或计时器；减少无效SDP序列化、网络写入、接收端解析及错误回传，未量化CPU/RSS或端到端延迟。实际测试、构建与清理记录见08。
+
+## D43 播放就绪与协商生命周期
+
+0.6.28 / 36，2026-11-10。接收端此前用两个可选UUID直接比较：首个offer到达前，缺失/无效的ready协商ID与当前空协商相等，镜像会话可能从Negotiating提前进入Streaming。未启用恢复能力时ready还会绕过协商检查。ICE、answer和rtc.state的无效ID已由协议解析器拒绝，不属于本次确认的入口漏洞。
+
+`session::Session::accepts_negotiation`统一核对镜像模式、未停止状态、会话ID和已存在的协商ID；接收端answer/ICE/state、镜像ready及远端ICE复用此判断。`Session::ready`同时保护状态机不允许尚未建立协商的镜像进入Streaming。ready缺失ID、null、无效UUID或旧ID在接收端排队发送前丢弃，不因恢复能力开关改变规则；文件会话仍由Loading进入Playing，不要求RTC字段。
+
+发送端的`control/client_session`将ready纳入既有`RtcRecovery::accepts`过滤。收到重建请求后到合法替换offer之前，旧ready不可交付宿主；新offer提交后，迟到的上一代ready也被丢弃。这覆盖旧ready在接收端通过校验后已排入网络、随后发送端切换代次的情况。当前ready继续交付，重复ready幂等；ready不能代替双端connected报告取消恢复截止。
+
+两项新增回归先在旧实现失败，修复后通过；扩展现有WebSocket内存回环、真实TLS/WSS回环、文件会话及1/5/10秒重试、15秒截止测试。生产路径删除重复的UUID判断，不新增依赖、线程、计时器、状态缓存或旧应用兼容分支；无效ready在队列/宿主JSON编码之前过滤，减少无效网络发送和平台回调。CPU/RSS、延迟和真实设备长稳仍未测量；验证与清理证据见08。

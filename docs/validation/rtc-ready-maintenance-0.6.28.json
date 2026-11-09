@@ -1,0 +1,161 @@
+{
+  "version": "0.6.28",
+  "build_number": 36,
+  "date": "2026-11-10",
+  "decision": "D43",
+  "regression_before_fix": {
+    "command": "cargo test -p cast-adapters --all-features --locked ready_requires -- --nocapture",
+    "failed_tests": [
+      "control::client_session::tests::ready_requires_the_current_transport_and_cannot_cross_a_restart",
+      "control::server::tests::receiver_ready_requires_an_active_mirror_negotiation"
+    ],
+    "observed": [
+      "Sender accepted ready before the first offer",
+      "Receiver delivered session.state where the statistics barrier was expected"
+    ]
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features_passed": 147,
+    "rust_no_default_features_passed": 105,
+    "rust_legacy_passed": 106,
+    "python_tests_passed": 57,
+    "python_optimized_tests_passed": 57,
+    "rustfmt": "passed",
+    "clippy_all_targets_all_features_deny_warnings": "passed",
+    "ffi_receiver_configurations": "passed",
+    "architecture": "passed",
+    "markdown_links": {
+      "files": 32,
+      "local_links": 235,
+      "broken": 0
+    },
+    "commands": [
+      {
+        "command": "cargo fmt --all --check",
+        "exit_code": 0,
+        "summaries": []
+      },
+      {
+        "command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+        "exit_code": 0,
+        "summaries": []
+      },
+      {
+        "command": "cargo test --workspace --no-default-features --locked",
+        "exit_code": 0,
+        "summaries": [
+          "test result: ok. 84 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s",
+          "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.29s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        ]
+      },
+      {
+        "command": "cargo test --workspace --no-default-features --features legacy --locked",
+        "exit_code": 0,
+        "summaries": [
+          "test result: ok. 84 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s",
+          "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.29s",
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s",
+          "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        ]
+      },
+      {
+        "command": "cargo check -p cast-ffi --no-default-features --locked",
+        "exit_code": 0,
+        "summaries": []
+      },
+      {
+        "command": "cargo check -p cast-ffi --no-default-features --features legacy --locked",
+        "exit_code": 0,
+        "summaries": []
+      }
+    ]
+  },
+  "coverage": [
+    "Pre-offer mirror ready cannot change receiver state or enter its outgoing queue",
+    "Missing, null, malformed and stale negotiation identifiers are discarded",
+    "Receiver checks ready with and without negotiated recovery",
+    "Sender filters ready while awaiting replacement and after switching transports",
+    "Current and repeated ready remain deliverable; file ready needs no negotiation",
+    "Real TLS/WSS and in-memory WebSocket loopbacks",
+    "Recovery attempts at 1/5/10 seconds and termination at 15 seconds"
+  ],
+  "resource_changes": {
+    "new_dependencies": 0,
+    "new_threads": 0,
+    "new_timers": 0,
+    "new_state_caches": 0,
+    "effect": "Discard invalid ready before receiver queueing or sender host-event serialization; share receiver negotiation checks"
+  },
+  "not_measured": [
+    "Real-device interoperability",
+    "Media CPU/RSS",
+    "End-to-end latency",
+    "Two-hour stability"
+  ],
+  "ci": "pending push",
+  "cleanup": {
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2889,
+        "bytes": 1906719700,
+        "fingerprint": "a3ef73f4e4e376fe67b3f06312fac31490cbd8387ebdd3df33b42718b91d3622"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 32,
+        "bytes": 246838,
+        "fingerprint": "39d4a918a598cc2a7d867d9102ee6f1ca8c97bc46e685c1fd797efb5765b30da"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 26,
+        "bytes": 186266,
+        "fingerprint": "be2bb3678b7b3ce31b93f8f2ca91bee10c1a857fb27a7b714690193faa4b0d4d"
+      },
+      {
+        "path": ".cache/hardware-pts.log",
+        "category": "obsolete investigation",
+        "files": 1,
+        "bytes": 558002,
+        "fingerprint": "6456038db306da327b43c16ff79903a456564a848a335ef348991ae7c1e75375"
+      },
+      {
+        "path": ".cache/mft-color-probe.cpp",
+        "category": "obsolete investigation",
+        "files": 1,
+        "bytes": 1479,
+        "fingerprint": "20ac736ee2d179ee57af97444b84d7ab6a77f7e1489be512a53d73c06818ab85"
+      },
+      {
+        "path": ".cache/verify-probe-content.py",
+        "category": "obsolete investigation",
+        "files": 1,
+        "bytes": 900,
+        "fingerprint": "4a5ca3ef1cbbcea10c5d9f35683effb7ba0f10275d5e13e4b5f2016d0efded54"
+      }
+    ],
+    "removed_files": 2950,
+    "removed_bytes": 1907713185,
+    "remaining_reclaimable": [],
+    "preserved": "Tracked source, licenses and original media samples"
+  }
+}

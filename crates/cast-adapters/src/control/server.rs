@@ -89,26 +89,17 @@ impl Server {
             ),
             "INVALID_DIRECTION"
         );
-        if matches!(msg.kind.as_str(), "rtc.answer" | "rtc.ice" | "rtc.state")
-            && msg.body["negotiationId"]
-                .as_str()
-                .and_then(|v| Uuid::parse_str(v).ok())
-                != active.negotiation
+        let ready = msg.kind == "session.state" && msg.body["state"] == "ready";
+        if (matches!(msg.kind.as_str(), "rtc.answer" | "rtc.ice" | "rtc.state")
+            || (ready && active.mode == "mirror"))
+            && !active.accepts_negotiation(&msg)
         {
             return Ok(());
         }
         if msg.kind == "rtc.state" && !active.rtc_recovery {
             return Ok(());
         }
-        if msg.kind == "session.state" && msg.body["state"] == "ready" {
-            if active.rtc_recovery
-                && msg.body["negotiationId"]
-                    .as_str()
-                    .and_then(|s| Uuid::parse_str(s).ok())
-                    != active.negotiation
-            {
-                return Ok(());
-            }
+        if ready {
             active.ready()?;
         }
         let stopping = msg.kind == "session.stop";
@@ -398,13 +389,7 @@ async fn handle_request(
             session.negotiate(Uuid::parse_str(request.string("negotiationId")?)?, previous)?;
         }
         "rtc.ice" => {
-            ensure!(
-                request.body["negotiationId"]
-                    .as_str()
-                    .and_then(|s| Uuid::parse_str(s).ok())
-                    == session.negotiation,
-                "STALE_NEGOTIATION"
-            );
+            ensure!(session.accepts_negotiation(request), "STALE_NEGOTIATION");
         }
         "file.load" => {
             ensure!(session.mode == "file", "INVALID_STATE");
@@ -510,6 +495,74 @@ mod tests {
         assert_eq!(receive(&mut peer).await.unwrap().kind, "ping");
         assert!(output.try_recv().unwrap().contains("pair.closed"));
         (server, peer, task, output)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn receiver_ready_requires_an_active_mirror_negotiation() {
+        for recovery in [false, true] {
+            let (server, mut peer, task, output) = paired_connection().await;
+            let mut start = Message::new("session.start", json!({"mode":"mirror"}));
+            if recovery {
+                start.body["rtcRecovery"] = json!(CAPABILITY);
+            }
+            send(&mut peer, &start).await.unwrap();
+            let accepted = receive(&mut peer).await.unwrap();
+            assert_eq!(accepted.kind, "session.accepted");
+            assert!(output.try_recv().unwrap().contains("session.started"));
+            let negotiation = Uuid::new_v4();
+            for offered in [false, true] {
+                if offered {
+                    let mut offer = Message::new(
+                        "rtc.offer",
+                        json!({"sdp":"v=0", "negotiationId":negotiation}),
+                    );
+                    offer.session_id = accepted.session_id;
+                    send(&mut peer, &offer).await.unwrap();
+                    assert_eq!(receive(&mut peer).await.unwrap().kind, "ack");
+                    assert!(output.try_recv().unwrap().contains("rtc.offer"));
+                }
+                for id in [
+                    None,
+                    Some(serde_json::Value::Null),
+                    Some(json!("invalid")),
+                    Some(json!(Uuid::new_v4())),
+                ] {
+                    let mut ready = Message::new("session.state", json!({"state":"ready"}));
+                    ready.session_id = accepted.session_id;
+                    if let Some(id) = id {
+                        ready.body["negotiationId"] = id;
+                    }
+                    // Exercise the same validation as a platform signal command.
+                    server
+                        .send(Message::parse(&serde_json::to_string(&ready).unwrap()).unwrap())
+                        .await
+                        .unwrap();
+                }
+                let mut barrier = Message::new("statistics", json!({}));
+                barrier.session_id = accepted.session_id;
+                server.send(barrier).await.unwrap();
+                assert_eq!(receive(&mut peer).await.unwrap().kind, "statistics");
+                assert_eq!(
+                    server.session.lock().await.as_ref().unwrap().state,
+                    crate::session::State::Negotiating
+                );
+            }
+            for _ in 0..2 {
+                let mut ready = Message::new(
+                    "session.state",
+                    json!({"state":"ready", "negotiationId":negotiation}),
+                );
+                ready.session_id = accepted.session_id;
+                server.send(ready).await.unwrap();
+                assert_eq!(receive(&mut peer).await.unwrap().kind, "session.state");
+                assert_eq!(
+                    server.session.lock().await.as_ref().unwrap().state,
+                    crate::session::State::Streaming
+                );
+            }
+            peer.close(None).await.unwrap();
+            let _ = task.await.unwrap();
+        }
     }
 
     #[tokio::test(start_paused = true)]

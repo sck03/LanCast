@@ -49,10 +49,11 @@ impl Session {
     }
     pub fn ready(&mut self) -> anyhow::Result<()> {
         anyhow::ensure!(
-            matches!(
-                self.state,
-                State::Negotiating | State::Loading | State::Streaming | State::Playing
-            ),
+            (self.mode != "mirror" || self.negotiation.is_some())
+                && matches!(
+                    self.state,
+                    State::Negotiating | State::Loading | State::Streaming | State::Playing
+                ),
             "INVALID_STATE"
         );
         self.state = if self.mode == "mirror" {
@@ -61,6 +62,16 @@ impl Session {
             State::Playing
         };
         Ok(())
+    }
+    pub fn accepts_negotiation(&self, message: &Message) -> bool {
+        self.mode == "mirror"
+            && self.state != State::Stopped
+            && message.session_id == Some(self.id)
+            && self.negotiation.is_some()
+            && message.body["negotiationId"]
+                .as_str()
+                .and_then(|s| Uuid::parse_str(s).ok())
+                == self.negotiation
     }
     pub fn negotiate(&mut self, id: Uuid, previous: Option<Uuid>) -> anyhow::Result<()> {
         anyhow::ensure!(
@@ -124,9 +135,15 @@ mod tests {
         let user = Uuid::new_v4();
         let mut s = Session::new(user, "mirror").unwrap();
         assert!(s.authorize(Uuid::new_v4(), Some(s.id)).is_err());
+        assert!(s.ready().is_err());
+        assert_eq!(s.state, State::Negotiating);
+        s.negotiate(Uuid::new_v4(), None).unwrap();
         s.ready().unwrap();
         s.stop();
         s.stop();
         assert!(s.ready().is_err());
+        let mut file = Session::new(user, "file").unwrap();
+        file.ready().unwrap();
+        assert_eq!(file.state, State::Playing);
     }
 }

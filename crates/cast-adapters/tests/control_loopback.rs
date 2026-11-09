@@ -424,6 +424,16 @@ fn negotiated_recovery_relays_new_transport_and_filters_stale_signals() {
     let session = &accepted["sessionId"];
     let started = event(&receiver, "session.started");
     assert_eq!(started["rtcRecovery"], "replace-v1");
+    signal(
+        &receiver,
+        "session.state",
+        session,
+        json!({"state":"ready"}),
+    );
+    signal(&receiver, "statistics", session, json!({}));
+    // A valid wire message without a negotiation must not turn the pre-offer
+    // session into a streaming session or reach the sender's platform callback.
+    assert_eq!(event(&sender, "message")["type"], "statistics");
     let first = uuid::Uuid::new_v4();
     let second = uuid::Uuid::new_v4();
     signal(
@@ -492,13 +502,18 @@ fn negotiated_recovery_relays_new_transport_and_filters_stale_signals() {
         message(&receiver, "rtc.ice")["body"]["negotiationId"],
         second.to_string()
     );
-    signal(
-        &receiver,
-        "session.state",
-        session,
-        json!({"state":"ready","negotiationId":second}),
+    for id in [first, second] {
+        signal(
+            &receiver,
+            "session.state",
+            session,
+            json!({"state":"ready","negotiationId":id}),
+        );
+    }
+    assert_eq!(
+        message(&sender, "session.state")["body"]["negotiationId"],
+        second.to_string()
     );
-    assert_eq!(message(&sender, "session.state")["body"]["state"], "ready");
     for engine in [&sender, &receiver] {
         signal(
             engine,
