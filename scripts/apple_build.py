@@ -15,7 +15,7 @@ import plistlib
 import shutil
 import subprocess
 import time
-import urllib.request
+from pinned_download import fetch
 from build_config import add_arguments, from_args, record
 from apple_products import PRODUCTS, app_paths
 
@@ -23,8 +23,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 APPLE = ROOT / "apple"
 CACHE = ROOT / ".cache/apple"
 DEPS = APPLE / "Dependencies"
-WEBRTC_VERSION = "150.7871.02"
-WEBRTC_SHA = "a523cd141d2aa6c3638d49fea1f72b0aafd28a8818c35fc240e08418da3d2fda"
+WEBRTC_VERSION = "150.7871.05"
+WEBRTC_SHA = "b24d7df29733079038931698102fbb39cbc11b014e4352beb0d4f55a01c3c37e"
 XCODEGEN_VERSION = "2.44.1"
 XCODEGEN_SHA = "a2e905fb68446e9bb4008cdfe2e13e3f176d0cbcca828b71770f8e53fca91b73"
 TARGETS = {
@@ -37,16 +37,6 @@ TARGETS = {
 def run(*args, cwd=ROOT, env=None):
     print("+", " ".join(map(str, args)), flush=True)
     subprocess.run(list(map(str, args)), cwd=cwd, env=env, check=True)
-
-
-def fetch(url, destination, digest):
-    if not destination.exists() or hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
-        partial = destination.with_suffix(".partial")
-        urllib.request.urlretrieve(url, partial)
-        if hashlib.sha256(partial.read_bytes()).hexdigest() != digest:
-            partial.unlink()
-            raise RuntimeError("Dependency SHA-256 mismatch: " + destination.name)
-        partial.replace(destination)
 
 
 def main(target):

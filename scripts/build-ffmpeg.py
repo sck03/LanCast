@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Pinned LGPL-only mux library, no programs/codecs/network. Requires POSIX build tools."""
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import tarfile
-import urllib.request
+from pinned_download import fetch
 
 VERSION = "8.0.1"
 SHA256 = "05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
@@ -19,10 +18,7 @@ args = p.parse_args()
 cache = root / ".cache"
 cache.mkdir(exist_ok=True)
 archive = cache / f"ffmpeg-{VERSION}.tar.xz"
-if not archive.exists():
-    urllib.request.urlretrieve(f"https://ffmpeg.org/releases/ffmpeg-{VERSION}.tar.xz", archive)
-if hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
-    raise SystemExit("FFmpeg source SHA256 mismatch")
+fetch(f"https://ffmpeg.org/releases/ffmpeg-{VERSION}.tar.xz", archive, SHA256)
 source = cache / f"ffmpeg-{VERSION}"
 if not source.exists():
     with tarfile.open(archive) as tar:

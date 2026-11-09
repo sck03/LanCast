@@ -17,6 +17,6 @@ dependencies { coreLibraryDesugaring(libs.desugar)
         api(files(sourceAar))
     } else {
         // Transitional artifact, tracked in ADR D07; custom-source release is gated separately.
-        api("io.github.webrtc-sdk:android:150.7871.01")
+        api(libs.webrtc.android)
     }
 }

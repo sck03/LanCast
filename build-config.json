@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "0.6.26",
-  "build_number": 34,
+  "version": "0.6.27",
+  "build_number": 35,
   "configuration": {
     "windows": "Release",
     "android": "Debug",

@@ -3,9 +3,9 @@ run-name: Android · ${{ inputs.product || 'all products' }} · ${{ inputs.confi
 on:
   push:
     branches: [main]
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/source_provenance.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/source_provenance.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/pinned_download.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   pull_request:
-    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/source_provenance.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
+    paths: ["core/**","crates/**","Cargo.*","rust-toolchain.toml","scripts/check-architecture.py","scripts/architecture.py","build-config.json","scripts/build_config.py","scripts/source_provenance.py","scripts/tests/**","android/**","airplay-native/**","scripts/package-airplay.py","scripts/dependency-report.py","scripts/dependency_inventory.py","media-native/**","scripts/build-android*.py","scripts/android_*.py","scripts/build-ffmpeg.py","scripts/pinned_download.py","scripts/verify-apks.py","scripts/package-native-evidence.py",".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
       product:
@@ -84,7 +84,7 @@ jobs:
           path: |
             android/app-*/src/**/jniLibs/
             .cache/ffmpeg-install-*/build-manifest.json
-          key: android-base-v3-ndk${{ env.LC_ANDROID_NDK_VERSION }}-${{ steps.products.outputs.selection }}-${{ steps.build-config.outputs.android_abi_key }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'core/Cargo.toml', 'crates/**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/android_products.py', 'scripts/android_ndk.py', 'scripts/build-android-core.py', 'scripts/build-android-media.py', 'scripts/build-ffmpeg.py') }}
+          key: android-base-v3-ndk${{ env.LC_ANDROID_NDK_VERSION }}-${{ steps.products.outputs.selection }}-${{ steps.build-config.outputs.android_abi_key }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'core/Cargo.toml', 'crates/**/Cargo.toml', 'rust-toolchain.toml', 'core/src/**', 'crates/**', 'media-native/**', 'scripts/android_products.py', 'scripts/android_ndk.py', 'scripts/build-android-core.py', 'scripts/build-android-media.py', 'scripts/build-ffmpeg.py', 'scripts/pinned_download.py') }}
       - name: Build product-specific Rust and minimal TS JNI libraries
         if: steps.native-cache.outputs.cache-hit != 'true'
         run: |

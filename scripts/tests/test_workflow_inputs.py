@@ -17,12 +17,14 @@ class WorkflowInputsTests(unittest.TestCase):
             "ios": ("scripts/artifact_checks.py", "scripts/source_provenance.py"),
             "tvos": ("scripts/artifact_checks.py", "scripts/source_provenance.py"),
             "airplay": ("scripts/source_provenance.py",),
+            "native-linux": ("scripts/build-ffmpeg.py",),
         }.items():
             text = (ROOT / ".github/workflows" / f"{workflow}.yml").read_text(encoding="utf-8")
             selections = re.findall(r"(?m)^    paths: (\[.*\])$", text)
             self.assertEqual(len(selections), 2, workflow)
             for selection in selections:
                 patterns = ast.literal_eval(selection)
-                for source in inputs:
+                download_inputs = () if workflow == "airplay" else ("scripts/pinned_download.py",)
+                for source in (*inputs, *download_inputs):
                     with self.subTest(workflow=workflow, source=source):
                         self.assertTrue(any(fnmatchcase(source, pattern) for pattern in patterns))

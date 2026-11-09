@@ -6,10 +6,11 @@ function Run([string]$Program, [string[]]$Arguments) {
 $root = Split-Path $PSScriptRoot -Parent
 $source = Join-Path $root '.cache/mbedtls'
 $prefix = Join-Path $root '.cache/mbedtls-install'
-$revision = '947808ba53faf09c526f575f5635e2e86472ba5d'
+$revision = '068ff080b369adfac81509f9b57b2afabaf82dc5'
 if (!(Test-Path -LiteralPath $source)) {
     Run git @('clone', '--no-checkout', 'https://github.com/Mbed-TLS/mbedtls.git', $source)
 }
+Run git @('-C', $source, 'fetch', '--depth', '1', 'origin', $revision)
 Run git @('-C', $source, 'checkout', '--detach', $revision)
 Run git @('-C', $source, 'submodule', 'update', '--init', '--recursive')
 Run python @("$source/scripts/config.py", '-f', "$source/include/mbedtls/mbedtls_config.h", 'set', 'MBEDTLS_SSL_DTLS_SRTP')

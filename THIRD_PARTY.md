@@ -8,18 +8,18 @@
 | rairplay及本地修正 | 7a0ec4036905afe0c8de16881d85d5846dc938a7，原始文件哈希见airplay-native/vendor/rairplay/UPSTREAM.json | 可选AirPlay协议 | GPL-3.0-only |
 | PlayFair / shairplay子模块 | 096b61ad14c90169f438e690d096e3fcf87e504e，仅src/lib/playfair | 协议握手中的媒体密钥处理；不提供受保护内容播放 | GPLv3，保留原组件说明 |
 | AirPlay Rust依赖 | airplay-native/Cargo.lock | 协议、密码算法、异步网络、JNI | 独立锁定；工作流附依赖清单和Cargo源码包 |
-| webrtc-sdk Android | 150.7871.01 | 开发期Android RTC | 包装MIT；libwebrtc BSD与附带第三方许可 |
+| webrtc-sdk Android | 150.7871.04 | 开发期Android RTC | Maven POM声明BSD-3-Clause；libwebrtc BSD与附带第三方许可 |
 | Android定制libwebrtc目标 | 0385653a83f21acf3c916466d4088b29fe2f160b | 原定源构建目标，尚未完成；当前使用固定上游AAR | 按固定源与DEPS审计 |
-| libdatachannel | 9e6a13abbb6846c003d817d0387b6706466e2b03 | Windows RTC传输 | MPL-2.0 |
+| libdatachannel | 0.24.6，6b1e2e620f1e37f0eafeee702eaea0043cb305fd | Windows RTC传输 | MPL-2.0 |
 | libopus | 5ec2f3c915d0529b94a3a302969c673531654824 | Windows Opus编码 | BSD及随附notices |
-| Mbed TLS | 947808ba53faf09c526f575f5635e2e86472ba5d | Windows DTLS | Apache-2.0许可分支 |
+| Mbed TLS | 3.6.7，068ff080b369adfac81509f9b57b2afabaf82dc5 | Windows DTLS | Apache-2.0许可分支 |
 | libjuice/libsrtp/usrsctp/plog | libdatachannel固定子模块 | ICE/SRTP/SCTP/日志 | BSD/BSD/BSD/MIT，保留各自许可 |
 | Media3 | 1.11.1 | Standard/AirPlay播放器；Legacy不包含 | Apache-2.0 |
 | OkHttp | 4.12.0 | Standard/AirPlay pin数据源 | Apache-2.0 |
 | FFmpeg | 8.0.1，SHA256见build-ffmpeg.py | MPEG-TS封装、Windows H.264 SPS/VUI元数据修正 | LGPL-2.1-or-later配置；GPL/nonfree禁用，无软件编码器/解码器 |
 | nlohmann/json | 65ee68451d8eb2b5f3a30b410476ab83deb3289b | Windows JSON | MIT |
 | Gradle wrapper | 9.8.1，分发ZIP哈希固定 | 构建 | Apache-2.0 |
-| LiveKitWebRTC Apple XCFramework | 150.7871.02，SHA256见apple_build.py | Apple H.264/Opus/ICE/DTLS/SRTP，无云服务依赖 | WebRTC BSD及附带第三方许可；上游二进制，非本仓库源构建 |
+| LiveKitWebRTC Apple XCFramework | 150.7871.05，SHA256见apple_build.py | Apple H.264/Opus/ICE/DTLS/SRTP，无云服务依赖 | WebRTC BSD及附带第三方许可；上游二进制，非本仓库源构建 |
 | XcodeGen | 2.44.1，SHA256见apple_build.py | 构建时生成Xcode工程，不进入运行包 | MIT |
 | Apple系统框架 | 具体SDK版本见build-report.json | SwiftUI/ScreenCaptureKit/ReplayKit/AVFoundation/Metal | 系统SDK条款；不是开源替代库 |
 
@@ -37,7 +37,7 @@ Android上游AAR不能仅因目标源revision已写入文档就宣称可重复�
 - [Media3](https://github.com/androidx/media)
 - [OkHttp](https://github.com/square/okhttp)
 - [nlohmann/json](https://github.com/nlohmann/json/tree/65ee68451d8eb2b5f3a30b410476ab83deb3289b)
-- [LiveKitWebRTC固定发行版](https://github.com/livekit/webrtc-xcframework/releases/tag/150.7871.02)
+- [LiveKitWebRTC固定发行版](https://github.com/livekit/webrtc-xcframework/releases/tag/150.7871.05)
 - [XcodeGen固定发行版](https://github.com/yonaskolb/XcodeGen/releases/tag/2.44.1)
 
 `python scripts/dependency-report.py`导出兼容的Rust依赖列表、带提交/锁文件SHA256及条件依赖的图、SPDX 2.3源码清单；Linux/Windows工作流随依赖产物归档。详见[依赖审阅契约](docs/15-Rust依赖清单与审阅契约.md)。它不是包含AAR、JNI与系统库的完整二进制SBOM，也不自动裁定许可证。
