@@ -45,10 +45,8 @@ impl ClientSession {
                     }
                     return Outgoing::Ignore;
                 }
-                "rtc.offer" => {
-                    if let Some(recovery) = &mut self.recovery {
-                        recovery.offer(&request);
-                    }
+                "rtc.offer" if self.recovery.as_mut().is_some_and(|r| !r.offer(&request)) => {
+                    return Outgoing::Ignore;
                 }
                 "rtc.ice" if self.recovery.as_ref().is_some_and(|r| !r.accepts(&request)) => {
                     return Outgoing::Ignore;

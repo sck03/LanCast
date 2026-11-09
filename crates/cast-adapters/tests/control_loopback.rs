@@ -472,6 +472,14 @@ fn negotiated_recovery_relays_new_transport_and_filters_stale_signals() {
         json!({"sdp":"current","negotiationId":second}),
     );
     assert_eq!(message(&sender, "rtc.answer")["body"]["sdp"], "current");
+    // A late callback uses a fresh request ID, so the receiver's request cache
+    // cannot hide an old offer that the sender accidentally transmits.
+    signal(
+        &sender,
+        "rtc.offer",
+        session,
+        json!({"sdp":"late-first","negotiationId":first}),
+    );
     for id in [first, second] {
         signal(
             &sender,
@@ -484,6 +492,13 @@ fn negotiated_recovery_relays_new_transport_and_filters_stale_signals() {
         message(&receiver, "rtc.ice")["body"]["negotiationId"],
         second.to_string()
     );
+    signal(
+        &receiver,
+        "session.state",
+        session,
+        json!({"state":"ready","negotiationId":second}),
+    );
+    assert_eq!(message(&sender, "session.state")["body"]["state"], "ready");
     for engine in [&sender, &receiver] {
         signal(
             engine,

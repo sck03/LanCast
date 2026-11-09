@@ -32,30 +32,33 @@ impl RtcRecovery {
         }
     }
 
-    pub fn offer(&mut self, message: &Message) {
+    /// Commit a new negotiation and tell the caller whether it may be sent.
+    #[must_use]
+    pub fn offer(&mut self, message: &Message) -> bool {
         if message.session_id != Some(self.session) {
-            return;
+            return false;
         }
         let Some(id) = message.body["negotiationId"]
             .as_str()
             .and_then(|s| Uuid::parse_str(s).ok())
         else {
-            return;
+            return false;
         };
         let previous = match message.body.get("previousNegotiationId") {
             None => None,
             Some(value) => match value.as_str().and_then(|s| Uuid::parse_str(s).ok()) {
                 Some(id) => Some(id),
-                None => return,
+                None => return false,
             },
         };
         // The receiver enforces the same parent chain. Replayed offers must
         // never reopen reports from a transport already marked for replacement.
         if Some(id) == self.negotiation || previous != self.negotiation {
-            return;
+            return false;
         }
         self.negotiation = Some(id);
         self.awaiting_offer = false;
+        true
     }
 
     pub fn report(&mut self, message: &Message, remote: bool, now_ms: u64) {
@@ -101,14 +104,14 @@ mod tests {
         let mut recovery = RtcRecovery::new(session, 0);
         let mut offer = Message::new("rtc.offer", json!({"negotiationId":negotiation}));
         offer.session_id = Some(session);
-        recovery.offer(&offer);
+        assert!(recovery.offer(&offer));
         let mut state = offer.clone();
         state.kind = "rtc.state".into();
         state.body["state"] = json!("failed");
         recovery.report(&state, false, 0);
         assert_eq!(recovery.poll(1000).unwrap().kind, "rtc.restart");
 
-        recovery.offer(&offer);
+        assert!(!recovery.offer(&offer));
         state.body["state"] = json!("connected");
         recovery.report(&state, false, 1001);
         recovery.report(&state, true, 1001);
@@ -125,7 +128,7 @@ mod tests {
         let mut recovery = RtcRecovery::new(session, 0);
         let mut offer = Message::new("rtc.offer", json!({"negotiationId":first}));
         offer.session_id = Some(session);
-        recovery.offer(&offer);
+        assert!(recovery.offer(&offer));
         for body in [
             json!({"negotiationId":next}),
             json!({"negotiationId":next,"previousNegotiationId":Uuid::new_v4()}),
@@ -134,12 +137,12 @@ mod tests {
         ] {
             let mut invalid = offer.clone();
             invalid.body = body;
-            recovery.offer(&invalid);
+            assert!(!recovery.offer(&invalid));
             assert!(recovery.accepts(&offer));
         }
         let mut replacement = offer.clone();
         replacement.body = json!({"negotiationId":next,"previousNegotiationId":first});
-        recovery.offer(&replacement);
+        assert!(recovery.offer(&replacement));
         assert!(recovery.accepts(&replacement));
         assert!(!recovery.accepts(&offer));
     }
@@ -152,7 +155,7 @@ mod tests {
         let mut r = RtcRecovery::new(session, 0);
         let mut m = Message::new("rtc.offer", json!({"negotiationId":first}));
         m.session_id = Some(session);
-        r.offer(&m);
+        assert!(r.offer(&m));
         m.kind = "rtc.state".into();
         m.body["state"] = json!("failed");
         r.report(&m, false, 0);
@@ -163,7 +166,7 @@ mod tests {
         let mut offer = m.clone();
         offer.body["negotiationId"] = json!(second);
         offer.body["previousNegotiationId"] = json!(first);
-        r.offer(&offer);
+        assert!(r.offer(&offer));
         r.report(&m, false, 1100);
         r.report(&m, true, 1100);
         offer.session_id = Some(Uuid::new_v4());

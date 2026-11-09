@@ -335,6 +335,64 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn stale_offers_never_reach_the_peer_or_replace_current_signals() {
+        let (mut client, mut peer, output) = test_connection().await;
+        let start = Message::new(
+            "session.start",
+            json!({"mode":"mirror","rtcRecovery":CAPABILITY}),
+        );
+        client.send(start.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, start.id);
+        let mut accepted = start.reply("session.accepted", json!({"rtcRecovery":CAPABILITY}));
+        accepted.session_id = Some(uuid::Uuid::new_v4());
+        send(&mut peer, &accepted).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).id, accepted.id);
+
+        let first = uuid::Uuid::new_v4();
+        let next = uuid::Uuid::new_v4();
+        let mut offer = Message::new("rtc.offer", json!({"sdp":"test","negotiationId":first}));
+        offer.session_id = accepted.session_id;
+        client.send(offer.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, offer.id);
+
+        let mut replacement = Message::new(
+            "rtc.offer",
+            json!({"sdp":"test","negotiationId":next,"previousNegotiationId":first}),
+        );
+        replacement.session_id = accepted.session_id;
+        client.send(replacement.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, replacement.id);
+
+        for body in [
+            offer.body,               // An old transport, even with a fresh message ID.
+            replacement.body.clone(), // A repeated current offer.
+            json!({"sdp":"test","negotiationId":uuid::Uuid::new_v4()}),
+            json!({"sdp":"test","negotiationId":uuid::Uuid::new_v4(),"previousNegotiationId":first}),
+            json!({"sdp":"test","negotiationId":uuid::Uuid::new_v4(),"previousNegotiationId":null}),
+        ] {
+            let mut stale = Message::new("rtc.offer", body);
+            stale.session_id = accepted.session_id;
+            client.send(stale).unwrap();
+        }
+        let ping = Message::new("ping", json!({}));
+        client.send(ping.clone()).unwrap();
+        assert_eq!(
+            receive(&mut peer).await.unwrap().id,
+            ping.id,
+            "a rejected offer was still written to the peer"
+        );
+
+        let mut answer = Message::new("rtc.answer", json!({"sdp":"test","negotiationId":next}));
+        answer.session_id = accepted.session_id;
+        send(&mut peer, &answer).await.unwrap();
+        heartbeat(&mut peer).await;
+        assert_eq!(host_message(&output).id, answer.id);
+        assert!(output.try_recv().is_err());
+        client.close().await;
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn recovery_deadlines_survive_replayed_offer_and_old_success_reports() {
         let (mut client, mut peer, output) = test_connection().await;
         let start = Message::new(
@@ -376,7 +434,9 @@ mod tests {
         assert_eq!(host_message(&output).body["attempt"], 1);
 
         client.send(offer.clone()).unwrap();
-        assert_eq!(receive(&mut peer).await.unwrap().id, offer.id);
+        let ping = Message::new("ping", json!({}));
+        client.send(ping.clone()).unwrap();
+        assert_eq!(receive(&mut peer).await.unwrap().id, ping.id);
         state.body["state"] = json!("connected");
         client.send(state.clone()).unwrap();
         send(&mut peer, &state).await.unwrap();
