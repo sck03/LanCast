@@ -107,7 +107,185 @@
     "End-to-end latency",
     "Two-hour stability"
   ],
-  "ci": "pending push",
+  "ci": [
+    {
+      "workflow": "android.yml",
+      "run": 42721912578,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42721912578",
+      "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.28-36-Debug",
+          "bytes": 34476237,
+          "digest": "sha256:d0df28cfe1bda0a830e790668fe6ac29767196d0868b47a666f8dc78c438172a",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "LanCast-Android-Sender-0.6.28-36-Debug",
+          "bytes": 35553427,
+          "digest": "sha256:336b4723eaa33e00e2b1e72536188bb93c76dd8964d3b9b5d73a167c5fb786bb",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "android-build-reports-0.6.28-36-Debug",
+          "bytes": 10223761,
+          "digest": "sha256:0cda747fdd20df776b72c9bca529a2837540775bad43d4539cc8b1dd3e30bb10",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.28-36-Debug",
+          "bytes": 30628932,
+          "digest": "sha256:1141ebb24a5483a215faed5bc0fc795fac82a48b1941edde0bd8b7bfb9c908a0",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.28-36-Debug",
+          "bytes": 38999337,
+          "digest": "sha256:e613a30f8265c79246510363bc395b5306fd7855669dc5e101c6c1cda3929b89",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.28-36-Debug",
+          "bytes": 12620118,
+          "digest": "sha256:faf760e467e744571ba537092df3a5b2c25dcca4f8d05984a4a3155660b5f729",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.28-36-Debug",
+          "bytes": 43801701,
+          "digest": "sha256:4797f7f797c6127a52c76d9e10be7e2fa5164fdc45643e9b51a99f720c708a09",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        }
+      ]
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 42721912325,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42721912325",
+      "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 114454,
+          "digest": "sha256:e8233b0c67832fae6a6ff4daed67d8cb4ea20e3f80154bc051189b5951efb2d2",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 42721912287,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42721912287",
+      "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+      "artifacts": [
+        {
+          "name": "apple-ios-build-reports-0.6.28-36-Debug",
+          "bytes": 15557,
+          "digest": "sha256:2417604ece517549be610edae06a96ae63f27b6a430441a773d338935d236260",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.28-36-Debug",
+          "bytes": 54960095,
+          "digest": "sha256:48a14eeea424b499731b8d4c70821aef7a1a767e5e18cffdc318fdca4cd91d12",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 42721912250,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42721912250",
+      "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+      "artifacts": [
+        {
+          "name": "apple-macos-build-reports-0.6.28-36-Release",
+          "bytes": 85418,
+          "digest": "sha256:e11d8bc49a2cc320a2eff1cea9a81196027d705c3ea9ec28e57029880141cb25",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.28-36-Release",
+          "bytes": 22444922,
+          "digest": "sha256:ac14013b7ad5f5469179c1ba4f5992e9c2a8f63e42d3b2044b1cdda55d07f528",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        }
+      ]
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 42721912453,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42721912453",
+      "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6316,
+          "digest": "sha256:88318ba89524382b63d3a238abe79221725ae066eebeaf58aeb5bbdd8754f337",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 42721912162,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42721912162",
+      "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+      "artifacts": [
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.28-36-Debug",
+          "bytes": 20168399,
+          "digest": "sha256:f56425dc1012372fd20d914fffb321d5bb8ed5a2f99f909795d125ca5d4a8004",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "apple-tvos-build-reports-0.6.28-36-Debug",
+          "bytes": 15536,
+          "digest": "sha256:40f9ef7994a0df81c98ecdaa8dd1f7de8d35e9b6c874f4a6c2cea72045c909fc",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        }
+      ]
+    },
+    {
+      "workflow": "windows.yml",
+      "run": 42721912728,
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/42721912728",
+      "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+      "artifacts": [
+        {
+          "name": "windows-synthetic-diagnostic-0.6.28-36-Release",
+          "bytes": 140000,
+          "digest": "sha256:b35cae13441cae839caf79fc647aa86f529fab00fdc4951cf98cd508dea61c3b",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 87382459,
+          "digest": "sha256:a3d58ba235f8e0903db060e717e9e0fbea147a8eedd7b3aa86f272dc80e8412b",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 111851,
+          "digest": "sha256:7c4c8fcccd9b16e14b1986788a5737b6950c7b361ea905b0b5e1c1f13b4ed8f6",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        },
+        {
+          "name": "LanCast-Windows-x64-0.6.28-36-Release",
+          "bytes": 5162249,
+          "digest": "sha256:e2e87975f69eac42734038ff1416a4cf40f0eb87fa5c418aa806523fe1acee14",
+          "source_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76"
+        }
+      ]
+    }
+  ],
   "cleanup": {
     "paths": [
       {
@@ -156,6 +334,99 @@
     "removed_files": 2950,
     "removed_bytes": 1907713185,
     "remaining_reclaimable": [],
-    "preserved": "Tracked source, licenses and original media samples"
+    "preserved": "Tracked source, licenses and original media samples",
+    "temporary_evidence_files": {
+      "paths": [
+        {
+          "path": ".cache/ci-129517680229.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 378171,
+          "fingerprint": "46eea0f72d430a9072aa0bd12d092f8cb5c725454330cfef0d61421cb7f48df1"
+        },
+        {
+          "path": ".cache/ci-129517680339.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 78307,
+          "fingerprint": "26da60cced5bbec7f7ae1c6be986e0ec19bf22e5ad0dcfddf516f26341bfae56"
+        },
+        {
+          "path": ".cache/ci-129517680351.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 388751,
+          "fingerprint": "0ec8ef13ac815a321fdd6cdc89f227ef4cf207ac3fd856ec392bf1a9220e7212"
+        },
+        {
+          "path": ".cache/ci-129517680961.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 244962,
+          "fingerprint": "5b8966fb274878b5dcd53aa137403432d8b767644412f157912ea72829ca5db8"
+        },
+        {
+          "path": ".cache/ci-129517680991.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 126371,
+          "fingerprint": "2970a4c8c6c59fccaa16457d11ac498e62eacfe691cbee057fd2d359794501a3"
+        },
+        {
+          "path": ".cache/ci-129517686140.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 94958,
+          "fingerprint": "45d9da48f5e0d4b1a059b2bb1fb85b1c2c41023c77a33f54f239b9eb324203bc"
+        },
+        {
+          "path": ".cache/ci-129517686487.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 78531,
+          "fingerprint": "f377f18023f24d213d85ed82a1a3477faf4f842844a3a043243fca1ddb488a76"
+        },
+        {
+          "path": ".cache/ci-129517687903.log",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 397303,
+          "fingerprint": "72af7f526e6bcb23f2adc6a90c1850b493ff57f69240f93cead5f8d0a54eba22"
+        },
+        {
+          "path": ".cache/ready-cleanup-plan.json",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 1269,
+          "fingerprint": "e37d6da4200a199c7c76b015ba6b5432655071c1097696a07f12163059282a02"
+        },
+        {
+          "path": ".cache/ready-validation-local.json",
+          "category": "archived verification log",
+          "files": 1,
+          "bytes": 2887,
+          "fingerprint": "6792f9bde6392633f9d34941ef7271e01f39380c2ba988e4bcaff8ad021c7241"
+        }
+      ],
+      "removed_files": 10,
+      "removed_bytes": 1791510
+    },
+    "total_removed_files": 2960,
+    "total_removed_bytes": 1909504695
+  },
+  "program_commit": "863038043e76277bd516b6a691ddf8d2a6ef2c76",
+  "platform_validation": {
+    "linux_rust_all_features": 148,
+    "linux_rust_no_default_features": 106,
+    "linux_rust_legacy": 107,
+    "windows_native_tests": 7,
+    "windows_package_sha256_pe_dependencies_and_ts_symbols": "passed",
+    "android": "Four Debug products, lint, unit tests, APK verification and main branch Release contracts passed",
+    "macos_swift_contracts": 7,
+    "macos_integration_tests": 11,
+    "apple_archive_metadata_frameworks_and_targets": "passed on macOS/iOS/tvOS",
+    "native_linux": "15 synthetic MPEG-TS outputs and BT.709 H.264 decode passed",
+    "airplay_protocol_workflow": "not triggered; isolated workspace unchanged",
+    "artifact_scope": "Workflow artifact metadata and job logs inspected; no local binary download or device install"
   }
 }
