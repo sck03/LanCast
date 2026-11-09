@@ -5,22 +5,24 @@
   "source_commit": null,
   "regressions": {
     "failed_before_fix": [
-      "repeated_pat_preserves_an_in_progress_keyframe_and_packet_order"
+      "repeated_pat_preserves_an_in_progress_keyframe_and_packet_order",
+      "repeated_tables_do_not_retain_undecodable_video_before_the_keyframe"
     ],
     "additional_coverage": [
       "repeated_pat_keeps_an_unfinished_pes_header",
-      "repeated_pat_cannot_reset_the_startup_byte_budget"
+      "repeated_pat_cannot_reset_the_startup_byte_budget",
+      "parameter_sets_survive_a_new_pes_before_the_idr"
     ],
     "updated_coverage": [
       "changed_pat_discards_an_unfinished_pes_header"
     ],
-    "after": "All three new tests and existing PAT/PMT, PES, continuity and startup boundary tests pass",
+    "after": "All five new tests and existing PAT/PMT, PES, continuity and startup boundary tests pass",
     "method": "CRC-valid single-program TS; every repeated PAT payload split, 1/2/7 packets per write, byte-exact output and 8 MiB startup limit"
   },
   "local_validation": {
     "platform": "Windows",
     "rust_all_features": {
-      "passed": 137,
+      "passed": 139,
       "failed": 0
     },
     "rust_no_default_features": {
@@ -59,8 +61,8 @@
       ],
       "output_bytes_by_offset": [
         1155072,
-        1137776,
-        1122548
+        879840,
+        879840
       ],
       "byte_identical_per_offset": true,
       "header_split_positions": [
@@ -86,6 +88,7 @@
   "resource_changes": {
     "unchanged_pat_preserves_video_state": true,
     "unchanged_pat_preserves_packet_order": true,
+    "new_pes_without_parameter_sets_discards_undecodable_preroll": true,
     "pat_comparison_content_limit_bytes": 1024,
     "startup_output_limit_bytes": 8388608,
     "shared_private_append_budget_check": true,

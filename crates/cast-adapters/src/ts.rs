@@ -193,6 +193,7 @@ pub struct StartGate {
     pat_packets: Vec<u8>,
     program_association: Vec<u8>,
     pat_length: usize,
+    tables_length: usize,
     pmt_packets: Vec<u8>,
     program_map: Vec<u8>,
 }
@@ -246,6 +247,7 @@ impl StartGate {
                     self.pending.clear();
                     self.pending.extend_from_slice(&self.pat_packets);
                     self.pat_length = self.pending.len();
+                    self.tables_length = self.pat_length;
                     self.pmt_section.reset();
                     self.pmt_packets.clear();
                     self.program_map.clear();
@@ -257,6 +259,11 @@ impl StartGate {
             };
             if Some(pid) == self.video && !start && self.video_start.continuity.is_none() {
                 continue;
+            }
+            if Some(pid) == self.video && start && !self.video_start.sps {
+                // A new PES without retained parameter sets replaces undecodable
+                // pre-roll. Repeated tables must not make those frames publishable.
+                self.pending.truncate(self.tables_length);
             }
             self.append(p)?;
             if pid == program.pmt && !body.is_empty() {
@@ -278,6 +285,7 @@ impl StartGate {
                     // Keep every packet when the PMT spans multiple TS packets.
                     self.pending.truncate(self.pat_length);
                     self.pending.extend_from_slice(&self.pmt_packets);
+                    self.tables_length = self.pending.len();
                 }
             }
             if Some(pid) == self.video {
@@ -518,9 +526,10 @@ mod tests {
             assert_eq!(&accepted[PACKET..2 * PACKET], &pmt);
             assert_eq!(
                 accepted.len(),
-                4 * PACKET,
+                3 * PACKET,
                 "retained obsolete program packets"
             );
+            assert_eq!(&accepted[2 * PACKET..], &keyframe);
         }
     }
 
@@ -592,6 +601,41 @@ mod tests {
             gate.push(&packet(0x100, false, 1, &[&PES[2..], KEYFRAME].concat()))
                 .unwrap()
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn repeated_tables_do_not_retain_undecodable_video_before_the_keyframe() {
+        for packets_per_write in [1, 2, 7] {
+            let mut gate = StartGate::default();
+            tables(&mut gate);
+            let prefix = gate.pending.clone();
+            let mut pat = prefix[..PACKET].to_vec();
+            pat[3] = (pat[3] & 0xf0) | 1;
+            let mut pmt = prefix[PACKET..].to_vec();
+            pmt[3] = (pmt[3] & 0xf0) | 1;
+            let non_idr = packet(0x100, true, 0, &[PES, &[0, 0, 1, 0x61]].concat());
+            let keyframe = packet(0x100, true, 1, &[PES, KEYFRAME].concat());
+            let input = [non_idr.as_slice(), &pat, &pmt, &keyframe].concat();
+            let actual: Vec<_> = input
+                .chunks(packets_per_write * PACKET)
+                .flat_map(|part| gate.push(part).unwrap().unwrap_or_default())
+                .collect();
+            assert_eq!(actual, [prefix, keyframe.to_vec()].concat());
+        }
+    }
+
+    #[test]
+    fn parameter_sets_survive_a_new_pes_before_the_idr() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        let prefix = gate.pending.clone();
+        let parameters = packet(0x100, true, 0, &[PES, &KEYFRAME[..8]].concat());
+        let idr = packet(0x100, true, 1, &[PES, &KEYFRAME[8..]].concat());
+        gate.push(&parameters).unwrap();
+        assert_eq!(
+            gate.push(&idr).unwrap().unwrap(),
+            [prefix, parameters.to_vec(), idr.to_vec()].concat()
         );
     }
 
