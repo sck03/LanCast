@@ -24,16 +24,24 @@ class WorkspaceCleanupTests(unittest.TestCase):
         return path
 
     def test_preview_is_read_only_and_cleanup_preserves_source_and_unknown_cache(self):
+        self.write(".gitignore", "target/\n.cache/\n**/build/\n")
         self.write("target/debug/program", "binary")
+        self.write("android/build/reports/problems/report.html", "report")
+        self.write("android/app/build/outputs/app.apk", "package")
+        self.write("android/build.gradle.kts", "build script")
         self.write(".cache/artifacts/run/product.zip", "archive")
         self.write(".cache/hardware-capture.ts", "unique sample")
         self.write("src/main.rs", "source")
         before = snapshot(self.root)
         plan = inventory(self.root)
-        self.assertEqual([entry["path"] for entry in plan], ["target"])
+        self.assertEqual([entry["path"] for entry in plan],
+                         ["target", "android/build", "android/app/build"])
         self.assertEqual(snapshot(self.root), before)
         clean(self.root, plan)
         self.assertFalse((self.root / "target").exists())
+        self.assertFalse((self.root / "android/build").exists())
+        self.assertFalse((self.root / "android/app/build").exists())
+        self.assertEqual((self.root / "android/build.gradle.kts").read_text(), "build script")
         self.assertTrue((self.root / ".cache/artifacts/run/product.zip").exists())
         clean(self.root, inventory(self.root, include_downloads=True))
         self.assertTrue((self.root / ".cache/hardware-capture.ts").exists())

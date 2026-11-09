@@ -191,6 +191,7 @@ pub struct StartGate {
     pat_section: SectionAssembler,
     pmt_section: SectionAssembler,
     pat_packets: Vec<u8>,
+    program_association: Vec<u8>,
     pat_length: usize,
     pmt_packets: Vec<u8>,
     program_map: Vec<u8>,
@@ -223,6 +224,11 @@ impl StartGate {
             let start = p[1] & 0x40 != 0;
             let body = payload(p)?;
             if pid == 0 && !body.is_empty() {
+                if self.program.is_some() {
+                    // Repeated tables are interleaved transport data. Keep their
+                    // packets until a changed, valid PAT replaces the program.
+                    self.append(p)?;
+                }
                 if start {
                     self.pat_packets.clear();
                 }
@@ -230,8 +236,11 @@ impl StartGate {
                 self.pat_packets.extend_from_slice(p);
                 if let Some(bytes) = self.pat_section.push(body, start, p[3] & 15)?
                     && let Some(pat) = section(bytes, 0)
+                    && pat != self.program_association
                 {
                     self.program = pat_program(pat)?;
+                    self.program_association.clear();
+                    self.program_association.extend_from_slice(pat);
                     self.video = None;
                     self.video_start = VideoStart::default();
                     self.pending.clear();
@@ -249,11 +258,7 @@ impl StartGate {
             if Some(pid) == self.video && !start && self.video_start.continuity.is_none() {
                 continue;
             }
-            ensure!(
-                self.pending.len() + PACKET <= MAX_START,
-                "START_POINT_TOO_LARGE"
-            );
-            self.pending.extend_from_slice(p);
+            self.append(p)?;
             if pid == program.pmt && !body.is_empty() {
                 if start {
                     self.pmt_packets.clear();
@@ -282,11 +287,7 @@ impl StartGate {
                 // The first valid start ends parsing immediately, regardless of
                 // write boundaries. Later PAT/PMT/PES packets belong to playback.
                 let tail = &data[(index + 1) * PACKET..];
-                ensure!(
-                    self.pending.len() + tail.len() <= MAX_START,
-                    "START_POINT_TOO_LARGE"
-                );
-                self.pending.extend_from_slice(tail);
+                self.append(tail)?;
                 let output = std::mem::take(&mut self.pending);
                 // Drop startup allocations even when a caller retains this gate.
                 *self = Self {
@@ -297,6 +298,14 @@ impl StartGate {
             }
         }
         Ok(None)
+    }
+    fn append(&mut self, data: &[u8]) -> anyhow::Result<()> {
+        ensure!(
+            self.pending.len() + data.len() <= MAX_START,
+            "START_POINT_TOO_LARGE"
+        );
+        self.pending.extend_from_slice(data);
+        Ok(())
     }
 }
 #[cfg(test)]
@@ -542,6 +551,72 @@ mod tests {
     }
 
     #[test]
+    fn repeated_pat_preserves_an_in_progress_keyframe_and_packet_order() {
+        let pat = psi(0, &[0, 0xb0, 13, 0, 1, 0xc1, 0, 0, 0, 1, 0xf0, 0]);
+        let pmt = program_map(0, 0, 0x1b);
+        let mut repeated_pmt = pmt;
+        repeated_pmt[3] = (pmt[3] & 0xf0) | 1;
+        let first = packet(0x100, true, 0, &[PES, &KEYFRAME[..8]].concat());
+        let last = packet(0x100, false, 1, &KEYFRAME[8..]);
+        let body = payload(&pat).unwrap();
+        // Table identity excludes packet continuity and fragmentation.
+        for cut in 1..=body.len() {
+            let mut input = [pat, pmt, first, packet(0, true, 1, &body[..cut])].concat();
+            if cut < body.len() {
+                input.extend_from_slice(&packet(0, false, 2, &body[cut..]));
+            }
+            input.extend_from_slice(&repeated_pmt);
+            input.extend_from_slice(&last);
+            for packets_per_write in [1, 2, 7] {
+                let mut gate = StartGate::default();
+                let actual: Vec<_> = input
+                    .chunks(packets_per_write * PACKET)
+                    .flat_map(|part| gate.push(part).unwrap().unwrap_or_default())
+                    .collect();
+                assert!(
+                    actual == input,
+                    "PAT split {cut}, {packets_per_write} packets/write"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_pat_keeps_an_unfinished_pes_header() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        gate.push(&packet(0x100, true, 0, &PES[..2])).unwrap();
+        let pat = gate.pending[..PACKET].to_vec();
+        gate.push(&pat).unwrap();
+        assert!(
+            gate.push(&packet(0x100, false, 1, &[&PES[2..], KEYFRAME].concat()))
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn repeated_pat_cannot_reset_the_startup_byte_budget() {
+        let mut gate = StartGate::default();
+        tables(&mut gate);
+        let pat = gate.pending[..PACKET].to_vec();
+        let mut block = Vec::new();
+        for cc in 0..MAX_WRITE / PACKET {
+            let mut packet = pat.clone();
+            packet[3] = (packet[3] & 0xf0) | (cc as u8 & 15);
+            block.extend_from_slice(&packet);
+        }
+        for _ in 0..MAX_START / MAX_WRITE {
+            gate.push(&block).unwrap();
+        }
+        assert_eq!(
+            gate.push(&block).unwrap_err().to_string(),
+            "START_POINT_TOO_LARGE"
+        );
+        assert!(gate.pending.len() <= MAX_START);
+    }
+
+    #[test]
     fn changed_split_pmt_keeps_the_last_valid_pat_and_all_pmt_packets() {
         let mut gate = StartGate::default();
         tables(&mut gate);
@@ -613,7 +688,7 @@ mod tests {
     }
 
     #[test]
-    fn new_pat_discards_an_unfinished_pes_header() {
+    fn changed_pat_discards_an_unfinished_pes_header() {
         let mut gate = StartGate::default();
         tables(&mut gate);
         assert!(
@@ -621,7 +696,9 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
-        tables(&mut gate);
+        let changed = psi(0, &[0, 0xb0, 13, 0, 1, 0xc3, 0, 0, 0, 1, 0xf0, 0]);
+        gate.push(&changed).unwrap();
+        gate.push(&program_map(0, 0, 0x1b)).unwrap();
         assert!(
             gate.push(&packet(0x100, false, 1, KEYFRAME))
                 .unwrap()

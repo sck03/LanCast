@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILD_PATHS = (
     "target", "airplay-native/target", "windows/build", "windows/build-*",
     "media-native/build", "media-native/build-*", "android/.gradle", "android/.kotlin",
-    "android/*/build", "android/*/.cxx", "apple/build", "apple/Contracts/.build",
+    "android/build", "android/*/build", "android/*/.cxx", "apple/build", "apple/Contracts/.build",
     "scripts/__pycache__", "scripts/tests/__pycache__",
     ".cache/ffmpeg-build-*", ".cache/ffmpeg-local-*", ".cache/media-local-*",
     ".cache/local-joins", ".cache/hardware-joins", ".cache/final-hardware-joins",

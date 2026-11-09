@@ -1,0 +1,158 @@
+{
+  "version": "0.6.24",
+  "build_number": 32,
+  "date": "2026-11-09",
+  "source_commit": null,
+  "regressions": {
+    "failed_before_fix": [
+      "repeated_pat_preserves_an_in_progress_keyframe_and_packet_order"
+    ],
+    "additional_coverage": [
+      "repeated_pat_keeps_an_unfinished_pes_header",
+      "repeated_pat_cannot_reset_the_startup_byte_budget"
+    ],
+    "updated_coverage": [
+      "changed_pat_discards_an_unfinished_pes_header"
+    ],
+    "after": "All three new tests and existing PAT/PMT, PES, continuity and startup boundary tests pass",
+    "method": "CRC-valid single-program TS; every repeated PAT payload split, 1/2/7 packets per write, byte-exact output and 8 MiB startup limit"
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "rust_all_features": {
+      "passed": 137,
+      "failed": 0
+    },
+    "rust_no_default_features": {
+      "passed": 97,
+      "failed": 0
+    },
+    "rust_legacy": {
+      "passed": 98,
+      "failed": 0
+    },
+    "python_unittest": {
+      "passed": 54,
+      "failed": 0
+    },
+    "python_optimized_unittest": {
+      "passed": 54,
+      "failed": 0
+    },
+    "cargo_fmt": "passed",
+    "cargo_clippy_all_targets_all_features_deny_warnings": "passed",
+    "ffi_check_no_default_features": "passed",
+    "ffi_check_legacy": "passed",
+    "architecture": "passed",
+    "markdown_links": {"files": 32, "targets": 229, "missing": 0},
+    "synthetic_ts": {
+      "fixture": ".cache/synthetic-local.ts",
+      "offsets": [
+        0,
+        9400,
+        32524
+      ],
+      "packets_per_write": [
+        1,
+        7,
+        348
+      ],
+      "output_bytes_by_offset": [
+        1155072,
+        1137776,
+        1122548
+      ],
+      "byte_identical_per_offset": true,
+      "header_split_positions": [
+        1,
+        2,
+        7,
+        12
+      ],
+      "bytes_per_split_output": 1228580
+    },
+    "live_http": {
+      "versions": [
+        "HTTP/1.0",
+        "HTTP/1.1"
+      ],
+      "bytes_per_response": 1155072,
+      "pull_confirmation": true,
+      "cancellation": true,
+      "soap_stop": true
+    },
+    "local_android": "Not run successfully: SDK is not configured; platform build is delegated to existing CI"
+  },
+  "resource_changes": {
+    "unchanged_pat_preserves_video_state": true,
+    "unchanged_pat_preserves_packet_order": true,
+    "pat_comparison_content_limit_bytes": 1024,
+    "startup_output_limit_bytes": 8388608,
+    "shared_private_append_budget_check": true,
+    "startup_allocations_released_on_readiness": true,
+    "new_runtime_dependencies": 0,
+    "new_threads": 0,
+    "new_periodic_timers": 0,
+    "performance_measurements": "No device CPU, RSS, throughput or end-to-end latency measurements"
+  },
+  "cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 2280847389,
+    "after_bytes": 22175900,
+    "reclaimable_bytes": 2258671489,
+    "removed_bytes": 2258671489,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2928,
+        "bytes": 2240589614,
+        "fingerprint": "492031527d90591e2e05b2ef83fef0fb461e0b2e47e62ce9c064b1a146d4adfb"
+      },
+      {
+        "path": ".cache/media-maintenance",
+        "category": "build",
+        "files": 15,
+        "bytes": 17470652,
+        "fingerprint": "19ec2d46f4f29914bb5e41c70805b525872620c0a7e8b86468780089cb6a78e9"
+      },
+      {
+        "path": "android/.gradle",
+        "category": "build",
+        "files": 9,
+        "bytes": 56827,
+        "fingerprint": "59ff96b22b97efcedecf43e2d7e2aa0352366c17cc688a7c418882e252137dea"
+      },
+      {
+        "path": "android/build",
+        "category": "build",
+        "files": 1,
+        "bytes": 135886,
+        "fingerprint": "225059715caa43f261a295d13e8d70da7151013bbf67bb574973d0ba528d18bf"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 30,
+        "bytes": 243636,
+        "fingerprint": "857e4850d0db0f7864188fff1e87ad4494795d9b49ef54ce4f34d96058c18208"
+      },
+      {
+        "path": "scripts/tests/__pycache__",
+        "category": "build",
+        "files": 24,
+        "bytes": 174874,
+        "fingerprint": "d9d4bc70b57156e897be02aa9c0c3314631d98ee906392ecad8b2b7778eb3f54"
+      }
+    ],
+    "files": 3007,
+    "recheck_reclaimable_bytes": 0,
+    "rule_change": "Include ignored Android root build reports alongside module build outputs; existing regression verifies source preservation"
+  },
+  "github_actions": [],
+  "limitations": [
+    "Original synthetic/hardware samples are retained; local tests reused synthetic TS and did not decode media or recapture hardware.",
+    "Real-device casting, network switching and two-hour stability were not tested."
+  ]
+}
