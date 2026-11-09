@@ -66,7 +66,7 @@ impl Client {
             tokio_tungstenite::connect_async_tls_with_config(
                 url,
                 Some(wire_config()),
-                false,
+                true, // Send small control messages without Nagle's delay.
                 Some(Connector::Rustls(Arc::new(config))),
             ),
         )

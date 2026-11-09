@@ -177,6 +177,7 @@ async fn serve(listener: TcpListener, server: Arc<Server>) -> anyhow::Result<()>
         let server = server.clone();
         connections.spawn(async move {
             let handshake = async {
+                stream.set_nodelay(true)?;
                 let tls = acceptor.accept(stream).await?;
                 let ws=tokio_tungstenite::accept_hdr_async_with_config(tls,|request:&tokio_tungstenite::tungstenite::handshake::server::Request,response:tokio_tungstenite::tungstenite::handshake::server::Response|{
             if request.uri().path()!="/v1/ws"||request.headers().contains_key("origin"){Err(tokio_tungstenite::tungstenite::http::Response::builder().status(403).body(Some("Native control endpoint".into())).unwrap())}else{Ok(response)}
