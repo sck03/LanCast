@@ -2,7 +2,7 @@
   "version": "0.6.24",
   "build_number": 32,
   "date": "2026-11-09",
-  "source_commit": null,
+  "source_commit": "950398949fd5ba2eee1a7113299e169639212cb1",
   "regressions": {
     "failed_before_fix": [
       "repeated_pat_preserves_an_in_progress_keyframe_and_packet_order",
@@ -46,7 +46,11 @@
     "ffi_check_no_default_features": "passed",
     "ffi_check_legacy": "passed",
     "architecture": "passed",
-    "markdown_links": {"files": 32, "targets": 229, "missing": 0},
+    "markdown_links": {
+      "files": 32,
+      "targets": 229,
+      "missing": 0
+    },
     "synthetic_ts": {
       "fixture": ".cache/synthetic-local.ts",
       "offsets": [
@@ -153,9 +157,246 @@
     "recheck_reclaimable_bytes": 0,
     "rule_change": "Include ignored Android root build reports alongside module build outputs; existing regression verifies source preservation"
   },
-  "github_actions": [],
+  "followup_cleanup": {
+    "mode": "clean",
+    "workspace": "E:\\cast\\LanCast",
+    "before_bytes": 1821191049,
+    "after_bytes": 22339538,
+    "reclaimable_bytes": 1798851511,
+    "removed_bytes": 1798851511,
+    "paths": [
+      {
+        "path": "target",
+        "category": "build",
+        "files": 2768,
+        "bytes": 1782870538,
+        "fingerprint": "ac75838ad0dbca560e3e88fe2684feb388479b2b72ef75b195919802384308a1"
+      },
+      {
+        "path": ".cache/media-maintenance",
+        "category": "build",
+        "files": 15,
+        "bytes": 15968720,
+        "fingerprint": "db2dd73feba9016760bf8c07517564b0cd96b73a6ba09278858417271f657976"
+      },
+      {
+        "path": "scripts/__pycache__",
+        "category": "build",
+        "files": 2,
+        "bytes": 12253,
+        "fingerprint": "a6ee1e410d658e8b52409e6afbf7fd805d430370fe2edbdba06ddad3d04c93b1"
+      }
+    ]
+  },
+  "cleanup_totals": {
+    "removed_bytes": 4057523000,
+    "files": 5792,
+    "final_recheck_reclaimable_bytes": 0,
+    "note": "Two cleanups include artifacts regenerated for the follow-up fix; not a reduction in application runtime memory."
+  },
+  "initial_ci_finding": {
+    "source_commit": "ecb79feeb9a8927f087446a48c4ab977e95a5cb6",
+    "run_id": 42609993393,
+    "workflow_conclusion": "success",
+    "decode_slice_header_errors": 168,
+    "cause": "Undecodable pre-roll before the first usable parameter sets was retained across repeated PAT. FFmpeg demux probing logged missing PPS while exiting zero.",
+    "resolution": "Discard pre-roll at a new video PES while SPS is absent; require both successful FFmpeg exit and empty error-level stderr."
+  },
+  "linux_validation": {
+    "run_id": 42613145375,
+    "rust_all_features": {
+      "passed": 140,
+      "failed": 0
+    },
+    "rust_no_default_features": {
+      "passed": 98,
+      "failed": 0
+    },
+    "rust_legacy": {
+      "passed": 99,
+      "failed": 0
+    },
+    "log_sha256": "3257764518f7864c500a8980619144d2e6d8e85a6174062f4d6cf3ec30174697",
+    "difference_from_windows": "One additional Unix file-descriptor ownership regression per feature configuration"
+  },
+  "native_media_validation": {
+    "run_id": 42613145196,
+    "ts_outputs_decoded": 15,
+    "bt709_h264_decoded": true,
+    "error_level_stderr_empty_for_every_decode": true,
+    "log_sha256": "571bd2f29451834302a68a15d856453d2d4244c84f00aca70ae6d6eba86d1558"
+  },
+  "github_actions": [
+    {
+      "workflow": "windows.yml",
+      "id": 42613145166,
+      "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42613145166",
+      "artifacts": [
+        {
+          "name": "windows-native-relink-sources",
+          "bytes": 87016055,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "windows-synthetic-diagnostic-0.6.24-32-Release",
+          "bytes": 140000,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "dependencies-windows-2022",
+          "bytes": 114447,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "LanCast-Windows-x64-0.6.24-32-Release",
+          "bytes": 5097675,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        }
+      ]
+    },
+    {
+      "workflow": "android.yml",
+      "id": 42613145191,
+      "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42613145191",
+      "artifacts": [
+        {
+          "name": "LanCast-Android-Receiver-Standard-0.6.24-32-Debug",
+          "bytes": 34311441,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "LanCast-Android-Receiver-Legacy-0.6.24-32-Debug",
+          "bytes": 30480394,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "airplay-source-and-dependencies-0.6.24-32-Debug",
+          "bytes": 56359225,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "android-sender-native-relink-sources-0.6.24-32-Debug",
+          "bytes": 12600579,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "LanCast-Android-Receiver-AirPlay-0.6.24-32-Debug",
+          "bytes": 38801766,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "LanCast-Android-Sender-0.6.24-32-Debug",
+          "bytes": 35389552,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "android-build-reports-0.6.24-32-Debug",
+          "bytes": 10222379,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        }
+      ]
+    },
+    {
+      "workflow": "macos.yml",
+      "id": 42613145266,
+      "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42613145266",
+      "artifacts": [
+        {
+          "name": "LanCast-macOS-Sender-Receiver-0.6.24-32-Release",
+          "bytes": 22358379,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "apple-macos-build-reports-0.6.24-32-Release",
+          "bytes": 86923,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        }
+      ]
+    },
+    {
+      "workflow": "ios.yml",
+      "id": 42613145374,
+      "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42613145374",
+      "artifacts": [
+        {
+          "name": "apple-ios-build-reports-0.6.24-32-Debug",
+          "bytes": 15555,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "LanCast-iOS-Sender-Receiver-0.6.24-32-Debug",
+          "bytes": 54831750,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        }
+      ]
+    },
+    {
+      "workflow": "tvos.yml",
+      "id": 42613145442,
+      "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42613145442",
+      "artifacts": [
+        {
+          "name": "LanCast-tvOS-Receiver-0.6.24-32-Debug",
+          "bytes": 20089540,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        },
+        {
+          "name": "apple-tvos-build-reports-0.6.24-32-Debug",
+          "bytes": 15535,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        }
+      ]
+    },
+    {
+      "workflow": "core-linux.yml",
+      "id": 42613145375,
+      "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42613145375",
+      "artifacts": [
+        {
+          "name": "dependencies-ubuntu-24.04",
+          "bytes": 117185,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        }
+      ]
+    },
+    {
+      "workflow": "native-linux.yml",
+      "id": 42613145196,
+      "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/sck03/LanCast/actions/runs/42613145196",
+      "artifacts": [
+        {
+          "name": "native-build-evidence",
+          "bytes": 6315,
+          "head_sha": "950398949fd5ba2eee1a7113299e169639212cb1"
+        }
+      ]
+    }
+  ],
   "limitations": [
     "Original synthetic/hardware samples are retained; local tests reused synthetic TS and did not decode media or recapture hardware.",
     "Real-device casting, network switching and two-hour stability were not tested."
-  ]
+  ],
+  "airplay_protocol_workflow": "Not triggered; isolated AirPlay sources unchanged",
+  "artifact_verification": "All five product workflow artifact metadata match the final source commit and 0.6.24 / 32; Android has all four products. CI performed package validation; binaries were not downloaded or installed locally."
 }
