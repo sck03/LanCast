@@ -1,6 +1,6 @@
 # 22 HTTP生命周期与直播分发
 
-更新：2026-11-10；D18合同延续至D44（0.6.29 / 37）。当前验证和源码范围见[08](08-实施进度与审阅入口.md)。本文件负责HTTP客户端、共享HTTP服务与DLNA直播订阅的所有权和分发合同；AirPlay媒体队列仍见[21](21-AirPlay媒体队列与资源生命周期.md)。
+更新：2026-11-10；D18合同延续至D45（0.6.30 / 38）。当前验证和源码范围见[08](08-实施进度与审阅入口.md)。本文件负责HTTP客户端、共享HTTP服务与DLNA直播订阅的所有权和分发合同；AirPlay媒体队列仍见[21](21-AirPlay媒体队列与资源生命周期.md)。
 
 ## 修复依据
 
@@ -17,6 +17,7 @@
 | 模块 | 职责 | 边界 |
 |---|---|---|
 | [http_client](../crates/cast-adapters/src/http_client.rs) | 公共HTTP请求策略与公开根证书配置 | 私有适配模块；调用方选择信任策略，不依赖Runtime/UI或持有任务 |
+| [http_range](../crates/cast-adapters/src/http_range.rs) | 单一字节范围的语法、边界和饱和十进制解析 | 私有纯策略；不分配堆内存，不依赖网络、文件句柄、Runtime或平台；不保留旧公开解析入口 |
 | [http_server](../crates/cast-adapters/src/http_server.rs) | IP过滤、最多四连接、TLS握手、HTTP解析、任务所有权和连接取消 | 不解释文件范围、直播门控或上游身份策略；不依赖Runtime/UI |
 | [write_timeout](../crates/cast-adapters/src/write_timeout.rs) | 传输写入、flush及shutdown的连续阻塞截止 | 私有I/O适配器；不解释HTTP，不计入媒体数据等待时间 |
 | [live](../crates/cast-adapters/src/live.rs) | 资源撤销、TS入口、私有订阅、容量/时间限制和分发 | `Subscription`拥有接收通道、起播门控和取消；仅编码后的TS进入此模块 |
@@ -25,6 +26,16 @@
 | [media_http](../crates/cast-adapters/src/media_http.rs) / [legacy_bridge](../crates/cast-adapters/src/legacy_bridge.rs) | 文件Range/HEAD与固定HTTPS上游桥 | 共用连接生命周期，各自保留授权和响应策略 |
 
 服务端生命周期调整不新增crate或运行依赖；D44客户端依赖变化见05。后续增加HTTP资源时，复用服务的任务所有权与请求取消令牌，资源自身处理授权、数据策略和撤销；不能在平台UI重新实现网络停止流程。正常`serve`返回是连接任务回收屏障；外部强制中止只发出子任务中止，调用方若需要确定完成应走资源撤销并等待监听退出。D22由Runtime独立持有资源任务，撤销后等待回收才交付stopped，文件顺序读取与取消位置提示合同见[26](26-截止与资源退出维护.md)。
+
+## D45 文件范围与条件请求
+
+文件服务器此前直接将Range数字解析成`u64`：例如10字节文件收到`bytes=2-18446744073709551616`时错误返回416；后缀长度超过`u64`同样被拒绝。Rust整数解析还允许前导`+`，与HTTP只允许ASCII数字的语法不符。`http_range::Range::parse`现在逐字节验证并饱和累积：过大的末位置截到EOF，过大的后缀覆盖全文件，过大的起点仍返回416；溢出后的尾部仍需通过数字验证，空文件没有可满足的范围。单位不区分ASCII大小写，未知单位和多段范围返回完整200响应，继续不生成multipart正文。
+
+依据[RFC 9110的Range](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2)和[If-Range](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5)语义，当前临时文件授权没有ETag或Last-Modified验证器，不能确认If-Range条件，因此带该条件的GET返回完整200、完整Content-Length且不含Content-Range。HEAD始终返回完整表示的元数据。媒体桥同时转发Range与If-Range，由源端决定完整或局部响应，避免丢掉条件后把局部内容交给客户端拼接。未来添加验证器时，应由文件资源定义匹配策略，不能在桥或播放器中复制判断。
+
+三项新增回归先在原实现失败，另在文件端修复后单独复现桥丢失If-Range；修复后纯解析、真实HTTP及固定指纹TLS回环共同验证状态码、Content-Range、Content-Length和正文。范围解析覆盖`u64::MAX`文件长度、超大十进制数、尾部垃圾、符号、空范围与大小写；现有并发seek、HEAD、撤销和错误指纹验证继续执行。文件、直播HEAD及连接回收测试显式初始化TLS供方，解决单独运行时依赖其他测试副作用的问题。
+
+解析保持O(请求头长度)时间、O(1)额外空间，不为超大数字引入大整数或中间字符串。文件模块只负责授权、条件决策、响应和读取；移除旧公开Range/parse_range入口，不增加运行依赖、后台任务或旧应用兼容层。本轮不将协议修复或测试通过作为实际CPU/RSS、帧率和端到端延迟提升的证明。
 
 ## D44 HTTP客户端与信任边界
 

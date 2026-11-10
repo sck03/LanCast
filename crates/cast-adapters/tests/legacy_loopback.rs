@@ -115,6 +115,27 @@ async fn loopback_preserves_range_pinning_and_revocation() {
     assert_eq!(response.status(), 206);
     assert_eq!(response.headers()["content-range"], "bytes 3-5/10");
     assert_eq!(response.text().await.unwrap(), "345");
+    let response = client
+        .get(&local)
+        .header("Range", "bytes=3-18446744073709551616")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 206);
+    assert_eq!(response.headers()["content-range"], "bytes 3-9/10");
+    assert_eq!(response.text().await.unwrap(), "3456789");
+    for validator in ["\"previous-file\"", "Wed, 21 Oct 2015 07:28:00 GMT"] {
+        let response = client
+            .get(&local)
+            .header("Range", "bytes=3-5")
+            .header("If-Range", validator)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        assert!(!response.headers().contains_key("content-range"));
+        assert_eq!(response.text().await.unwrap(), "0123456789");
+    }
     let head = client.head(&local).send().await.unwrap();
     assert_eq!(head.headers()["content-length"], "10");
     let (wrong, wrong_bridge, wrong_task) = Bridge::bind(&remote, &"00".repeat(32)).await.unwrap();

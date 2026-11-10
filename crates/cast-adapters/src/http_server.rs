@@ -236,6 +236,7 @@ mod tests {
 
     #[tokio::test]
     async fn completed_connections_cancel_request_work_and_release_slots() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let (tx, mut rx) = mpsc::channel(1);
         let (address, stop, task) = start(move |request| {
             tx.try_send(

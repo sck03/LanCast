@@ -423,6 +423,7 @@ mod tests {
 
     #[tokio::test]
     async fn head_never_claims_a_finite_live_length() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let live = LiveResource::new("127.0.0.1".parse().unwrap());
         let (url, task) = live
             .clone()

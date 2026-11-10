@@ -1,5 +1,8 @@
 //! Bounded, revocable file resources. Never accepts paths from an HTTP request.
-use crate::http_server::{self, Body, empty};
+use crate::{
+    http_range::Range,
+    http_server::{self, Body, empty},
+};
 use anyhow::ensure;
 use bytes::Bytes;
 use futures_util::stream;
@@ -19,55 +22,6 @@ use tokio::{
     sync::Mutex,
 };
 use tokio_util::sync::CancellationToken;
-#[derive(Debug, PartialEq)]
-pub enum Range {
-    Full,
-    Partial { start: u64, end: u64 },
-    Unsatisfiable,
-}
-pub fn parse_range(header: Option<&str>, length: u64) -> Range {
-    let Some(raw) = header else {
-        return Range::Full;
-    };
-    let Some(raw) = raw.strip_prefix("bytes=") else {
-        return Range::Full;
-    };
-    if raw.contains(',') {
-        return Range::Full;
-    }
-    let Some((left, right)) = raw.split_once('-') else {
-        return Range::Unsatisfiable;
-    };
-    if length == 0 {
-        return Range::Unsatisfiable;
-    }
-    if left.is_empty() {
-        return match right.parse::<u64>() {
-            Ok(n) if n > 0 => Range::Partial {
-                start: length.saturating_sub(n),
-                end: length - 1,
-            },
-            _ => Range::Unsatisfiable,
-        };
-    }
-    let Ok(start) = left.parse::<u64>() else {
-        return Range::Unsatisfiable;
-    };
-    let end = if right.is_empty() {
-        length - 1
-    } else {
-        match right.parse::<u64>() {
-            Ok(n) => n.min(length - 1),
-            _ => return Range::Unsatisfiable,
-        }
-    };
-    if start >= length || start > end {
-        Range::Unsatisfiable
-    } else {
-        Range::Partial { start, end }
-    }
-}
-
 pub struct Resource {
     file: Mutex<FileCursor>,
     pub length: u64,
@@ -116,10 +70,12 @@ impl Resource {
         if request.headers().get_all(header::RANGE).iter().count() > 1 {
             return empty(400);
         }
-        let range = if head {
+        // This grant has no ETag or Last-Modified validator. An If-Range condition
+        // cannot match, so returning partial content could splice different files.
+        let range = if head || request.headers().contains_key(header::IF_RANGE) {
             Range::Full
         } else {
-            parse_range(
+            Range::parse(
                 request
                     .headers()
                     .get(header::RANGE)
@@ -220,29 +176,35 @@ pub async fn bind_resource(
 mod tests {
     use super::*;
     use std::io::Write;
-    #[test]
-    fn range_edges() {
-        assert_eq!(
-            parse_range(Some("bytes=-4"), 10),
-            Range::Partial { start: 6, end: 9 }
-        );
-        assert_eq!(
-            parse_range(Some("bytes=8-99"), 10),
-            Range::Partial { start: 8, end: 9 }
-        );
-        for h in [
-            "bytes=10-",
-            "bytes=-0",
-            "bytes=5-4",
-            "bytes=999999999999999999999999-",
-        ] {
-            assert_eq!(parse_range(Some(h), 10), Range::Unsatisfiable);
+    #[tokio::test]
+    async fn unverifiable_if_range_returns_the_complete_representation() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let mut file = tempfile::tempfile().unwrap();
+        file.write_all(b"0123456789").unwrap();
+        let resource = Resource::from_file(file, "127.0.0.1".parse().unwrap()).unwrap();
+        let (url, task) = bind_resource(resource.clone(), "127.0.0.1:0".parse().unwrap(), None)
+            .await
+            .unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        for validator in ["\"previous-file\"", "Wed, 21 Oct 2015 07:28:00 GMT"] {
+            let response = client
+                .get(&url)
+                .header("Range", "bytes=2-4")
+                .header("If-Range", validator)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 200);
+            assert!(!response.headers().contains_key("content-range"));
+            assert_eq!(response.headers()["content-length"], "10");
+            assert_eq!(response.text().await.unwrap(), "0123456789");
         }
-        assert_eq!(parse_range(Some("bytes=0-"), 0), Range::Unsatisfiable);
-        assert_eq!(parse_range(Some("bytes=0-1,4-5"), 10), Range::Full);
+        resource.revoke();
+        task.await.unwrap();
     }
     #[tokio::test]
     async fn range_head_concurrency_and_revocation() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let mut file = tempfile::tempfile().unwrap();
         file.write_all(b"0123456789").unwrap();
         let resource = Resource::from_file(file, "127.0.0.1".parse().unwrap()).unwrap();
@@ -250,6 +212,36 @@ mod tests {
             .await
             .unwrap();
         let c = reqwest::Client::builder().no_proxy().build().unwrap();
+        for (range, status, content_range, body) in [
+            (
+                "bytes=2-18446744073709551616",
+                206,
+                Some("bytes 2-9/10"),
+                "23456789",
+            ),
+            (
+                "bytes=-18446744073709551616",
+                206,
+                Some("bytes 0-9/10"),
+                "0123456789",
+            ),
+            ("BYTES=2-4", 206, Some("bytes 2-4/10"), "234"),
+            ("bytes=+2-4", 416, Some("bytes */10"), ""),
+            ("bytes=18446744073709551616-", 416, Some("bytes */10"), ""),
+            ("bytes=0-1,4-5", 200, None, "0123456789"),
+        ] {
+            let response = c.get(&url).header("Range", range).send().await.unwrap();
+            assert_eq!(response.status(), status, "{range}");
+            assert_eq!(
+                response
+                    .headers()
+                    .get("content-range")
+                    .map(|value| value.to_str().unwrap()),
+                content_range
+            );
+            assert_eq!(response.headers()["content-length"], body.len().to_string());
+            assert_eq!(response.text().await.unwrap(), body);
+        }
         let (a, b) = tokio::join!(
             c.get(&url).header("Range", "bytes=2-4").send(),
             c.get(&url).header("Range", "bytes=-2").send()

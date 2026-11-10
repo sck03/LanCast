@@ -84,8 +84,11 @@ impl Bridge {
         let mut upstream = self
             .client
             .request(request.method().clone(), &self.upstream);
-        if let Some(range) = request.headers().get(header::RANGE) {
-            upstream = upstream.header(header::RANGE, range);
+        // Preserve the condition with its range; only the origin can validate it.
+        for name in [header::RANGE, header::IF_RANGE] {
+            for value in request.headers().get_all(&name) {
+                upstream = upstream.header(&name, value);
+            }
         }
         let result = tokio::select! { biased; _ = self.stop.cancelled() => return empty(410), r = upstream.send() => r };
         let Ok(upstream) = result else {

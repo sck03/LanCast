@@ -13,7 +13,7 @@ Windows / Android / macOS / iOS / tvOS 局域网投屏工程，采用 Rust 控�
 - Android 发送：MediaProjection、硬件编码、合法内部声音、前台服务和授权撤销处理。
 - Apple：Mac 屏幕／窗口发送与接收、iPhone／iPad ReplayKit 广播与前台接收、Apple TV 接收，详见 [D09 架构、构建与安装](docs/11-苹果客户端架构与验收.md)。
 - AirPlay 按需接收：0.6.0新增独立Android Airplay接收APK，默认关闭、手动开启，包含现代HomeKit配对、旧镜像兼容、后台监听、电视确认和单路播放管理。[实现与审阅](docs/20-AirPlay实现与审阅指南.md)记录模块、GPL分发及验证边界；真实iPhone/电视互通仍待验收。
-- 0.6.29 HTTP维护：[D44](docs/22-HTTP生命周期与直播分发.md#d44-http客户端与信任边界)升级reqwest至0.13.5，共用明确的TLS/请求策略，每设备最多保留一个空闲连接；媒体桥继续校验配对指纹。验证结果集中在08。
+- 0.6.30 文件播放维护：[D45](docs/22-HTTP生命周期与直播分发.md#d45-文件范围与条件请求)修正超大字节范围误报416、范围数字语法和条件续传；范围解析独立于文件I/O，媒体桥完整保留If-Range。验证结果集中在08。
 - 性能维护：[媒体队列与资源回收](docs/21-AirPlay媒体队列与资源生命周期.md)、[HTTP共享缓冲与TS起播](docs/22-HTTP生命周期与直播分发.md)、[Android裁剪](docs/23-Android工具链与裁剪维护.md)、[发现与工作区清理](docs/24-发现任务与工作区维护.md)分别维护当前合同；历次修正和验证记录集中在[08](docs/08-实施进度与审阅入口.md)。
 - DLNA：发现与控制、合成画面／提示音测试、用户确认档案、通过后直播、拉流监控与一次恢复；MP4 文件能力独立。
 - Android Standard 使用 Media3 1.11.1；Legacy 使用系统 MediaPlayer 与固定上游 TLS 媒体桥。
