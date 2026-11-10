@@ -97,9 +97,9 @@ def check(root):
         errors.append("Windows must not require the retired GStreamer runtime")
     for path in (root / "windows/src").glob("*.cpp"):
         forbid(path, "gst_")
-    for module in ("view", "tray", "network", "device_catalog"):
-        for suffix in (".cpp", ".h"):
-            forbid(root / f"windows/src/{module}{suffix}", "lancast_command", "MediaSender", "lancast_rtc.h")
+    for module in ("view", "view_paint", "view_scroll", "tray", "network", "device_catalog"):
+        for path in (root / "windows/src").glob(f"{module}.*"):
+            forbid(path, "lancast_command", "MediaSender", "lancast_rtc.h")
     forbid(root / "windows/src/app.cpp", "GetAdaptersAddresses(", "Shell_NotifyIconW(", "CreateFontW(")
     for path in (root / "apple").rglob("*.swift"):
         if any(part in {".build", "Dependencies", ".swiftpm"} for part in path.parts):

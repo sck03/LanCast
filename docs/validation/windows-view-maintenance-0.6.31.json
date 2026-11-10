@@ -1,0 +1,50 @@
+{
+  "version": "0.6.31",
+  "build_number": 39,
+  "date": "2026-11-10",
+  "source_commit": null,
+  "regressions": {
+    "baseline_commit": "661ae08",
+    "reproduced_before_fix": [
+      "Four quarter-notch wheel messages leave the native viewport stationary",
+      "Owner drawing changes the caller's selected font and text color",
+      "Wheel input past the top edge invalidates the visible window despite no position change"
+    ],
+    "coverage": [
+      "Sub-notch and sub-pixel input, direction reversal, disabled/page/large-line-count preferences and DPI-scaled line height",
+      "Real Win32 expanded/collapsed layout, small viewport, keyboard focus visibility and edge invalidation",
+      "Button and combobox DC restoration in normal, selected, disabled and focus states",
+      "Tray hide, timer processing, restore and re-registration"
+    ]
+  },
+  "architecture": {
+    "view": "Native controls, fonts, deferred layout, DPI and focus",
+    "view_paint": "Palette, panels, owner drawing and GDI resource ownership",
+    "view_scroll": "Wheel input to pixel displacement with a retained fractional remainder",
+    "removed": [
+      "Per-control synchronous MoveWindow repaint during layout",
+      "Per-draw temporary brush and pen creation",
+      "Unconditional layout when scrolling is already clamped at an edge"
+    ],
+    "new_runtime_dependencies": 0,
+    "new_threads_or_timers": 0
+  },
+  "local_validation": {
+    "platform": "Windows",
+    "compiler": "MinGW UCRT64 g++, C++20, -Wall -Wextra -Werror -Wno-missing-field-initializers",
+    "view_contract": "passed",
+    "python_unittest": 57,
+    "python_optimized_unittest": 57,
+    "clang_format": "passed",
+    "architecture": "passed",
+    "visual_inspection": ["default", "expanded advanced settings", "compact scrolled viewport"],
+    "rust": "Unchanged; existing workflow regression matrix will validate the commit"
+  },
+  "ci": {"status": "pending"},
+  "cleanup": {"status": "pending"},
+  "limitations": [
+    "Local native validation uses MinGW; full MSVC product validation is performed by GitHub Actions",
+    "Screenshots show native test fixtures, not a connected television",
+    "Physical mixed-DPI monitor switching, TV interoperability, CPU/RSS, end-to-end latency and two-hour soak were not measured"
+  ]
+}

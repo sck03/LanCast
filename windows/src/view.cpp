@@ -1,18 +1,10 @@
 #include "view.h"
 #include <algorithm>
 #include <commctrl.h>
-#include <string>
 #include <windowsx.h>
 
-MainView::~MainView() {
-    for (auto font : fonts_)
-        if (font)
-            DeleteObject(font);
-    DeleteObject(background_);
-    DeleteObject(white_);
-}
 HWND MainView::add(const wchar_t *type, const wchar_t *label, DWORD style, int x, int y, int width,
-                   int height, int id, int font, bool advanced) {
+                   int height, int id, int font, bool advanced, Surface surface) {
     if (lstrcmpW(type, L"BUTTON") == 0 && (style & BS_TYPEMASK) != BS_AUTOCHECKBOX)
         style = (style & ~BS_TYPEMASK) | BS_OWNERDRAW | BS_NOTIFY;
     if (lstrcmpW(type, L"COMBOBOX") == 0)
@@ -20,15 +12,16 @@ HWND MainView::add(const wchar_t *type, const wchar_t *label, DWORD style, int x
     const auto window = CreateWindowExW(0, type, label, WS_CHILD | WS_VISIBLE | style, 0, 0, 0, 0,
                                         window_, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
                                         GetModuleHandleW(nullptr), nullptr);
-    items_.push_back({window, x, y, width, height, font, advanced});
+    items_.push_back({window, x, y, width, height, font, advanced, surface});
     return window;
 }
 void MainView::create(HWND window) {
     window_ = window;
-    add(L"STATIC", L"LanCast", 0, 76, 23, 220, 38, 0, 2);
-    add(L"STATIC", L"把电脑上的精彩，分享给大屏幕", 0, 28, 76, 650, 24, 0);
+    add(L"STATIC", L"LanCast", 0, 76, 23, 220, 38, 0, 2, false, Surface::canvas);
+    add(L"STATIC", L"把电脑上的精彩，分享给大屏幕", 0, 28, 76, 650, 24, 0, 3, false,
+        Surface::canvas);
     add(L"STATIC", L"1   选择电视", 0, 28, 124, 300, 28, 0, 1);
-    add(L"STATIC", L"正在识别本机网络…", 0, 28, 157, 780, 24, network_summary);
+    add(L"STATIC", L"正在识别本机网络…", SS_NOPREFIX, 28, 157, 780, 24, network_summary, 3);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 28, 190, 620, 260, devices);
     add(L"BUTTON", L"刷新电视", WS_TABSTOP, 668, 187, 144, 36, 1);
     add(L"STATIC", L"电视配对码", 0, 28, 238, 106, 26, 0);
@@ -40,7 +33,7 @@ void MainView::create(HWND window) {
     add(L"BUTTON", L"高级设置…", WS_TABSTOP, 488, 231, 150, 36, 15);
     add(L"BUTTON", L"连接帮助", WS_TABSTOP, 652, 231, 160, 36, 12);
     add(L"STATIC", L"自动获取地址与指纹；普通电视（DLNA）选中后即可播放视频。", 0, 28, 280, 784, 24,
-        0);
+        0, 3);
 
     add(L"STATIC", L"本机网络", 0, 28, 316, 112, 24, 0, 0, true);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, 146, 310, 492, 180, 16, 0,
@@ -61,21 +54,23 @@ void MainView::create(HWND window) {
     add(L"BUTTON", L"跳到 60 秒", WS_TABSTOP, 340, 520, 160, 34, 9);
     add(L"BUTTON", L"停止投屏", WS_TABSTOP, 516, 520, 140, 34, 10);
     add(L"BUTTON", L"断开连接", WS_TABSTOP, 672, 520, 140, 34, 11);
-    add(L"STATIC", L"正在准备…", SS_LEFT | SS_NOPREFIX, 28, 579, 784, 52, status);
-    add(L"STATIC", L"最小化会收到托盘并继续投屏；关闭窗口会退出。", 0, 28, 642, 784, 24, 0);
+    add(L"STATIC", L"正在准备…", SS_LEFT | SS_NOPREFIX, 28, 585, 784, 44, status, 0, false,
+        Surface::notice);
+    add(L"STATIC", L"最小化会收到托盘并继续投屏；关闭窗口会退出。", 0, 28, 646, 784, 24, 0, 3,
+        false, Surface::canvas);
     fonts();
     resize();
 }
 void MainView::fonts() {
     dpi_ = static_cast<int>(GetDpiForWindow(window_));
-    const int sizes[] = {16, 19, 28};
-    for (int i = 0; i < 3; ++i) {
+    const int sizes[] = {16, 19, 28, 14};
+    for (int i = 0; i < 4; ++i) {
         if (fonts_[i])
             DeleteObject(fonts_[i]);
-        fonts_[i] =
-            CreateFontW(-scale(sizes[i]), 0, 0, 0, i ? FW_SEMIBOLD : FW_NORMAL, FALSE, FALSE, FALSE,
-                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                        DEFAULT_PITCH, L"Microsoft YaHei UI");
+        fonts_[i] = CreateFontW(-scale(sizes[i]), 0, 0, 0,
+                                i == 1 || i == 2 ? FW_SEMIBOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei UI");
     }
     for (const auto &item : items_)
         SendMessageW(item.window, WM_SETFONT, reinterpret_cast<WPARAM>(fonts_[item.font]), TRUE);
@@ -87,7 +82,6 @@ void MainView::fonts() {
 void MainView::resize() {
     RECT client{};
     GetClientRect(window_, &client);
-    int width = std::max(720, MulDiv(client.right, 96, dpi_));
     const int total = scale(686 + (advanced_ ? 56 : 0));
     scroll_ = std::clamp(scroll_, 0, std::max(0, total - static_cast<int>(client.bottom)));
     SCROLLINFO info{sizeof(info),
@@ -98,15 +92,45 @@ void MainView::resize() {
                     scroll_,
                     0};
     SetScrollInfo(window_, SB_VERT, &info, TRUE);
-    for (const auto &item : items_) {
-        ShowWindow(item.window, item.advanced && !advanced_ ? SW_HIDE : SW_SHOW);
+    // The scrollbar may have appeared/disappeared, changing the available width.
+    GetClientRect(window_, &client);
+    const int width = std::max(720, MulDiv(client.right, 96, dpi_));
+    const auto place = [&](const Item &item, HDWP batch) {
+        const bool visible = !item.advanced || advanced_;
         const int y = item.y + (!item.advanced && item.y >= 328 && advanced_ ? 56 : 0);
         // Rows use proportions so long translated labels stay usable when resized.
         const int x = 28 + MulDiv(item.x - 28, width - 56, 784);
         const int w = MulDiv(item.width, width - 56, 784);
-        MoveWindow(item.window, scale(x), scale(y) - scroll_, scale(w), scale(item.height), TRUE);
+        const UINT flags =
+            SWP_NOZORDER | SWP_NOACTIVATE | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW);
+        if (batch)
+            return DeferWindowPos(batch, item.window, nullptr, scale(x), scale(y) - scroll_,
+                                  scale(w), scale(item.height), flags);
+        SetWindowPos(item.window, nullptr, scale(x), scale(y) - scroll_, scale(w),
+                     scale(item.height), flags);
+        return static_cast<HDWP>(nullptr);
+    };
+    auto batch = BeginDeferWindowPos(static_cast<int>(items_.size()));
+    for (const auto &item : items_) {
+        if (!batch)
+            break;
+        batch = place(item, batch);
     }
+    // Failure discards the entire deferred batch, including its earlier entries.
+    if (!batch || !EndDeferWindowPos(batch))
+        for (const auto &item : items_)
+            place(item, nullptr);
     InvalidateRect(window_, nullptr, TRUE);
+}
+void MainView::scroll_to(int position) {
+    RECT client{};
+    GetClientRect(window_, &client);
+    const int total = scale(686 + (advanced_ ? 56 : 0));
+    position = std::clamp(position, 0, std::max(0, total - static_cast<int>(client.bottom)));
+    if (position == scroll_)
+        return;
+    scroll_ = position;
+    resize();
 }
 void MainView::toggle_advanced() {
     advanced_ = !advanced_;
@@ -129,12 +153,9 @@ bool MainView::handle(UINT message, WPARAM w, LPARAM l, LRESULT &result) {
         GetClientRect(window_, &client);
         MapWindowPoints(nullptr, window_, reinterpret_cast<POINT *>(&control), 2);
         if (control.top < 0)
-            scroll_ += control.top - scale(16);
+            scroll_to(scroll_ + control.top - scale(16));
         else if (control.bottom > client.bottom)
-            scroll_ += control.bottom - client.bottom + scale(16);
-        else
-            return false;
-        resize();
+            scroll_to(scroll_ + control.bottom - client.bottom + scale(16));
         return false;
     }
     case WM_SIZE:
@@ -157,133 +178,43 @@ bool MainView::handle(UINT message, WPARAM w, LPARAM l, LRESULT &result) {
     case WM_VSCROLL: {
         SCROLLINFO info{sizeof(info), SIF_ALL};
         GetScrollInfo(window_, SB_VERT, &info);
+        int position = scroll_;
         switch (LOWORD(w)) {
         case SB_LINEUP:
-            scroll_ -= scale(36);
+            position -= scale(36);
             break;
         case SB_LINEDOWN:
-            scroll_ += scale(36);
+            position += scale(36);
             break;
         case SB_PAGEUP:
-            scroll_ -= static_cast<int>(info.nPage);
+            position -= static_cast<int>(info.nPage);
             break;
         case SB_PAGEDOWN:
-            scroll_ += static_cast<int>(info.nPage);
+            position += static_cast<int>(info.nPage);
             break;
         case SB_THUMBTRACK:
-            scroll_ = info.nTrackPos;
+        case SB_THUMBPOSITION:
+            position = info.nTrackPos;
             break;
         case SB_TOP:
-            scroll_ = 0;
+            position = 0;
             break;
         case SB_BOTTOM:
-            scroll_ = info.nMax;
+            position = info.nMax;
             break;
         }
-        resize();
+        scroll_to(position);
         return true;
     }
-    case WM_MOUSEWHEEL:
-        scroll_ -= GET_WHEEL_DELTA_WPARAM(w) / WHEEL_DELTA * scale(72);
-        resize();
-        return true;
-    case WM_CTLCOLORSTATIC:
-    case WM_CTLCOLORBTN: {
-        auto dc = reinterpret_cast<HDC>(w);
-        SetTextColor(dc, RGB(36, 51, 73));
-        SetBkColor(dc, RGB(245, 247, 251));
-        result = reinterpret_cast<LRESULT>(background_);
-        return true;
-    }
-    case WM_CTLCOLOREDIT:
-    case WM_CTLCOLORLISTBOX: {
-        auto dc = reinterpret_cast<HDC>(w);
-        SetTextColor(dc, RGB(25, 40, 60));
-        SetBkColor(dc, RGB(255, 255, 255));
-        result = reinterpret_cast<LRESULT>(white_);
-        return true;
-    }
-    case WM_ERASEBKGND: {
-        RECT r{};
-        GetClientRect(window_, &r);
-        FillRect(reinterpret_cast<HDC>(w), &r, background_);
-        result = 1;
-        return true;
-    }
-    case WM_PAINT: {
-        PAINTSTRUCT paint{};
-        auto dc = BeginPaint(window_, &paint);
-        auto icon = reinterpret_cast<HICON>(SendMessageW(window_, WM_GETICON, ICON_BIG, 0));
-        DrawIconEx(dc, scale(28), scale(24) - scroll_, icon, scale(36), scale(36), 0, nullptr,
-                   DI_NORMAL);
-        EndPaint(window_, &paint);
-        return true;
-    }
-    case WM_DRAWITEM: {
-        auto *draw = reinterpret_cast<DRAWITEMSTRUCT *>(l);
-        if (draw->CtlType == ODT_COMBOBOX) {
-            const bool selected = (draw->itemState & ODS_SELECTED) != 0;
-            auto brush = CreateSolidBrush(selected ? RGB(23, 92, 211) : RGB(255, 255, 255));
-            FillRect(draw->hDC, &draw->rcItem, brush);
-            DeleteObject(brush);
-            std::wstring label;
-            if (draw->itemID != static_cast<UINT>(-1)) {
-                const auto length = SendMessageW(draw->hwndItem, CB_GETLBTEXTLEN, draw->itemID, 0);
-                if (length >= 0 && length <= 4096) {
-                    label.resize(static_cast<size_t>(length) + 1);
-                    SendMessageW(draw->hwndItem, CB_GETLBTEXT, draw->itemID,
-                                 reinterpret_cast<LPARAM>(label.data()));
-                    label.resize(static_cast<size_t>(length));
-                }
-            } else if (draw->CtlID == devices)
-                label = L"请选择搜索到的电视";
-            SetBkMode(draw->hDC, TRANSPARENT);
-            SetTextColor(draw->hDC, selected                           ? RGB(255, 255, 255)
-                                    : (draw->itemState & ODS_DISABLED) ? RGB(147, 159, 178)
-                                                                       : RGB(36, 51, 73));
-            SelectObject(draw->hDC, fonts_[0]);
-            auto bounds = draw->rcItem;
-            bounds.left += scale(8);
-            DrawTextW(draw->hDC, label.c_str(), -1, &bounds,
-                      DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
-            if (draw->itemState & ODS_FOCUS)
-                DrawFocusRect(draw->hDC, &draw->rcItem);
-            return true;
-        }
-        if (draw->CtlType != ODT_BUTTON)
-            return false;
-        bool disabled = (draw->itemState & ODS_DISABLED) != 0;
-        const bool primary = draw->CtlID == 4 || draw->CtlID == 5;
-        const bool pressed = (draw->itemState & ODS_SELECTED) != 0;
-        auto color = primary ? (disabled  ? RGB(175, 187, 206)
-                                : pressed ? RGB(18, 66, 157)
-                                          : RGB(23, 92, 211))
-                             : (pressed ? RGB(230, 237, 248) : RGB(255, 255, 255));
-        auto brush = CreateSolidBrush(color);
-        auto old = SelectObject(draw->hDC, brush);
-        auto border = CreatePen(PS_SOLID, 1, primary ? color : RGB(210, 219, 232));
-        auto pen = SelectObject(draw->hDC, border);
-        RoundRect(draw->hDC, draw->rcItem.left, draw->rcItem.top, draw->rcItem.right,
-                  draw->rcItem.bottom, scale(10), scale(10));
-        SelectObject(draw->hDC, old);
-        SelectObject(draw->hDC, pen);
-        DeleteObject(border);
-        DeleteObject(brush);
-        wchar_t label[128]{};
-        GetWindowTextW(draw->hwndItem, label, 128);
-        SetBkMode(draw->hDC, TRANSPARENT);
-        SetTextColor(draw->hDC, primary    ? RGB(255, 255, 255)
-                                : disabled ? RGB(147, 159, 178)
-                                           : RGB(36, 51, 73));
-        SelectObject(draw->hDC, fonts_[0]);
-        DrawTextW(draw->hDC, label, -1, &draw->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        if (draw->itemState & ODS_FOCUS) {
-            auto rect = draw->rcItem;
-            InflateRect(&rect, -4, -4);
-            DrawFocusRect(draw->hDC, &rect);
-        }
+    case WM_MOUSEWHEEL: {
+        UINT lines = 3;
+        SystemParametersInfoW(SPI_GETWHEELSCROLLLINES, 0, &lines, 0);
+        RECT client{};
+        GetClientRect(window_, &client);
+        scroll_to(scroll_ - wheel_.consume(GET_WHEEL_DELTA_WPARAM(w), lines, scale(24),
+                                           static_cast<int>(client.bottom)));
         return true;
     }
     }
-    return false;
+    return paint_message(message, w, l, result);
 }

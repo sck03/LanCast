@@ -25,7 +25,7 @@ include(FetchContent)
 FetchContent_Declare(json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG 65ee68451d8eb2b5f3a30b410476ab83deb3289b)
 FetchContent_MakeAvailable(json)
 add_subdirectory(media)
-add_executable(LanCast WIN32 src/main.cpp src/app.cpp src/view.cpp src/tray.cpp
+add_executable(LanCast WIN32 src/main.cpp src/app.cpp src/view.cpp src/view_paint.cpp src/tray.cpp
     src/network.cpp src/device_catalog.cpp src/media.cpp "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
 add_dependencies(LanCast lancast_rtc)
 target_include_directories(LanCast PRIVATE ../core/include ../media-native/include)
@@ -41,7 +41,7 @@ target_compile_definitions(desktop_contract PRIVATE UNICODE _UNICODE NOMINMAX WI
 target_compile_options(desktop_contract PRIVATE /W4 /utf-8 /EHsc)
 target_link_libraries(desktop_contract PRIVATE nlohmann_json::nlohmann_json iphlpapi ws2_32)
 add_test(NAME desktop_contract COMMAND desktop_contract)
-add_executable(view_contract tests/view_contract.cpp src/view.cpp src/tray.cpp "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
+add_executable(view_contract tests/view_contract.cpp src/view.cpp src/view_paint.cpp src/tray.cpp "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
 target_include_directories(view_contract PRIVATE src)
 target_compile_definitions(view_contract PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_compile_options(view_contract PRIVATE /W4 /utf-8 /EHsc)
