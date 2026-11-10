@@ -62,15 +62,398 @@
     }
   },
   "ci": {
-    "status": "pending_push"
+    "status": "passed",
+    "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+    "runs": [
+      {
+        "workflow": "windows.yml",
+        "run": 42729390146,
+        "sha": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42729390146",
+        "artifacts": [
+          {
+            "name": "dependencies-windows-2022",
+            "bytes": 113070,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "windows-native-relink-sources",
+            "bytes": 87389335,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "windows-synthetic-diagnostic-0.6.29-37-Release",
+            "bytes": 140000,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "LanCast-Windows-x64-0.6.29-37-Release",
+            "bytes": 5134984,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          }
+        ],
+        "evidence": [
+          {
+            "job": "core",
+            "sha256": "79455561b489f7889702b304932afffa834d747435378a033b07bbc644125107",
+            "checks": [
+              "PASS: Rust manifest/source boundaries, isolated WSS control, Apple contracts/media and platform player dependencies",
+              "test result: ok. 126 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s",
+              "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.61s",
+              "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.07s",
+              "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+              "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+              "test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s",
+              "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+              "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+              "test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s",
+              "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.05s",
+              "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+              "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s"
+            ]
+          },
+          {
+            "job": "windows",
+            "sha256": "1ada1a2df8696654dc40ca50c86a08d9481ffdfd7a1e4b75adac3ca5a9dd1e08",
+            "checks": [
+              "100% tests passed, 0 tests failed out of 7",
+              "PASS: package SHA-256, x64 PE imports, runtime dependencies and Release TS symbol policy",
+              "PASS: package SHA-256, x64 PE imports, runtime dependencies and Release TS symbol policy"
+            ]
+          }
+        ]
+      },
+      {
+        "workflow": "android.yml",
+        "run": 42729390013,
+        "sha": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42729390013",
+        "artifacts": [
+          {
+            "name": "airplay-source-and-dependencies-0.6.29-37-Debug",
+            "bytes": 44339900,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "LanCast-Android-Receiver-Standard-0.6.29-37-Debug",
+            "bytes": 34695742,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "android-sender-native-relink-sources-0.6.29-37-Debug",
+            "bytes": 12627457,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "LanCast-Android-Receiver-AirPlay-0.6.29-37-Debug",
+            "bytes": 39218844,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "android-build-reports-0.6.29-37-Debug",
+            "bytes": 10224453,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "LanCast-Android-Receiver-Legacy-0.6.29-37-Debug",
+            "bytes": 30845227,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "LanCast-Android-Sender-0.6.29-37-Debug",
+            "bytes": 35766419,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          }
+        ],
+        "evidence": [
+          {
+            "job": "android",
+            "sha256": "15fae97233b27b0a6cdac3d0409a9844746d7285f17380b58ec97e599f2d2390",
+            "checks": [
+              "PASS: Rust manifest/source boundaries, isolated WSS control, Apple contracts/media and platform player dependencies",
+              "BUILD SUCCESSFUL in 3m 4s",
+              "BUILD SUCCESSFUL in 2m 4s"
+            ]
+          }
+        ]
+      },
+      {
+        "workflow": "macos.yml",
+        "run": 42729390582,
+        "sha": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42729390582",
+        "artifacts": [
+          {
+            "name": "apple-macos-build-reports-0.6.29-37-Release",
+            "bytes": 86787,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "LanCast-macOS-Sender-Receiver-0.6.29-37-Release",
+            "bytes": 22415156,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          }
+        ],
+        "evidence": [
+          {
+            "job": "build",
+            "sha256": "135d1f0de430253ebdf61b3481c46f01b62f199c1f2a27ba350bc4e8d5c21d57",
+            "checks": [
+              "Test Suite 'DiscoveryContractsTests' passed at 2026-11-10 00:37:26.383.",
+              "\t Executed 3 tests, with 0 failures (0 unexpected) in 0.006 (0.006) seconds",
+              "Test Suite 'SessionContractsTests' passed at 2026-11-10 00:37:26.385.",
+              "\t Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds",
+              "Test Suite 'LanCastContractsPackageTests.xctest' passed at 2026-11-10 00:37:26.385.",
+              "\t Executed 7 tests, with 0 failures (0 unexpected) in 0.007 (0.007) seconds",
+              "Test Suite 'All tests' passed at 2026-11-10 00:37:26.385.",
+              "\t Executed 7 tests, with 0 failures (0 unexpected) in 0.007 (0.008) seconds",
+              "Test Suite 'CoreIntegrationTests' passed at 2026-11-10 00:38:27.943.",
+              "\t Executed 3 tests, with 0 failures (0 unexpected) in 0.026 (0.028) seconds",
+              "Test Suite 'MacCaptureConfigurationTests' passed at 2026-11-10 00:38:27.951.",
+              "\t Executed 2 tests, with 0 failures (0 unexpected) in 0.007 (0.008) seconds",
+              "Test Suite 'RtcIntegrationTests' passed at 2026-11-10 00:38:29.578.",
+              "\t Executed 2 tests, with 0 failures (0 unexpected) in 1.625 (1.627) seconds",
+              "Test Suite 'SystemAudioDeviceTests' passed at 2026-11-10 00:38:29.600.",
+              "\t Executed 4 tests, with 0 failures (0 unexpected) in 0.020 (0.021) seconds",
+              "Test Suite 'LanCastTests.xctest' passed at 2026-11-10 00:38:29.600.",
+              "\t Executed 11 tests, with 0 failures (0 unexpected) in 1.679 (1.685) seconds",
+              "Test Suite 'All tests' passed at 2026-11-10 00:38:29.600.",
+              "\t Executed 11 tests, with 0 failures (0 unexpected) in 1.679 (1.686) seconds"
+            ]
+          }
+        ]
+      },
+      {
+        "workflow": "ios.yml",
+        "run": 42729390337,
+        "sha": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42729390337",
+        "artifacts": [
+          {
+            "name": "LanCast-iOS-Sender-Receiver-0.6.29-37-Debug",
+            "bytes": 54801116,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "apple-ios-build-reports-0.6.29-37-Debug",
+            "bytes": 15557,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          }
+        ],
+        "evidence": [
+          {
+            "job": "build",
+            "sha256": "b581c99f9b0ff03a38b786600b72180632ba7bf9db542a48ae86f91c646cae2b",
+            "checks": []
+          }
+        ]
+      },
+      {
+        "workflow": "tvos.yml",
+        "run": 42729390420,
+        "sha": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42729390420",
+        "artifacts": [
+          {
+            "name": "LanCast-tvOS-Receiver-0.6.29-37-Debug",
+            "bytes": 20086221,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          },
+          {
+            "name": "apple-tvos-build-reports-0.6.29-37-Debug",
+            "bytes": 15535,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          }
+        ],
+        "evidence": [
+          {
+            "job": "build",
+            "sha256": "7ff212364bbe3adb3c14f56017ea9f6c7c50551c5589730dc58b3718e885880d",
+            "checks": []
+          }
+        ]
+      },
+      {
+        "workflow": "core-linux.yml",
+        "run": 42729390084,
+        "sha": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42729390084",
+        "artifacts": [
+          {
+            "name": "dependencies-ubuntu-24.04",
+            "bytes": 115727,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          }
+        ],
+        "evidence": [
+          {
+            "job": "core",
+            "sha256": "ef20fa28d8555ed97f63c643fa101dac035b7db36f13bc91ce5e525081e070d9",
+            "checks": [
+              "PASS: Rust manifest/source boundaries, isolated WSS control, Apple contracts/media and platform player dependencies",
+              "test result: ok. 126 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s",
+              "test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.70s",
+              "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.03s",
+              "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+              "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+              "test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+              "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.59s",
+              "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+              "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+              "test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+              "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.62s",
+              "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.03s",
+              "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+              "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s"
+            ]
+          }
+        ]
+      },
+      {
+        "workflow": "native-linux.yml",
+        "run": 42729390014,
+        "sha": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/42729390014",
+        "artifacts": [
+          {
+            "name": "native-build-evidence",
+            "bytes": 6314,
+            "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+            "expired": false
+          }
+        ],
+        "evidence": [
+          {
+            "job": "native",
+            "sha256": "47f71e8a80a5b58412b82340c74611748a0e59c2bb8aeba5697d9172819f308d",
+            "checks": [
+              "100% tests passed, 0 tests failed out of 1"
+            ]
+          }
+        ]
+      }
+    ],
+    "airplay": "not_triggered_independent_workspace_unchanged",
+    "linux_tests": {
+      "all_features": 153,
+      "no_default_features": 109,
+      "legacy": 112
+    },
+    "macos_tests": {
+      "swift_contracts": 7,
+      "integration": 11
+    },
+    "artifact_boundary": "Workflow artifact metadata verified; package checks executed by workflows; no device installation",
+    "apple_reports": {
+      "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+      "source_dirty": false,
+      "version": "0.6.29",
+      "build_number": 37,
+      "source_tree_sha256": "6efae5c97bfbc171042948e9430200afe442f1b618d1c2aeea1aec08bd4b2eb3",
+      "verified_platforms": [
+        "macos",
+        "ios",
+        "tvos"
+      ]
+    },
+    "windows_native_tests": 7,
+    "android": "Four Debug products, unit tests, Lint, APK checks and main-branch Release contract build passed"
   },
   "cleanup": {
-    "status": "pending_validation"
+    "status": "completed",
+    "files": 3143,
+    "bytes": 2388475749,
+    "paths": [
+      "target",
+      "scripts/__pycache__",
+      "scripts/tests/__pycache__",
+      "dist/reports",
+      ".cache/baseline-tests.log",
+      ".cache/bridge-before.log",
+      ".cache/check-legacy-0.6.29.log",
+      ".cache/check-receiver-0.6.29.log",
+      ".cache/clippy-0.6.29.log",
+      ".cache/dependencies-0.6.29.txt",
+      ".cache/dependency-report-0.6.29.log",
+      ".cache/http-policy-tests.log",
+      ".cache/http-upgrade-tests.log",
+      ".cache/pool-before.log",
+      ".cache/reqwest-0.13-client.rs",
+      ".cache/reqwest-0.13-tls.rs",
+      ".cache/tests-all-0.6.29.log",
+      ".cache/tests-legacy-0.6.29.log",
+      ".cache/tests-receiver-0.6.29.log",
+      ".cache/tls-features.txt"
+    ],
+    "protection": "Resolved workspace containment, ignored paths, tracked-file exclusion, links, nested repositories and signing materials checked; original media fixtures retained",
+    "remaining_known_reclaimable_bytes": 0,
+    "final_temporary_cleanup": {
+      "files": 3,
+      "bytes": 14265,
+      "paths": [
+        ".cache/cleanup-preview-0.6.29.json",
+        ".cache/cleanup-plan-0.6.29.json",
+        ".cache/ci-reviewed-0.6.29.json"
+      ]
+    },
+    "total_files_removed": 3146,
+    "total_bytes_removed": 2388490014
   },
   "limits": [
     "No real-device interoperability or two-hour stability test",
     "No measured media CPU, RSS or latency improvement",
     "No old application protocol fallback",
     "Not all dependencies were upgraded to their latest major version"
-  ]
+  ],
+  "source_commit": "e47bfcabf6fdb27d59b42b67a90f8cada0847b11",
+  "evidence_sha256": {
+    ".cache/baseline-tests.log": "85f748e2fa061982ce88645d718f7d7931daa618334d98ab4dfda12152ef9c64",
+    ".cache/bridge-before.log": "680d629d31a2b1f5fce1520cbb64b6a08b678763f001cc4273275a32b4e374b8",
+    ".cache/check-legacy-0.6.29.log": "12a080ee8cbb0efabef2ee54161bd803f642e8e150e1850dccf3e5717c3d5307",
+    ".cache/check-receiver-0.6.29.log": "0c48e7ec89f3ac8b0392b34a9816d38a0f6a08cab6e9a59e284d2a4fcb8c64c3",
+    ".cache/clippy-0.6.29.log": "205bea68c5f8ae63fe90d240bda333aa062d7a64b55c341074ba5b6705e0bf04",
+    ".cache/dependencies-0.6.29.txt": "0df3fa64b371539eef9908580b3350968c92fa4d9ea607d1ce259c8893b6b0c3",
+    ".cache/dependency-report-0.6.29.log": "436c4c2a40adc25cac1fdee053fb747b5eda7b29fdd8933c350fd847225e6a42",
+    ".cache/http-policy-tests.log": "e32f7062492acc76172868c9b7980e8d9d33d5ea89bf907c3329e03bd8d7c7e7",
+    ".cache/http-upgrade-tests.log": "e97cca89648faf7e2aac28e9a56bbb95a21ef9e3497e674a61315e98b7da8eb0",
+    ".cache/pool-before.log": "ef258306c916ae232ed3ab8c2dc7a69640e0a87acba2adc6a66076de41107481",
+    ".cache/reqwest-0.13-client.rs": "5b7e2556d122a75cd8d3ef62a33d45e430c8eff229a33bc3f53fc7e9af2d97de",
+    ".cache/reqwest-0.13-tls.rs": "a32a7a2cb98994af681c1258315512c379988ff3fe500eb6e51a1a33fc4d6a6d",
+    ".cache/tests-all-0.6.29.log": "1578ced0c9d4fb202b17ac1c803ea6f50e541acfb3fd5b19d37b7fce75d414cf",
+    ".cache/tests-legacy-0.6.29.log": "ac95f7f86d481c1886fd384cd7d2dd3a489410872d22ba45a7f236609a4f56d1",
+    ".cache/tests-receiver-0.6.29.log": "99e2f75868d02b3ff0355955fe0d3f4223eddc5c4dc71a82a42fcde3bb31bce9",
+    ".cache/tls-features.txt": "674e93e2b6caf589c9cb533589ad82f6b33267697c8213ed0e4a3d14c0789752"
+  }
 }
