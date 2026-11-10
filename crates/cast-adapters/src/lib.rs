@@ -6,6 +6,7 @@ mod control;
 pub mod discovery;
 pub mod dlna;
 mod events;
+mod http_client;
 pub mod http_server;
 #[cfg(feature = "legacy")]
 pub mod legacy_bridge;

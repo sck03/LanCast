@@ -1,0 +1,76 @@
+{
+  "version": "0.6.29",
+  "build_number": 37,
+  "date": "2026-11-10",
+  "upstream_review": {
+    "reqwest": "0.12.28 -> 0.13.5",
+    "source": "https://github.com/seanmonstar/reqwest/releases/tag/v0.13.5",
+    "adopted_fixes": [
+      "Reuse the read-timeout Sleep timer",
+      "Recognize timeouts nested in body errors",
+      "Remove unnecessary clones"
+    ],
+    "tls_policy": "Explicit rustls configurations; ring only; Mozilla public roots for DLNA and SPKI pinning for the media bridge",
+    "platform_verifier": "Transitive dependency retained by upstream's public rustls-no-provider feature; production clients do not instantiate its verifier",
+    "unchanged_latest": {
+      "libdatachannel": "0.24.6",
+      "android_webrtc": "150.7871.04",
+      "apple_webrtc": "150.7871.05",
+      "media3": "1.11.1",
+      "mdns-sd": "0.21.7",
+      "tokio": "1.54.1",
+      "tokio-tungstenite": "0.30.0"
+    },
+    "not_upgraded": {
+      "application_jni": "0.21; platform boundary migration remains separate from transitive JNI 0.22.4",
+      "mbedtls": "3.6.7; libdatachannel requires the version 3 provider API",
+      "ffmpeg": "8.0.1; official 9.0.2 archive HEAD request failed expired-certificate verification"
+    }
+  },
+  "regressions": {
+    "idle_pool": "With the former unlimited cap, three concurrent responses retain excess idle sockets and the new regression fails; cap 1 closes two sockets promptly and retains one until client drop",
+    "http_policy": "100 response headers accepted; 101 rejected; redirects not followed; self-signed certificate rejected on the public-trust path",
+    "media_tls": "Trickled response headers fail at the existing five-second deadline; a continuously progressing six-second media body completes",
+    "baseline_correction": "Slow-header test also passes on reqwest 0.12.28; no redundant timer or application bug-fix claim was added for this behavior"
+  },
+  "local_validation": {
+    "rust_all_features": {
+      "passed": 152,
+      "failed": 0
+    },
+    "rust_no_default_features": {
+      "passed": 108,
+      "failed": 0
+    },
+    "rust_legacy": {
+      "passed": 111,
+      "failed": 0
+    },
+    "platform": "Windows",
+    "cargo_fmt": "passed",
+    "cargo_clippy_deny_warnings": "passed",
+    "ffi_receiver_and_legacy_checks": "passed",
+    "architecture": "passed",
+    "python_unittest": 57,
+    "python_optimized_unittest": 57,
+    "build_config_after_version_update": 5,
+    "dependency_report": "passed",
+    "markdown_links": {
+      "files": 32,
+      "targets": 238,
+      "missing": []
+    }
+  },
+  "ci": {
+    "status": "pending_push"
+  },
+  "cleanup": {
+    "status": "pending_validation"
+  },
+  "limits": [
+    "No real-device interoperability or two-hour stability test",
+    "No measured media CPU, RSS or latency improvement",
+    "No old application protocol fallback",
+    "Not all dependencies were upgraded to their latest major version"
+  ]
+}

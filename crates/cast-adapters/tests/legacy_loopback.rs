@@ -4,7 +4,91 @@ use cast_adapters::{
     legacy_bridge::Bridge,
     media_http::{Resource, bind_resource},
 };
-use std::{io::Write, sync::Arc};
+use std::{io::Write, sync::Arc, time::Duration};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+};
+
+async fn upstream() -> (
+    String,
+    Identity,
+    tokio::task::JoinHandle<tokio_rustls::server::TlsStream<tokio::net::TcpStream>>,
+) {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let identity = Identity::create().unwrap();
+    let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(identity.server_config().unwrap()));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("https://{}/media/test", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        let mut stream = acceptor.accept(socket).await.unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            request.push(stream.read_u8().await.unwrap());
+            assert!(request.len() < 4096);
+        }
+        stream
+    });
+    (url, identity, task)
+}
+
+#[tokio::test]
+async fn slow_upstream_headers_cannot_extend_deadline() {
+    let (remote, identity, connection) = upstream().await;
+    let (local, bridge, task) = Bridge::bind(&remote, &identity.fingerprint).await.unwrap();
+    let upstream = tokio::spawn(async move {
+        let mut stream = connection.await.unwrap();
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX-Progress: ")
+            .await
+            .unwrap();
+        loop {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            if stream.write_all(b"a").await.is_err() {
+                break;
+            }
+        }
+    });
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let response = tokio::time::timeout(Duration::from_secs(7), client.get(local).send())
+        .await
+        .expect("trickled headers must not retain a bridge connection indefinitely")
+        .unwrap();
+    assert_eq!(response.status(), 502);
+    bridge.revoke();
+    task.await.unwrap();
+    upstream.abort();
+    let _ = upstream.await;
+}
+
+#[tokio::test]
+async fn header_deadline_does_not_limit_active_media_body() {
+    let (remote, identity, connection) = upstream().await;
+    let (local, bridge, task) = Bridge::bind(&remote, &identity.fingerprint).await.unwrap();
+    let upstream = tokio::spawn(async move {
+        let mut stream = connection.await.unwrap();
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        for byte in b"012345" {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            stream.write_all(&[*byte]).await.unwrap();
+        }
+    });
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap();
+    let response = client.get(local).send().await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.text().await.unwrap(), "012345");
+    bridge.revoke();
+    task.await.unwrap();
+    upstream.await.unwrap();
+}
 
 #[tokio::test]
 async fn loopback_preserves_range_pinning_and_revocation() {

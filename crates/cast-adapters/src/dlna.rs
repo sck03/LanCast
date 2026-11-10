@@ -7,7 +7,7 @@ pub use soap::CommandResult;
 use anyhow::{Context, ensure};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::{net::IpAddr, time::Duration};
+use std::net::IpAddr;
 use url::Url;
 const MAX_XML: usize = 512 * 1024;
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -205,11 +205,11 @@ impl Controller {
     }
 }
 pub fn client() -> anyhow::Result<reqwest::Client> {
-    Ok(reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(5))
-        .build()?)
+    Ok(
+        crate::http_client::builder(crate::http_client::public_roots())
+            .timeout(crate::http_client::TIMEOUT)
+            .build()?,
+    )
 }
 pub async fn bounded(response: reqwest::Response) -> anyhow::Result<String> {
     ensure!(

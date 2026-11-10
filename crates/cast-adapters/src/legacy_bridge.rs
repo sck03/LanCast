@@ -11,7 +11,7 @@ use hyper::{
     body::{Frame, Incoming},
     header,
 };
-use std::{net::IpAddr, sync::Arc, time::Duration};
+use std::{net::IpAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 pub struct Bridge {
@@ -42,13 +42,7 @@ impl Bridge {
             "UNSAFE_MEDIA_URL"
         );
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .connect_timeout(Duration::from_secs(5))
-            .read_timeout(Duration::from_secs(5))
-            .use_preconfigured_tls(auth::pinned_config(fingerprint)?)
-            .build()?;
+        let client = crate::http_client::builder(auth::pinned_config(fingerprint)?).build()?;
         let bridge = Arc::new(Self {
             client,
             upstream: url.to_string(),
