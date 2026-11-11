@@ -3,6 +3,41 @@
 #include <commctrl.h>
 #include <windowsx.h>
 
+void MainView::set_text(int id, const std::wstring &text) {
+    const auto control = get(id);
+    const auto length = GetWindowTextLengthW(control);
+    if (static_cast<size_t>(length) == text.size()) {
+        std::wstring current(text.size() + 1, L'\0');
+        GetWindowTextW(control, current.data(), static_cast<int>(current.size()));
+        current.resize(text.size());
+        if (current == text)
+            return;
+    }
+    SetWindowTextW(control, text.c_str());
+}
+
+void MainView::enable(int id, bool enabled) {
+    const auto control = get(id);
+    if ((IsWindowEnabled(control) != FALSE) != enabled)
+        EnableWindow(control, enabled);
+}
+
+void MainView::set_choices(int id, const std::vector<std::wstring> &labels, int selected) {
+    const auto control = get(id);
+    // WM_SETREDRAW(TRUE) also sets WS_VISIBLE: do not use it on a hidden selector.
+    const bool visible = IsWindowVisible(control) != FALSE;
+    if (visible)
+        SendMessageW(control, WM_SETREDRAW, FALSE, 0);
+    SendMessageW(control, CB_RESETCONTENT, 0, 0);
+    for (const auto &label : labels)
+        SendMessageW(control, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
+    SendMessageW(control, CB_SETCURSEL, selected, 0);
+    if (visible) {
+        SendMessageW(control, WM_SETREDRAW, TRUE, 0);
+        RedrawWindow(control, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME);
+    }
+}
+
 HWND MainView::add(const wchar_t *type, const wchar_t *label, DWORD style, int x, int y, int width,
                    int height, int id, int font, bool advanced, Surface surface) {
     if (lstrcmpW(type, L"BUTTON") == 0 && (style & BS_TYPEMASK) != BS_AUTOCHECKBOX)
@@ -41,8 +76,9 @@ void MainView::create(HWND window) {
     add(L"BUTTON", L"重新自动选择", WS_TABSTOP, 652, 310, 160, 32, 17, 0, true);
 
     add(L"STATIC", L"2   选择分享内容", 0, 28, 328, 400, 28, 0, 1);
+    add(L"STATIC", L"仅分享选中的屏幕或窗口", SS_RIGHT, 462, 331, 350, 24, 0, 3);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, 28, 366, 620, 260, sources);
-    add(L"BUTTON", L"刷新窗口", WS_TABSTOP, 668, 363, 144, 36, 13);
+    add(L"BUTTON", L"刷新来源", WS_TABSTOP, 668, 363, 144, 36, 13);
     auto audio_check = add(L"BUTTON", L"同时分享电脑声音（包括其他应用播放的声音）",
                            BS_AUTOCHECKBOX | WS_TABSTOP, 28, 410, 784, 28, audio);
     SendMessageW(audio_check, BM_SETCHECK, BST_CHECKED, 0);

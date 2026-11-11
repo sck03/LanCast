@@ -1,6 +1,26 @@
 #include "device_catalog.h"
 #include "network.h"
 #include <algorithm>
+#include <string_view>
+
+namespace {
+std::string display_name(const nlohmann::json &device) {
+    const auto field = device.find("name");
+    if (field == device.end() || !field->is_string())
+        return "TV";
+    const auto &name = field->get_ref<const std::string &>();
+    size_t end = std::min(name.size(), size_t{256});
+    // Keep a complete UTF-8 prefix; the first omitted byte may be a continuation.
+    while (end < name.size() && end && (static_cast<unsigned char>(name[end]) & 0xc0) == 0x80)
+        --end;
+    auto label = name.substr(0, end);
+    std::erase_if(label, [](unsigned char c) { return c < 32 || c == 127; });
+    constexpr std::string_view suffix = "._lancast._tcp.local.";
+    if (label.ends_with(suffix))
+        label.resize(label.size() - suffix.size());
+    return label.empty() || label.find_first_not_of(' ') == std::string::npos ? "TV" : label;
+}
+} // namespace
 
 bool valid_fingerprint(const std::string &value) {
     return value.size() == 64 && std::all_of(value.begin(), value.end(), [](unsigned char c) {
@@ -24,14 +44,7 @@ void DeviceCatalog::update(const nlohmann::json &devices, bool dlna) {
             continue;
         item.dlna = dlna;
         item.key = (dlna ? "dlna:" : "lancast:") + item.id;
-        item.name =
-            d.contains("name") && d["name"].is_string() ? d["name"].get<std::string>() : "TV";
-        if (item.name.size() > 256)
-            item.name.resize(256);
-        std::erase_if(item.name, [](unsigned char c) { return c < 32 || c == 127; });
-        const std::string suffix = "._lancast._tcp.local.";
-        if (item.name.ends_with(suffix))
-            item.name.resize(item.name.size() - suffix.size());
+        item.name = display_name(d);
         if (dlna) {
             if (!d.contains("ip") || !d["ip"].is_string())
                 continue;

@@ -86,6 +86,11 @@ int main(int argc, char **argv) {
         SetWindowTextW(controls.get(MainView::network_summary),
                        L"已自动选择网络 · 192.168.1.10（界面测试示例）");
         SetWindowTextW(controls.get(MainView::status), L"请选择电视，输入配对码后即可连接。");
+        controls.set_choices(
+            MainView::devices,
+            {L"客厅电视 · LanCast · 192.168.1.8", L"卧室电视 · 普通电视 (DLNA) · 192.168.1.9"}, 0);
+        controls.set_choices(MainView::sources, {L"整个主屏幕", L"演示文稿 — 工作窗口"}, 1);
+        controls.set_choices(16, {L"Wi-Fi · 192.168.1.10"}, 0);
         check((GetWindowLongPtrW(controls.get(16), GWL_STYLE) & WS_VISIBLE) == 0,
               "network settings collapsed initially");
         check(!controls.get(102) && !controls.get(103),
@@ -112,6 +117,19 @@ int main(int argc, char **argv) {
         }
         SetWindowPos(window, nullptr, 0, 0, 780, 560, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
         ShowWindow(window, SW_SHOWNOACTIVATE);
+        controls.set_text(MainView::status, L"请选择电视，输入配对码后即可连接。");
+        ValidateRect(controls.get(MainView::status), nullptr);
+        controls.set_text(MainView::status, L"请选择电视，输入配对码后即可连接。");
+        check(!GetUpdateRect(controls.get(MainView::status), nullptr, FALSE),
+              "unchanged status does not invalidate its native control");
+        controls.set_choices(MainView::sources, {L"整个主屏幕", L"演示文稿 — 工作窗口"}, 1);
+        check(SendMessageW(controls.get(MainView::sources), CB_GETCURSEL, 0, 0) == 1 &&
+                  IsWindowVisible(controls.get(MainView::sources)),
+              "batched source updates retain requested selection and visibility");
+        controls.enable(4, false);
+        controls.enable(4, false);
+        check(!IsWindowEnabled(controls.get(4)), "repeated disabled state remains disabled");
+        controls.enable(4, true);
         SendMessageW(window, WM_VSCROLL, SB_BOTTOM, 0);
         SCROLLINFO scroll{sizeof(scroll), SIF_ALL};
         GetScrollInfo(window, SB_VERT, &scroll);

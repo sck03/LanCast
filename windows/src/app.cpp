@@ -3,6 +3,7 @@
 #include "lancast.h"
 #include "media.h"
 #include "network.h"
+#include "source_catalog.h"
 #include "tray.h"
 #include "view.h"
 #include <algorithm>
@@ -23,7 +24,7 @@ using Json = nlohmann::json;
 namespace {
 class DesktopApp {
     static constexpr UINT MEDIA_EVENT = WM_APP + 1;
-    HWND main_window{}, status_text{}, invitation{}, windows_list{}, audio_check{}, devices_list{};
+    HWND main_window{}, invitation{}, windows_list{}, audio_check{}, devices_list{};
     LancastHandle core = 0;
     static LancastHandle create_core() {
         LancastConfig c{sizeof(LancastConfig), 2, 0};
@@ -41,12 +42,11 @@ class DesktopApp {
     bool live_pending = false, probe = false, probe_prompted = false, selected_audio = true;
     bool profile_pending = false;
     std::string pending_session;
-    std::vector<HMONITOR> monitors;
+    SourceCatalog sources;
     static void release_core(LancastHandle handle) {
         lancast_shutdown(handle);
         std::thread([handle] { lancast_destroy(handle); }).detach();
     }
-    std::vector<HWND> windows;
     static std::wstring wide(const std::string &text) {
         if (text.empty())
             return {};
@@ -73,8 +73,9 @@ class DesktopApp {
         return utf8(value);
     }
     void status(const std::string &value) {
-        SetWindowTextW(status_text, wide(value).c_str());
-        tray.update(wide(value));
+        const auto label = wide(value);
+        view.set_text(MainView::status, label);
+        tray.update(label);
         update_controls();
     }
     void command(const std::string &op, Json body = Json::object()) {
@@ -151,15 +152,18 @@ class DesktopApp {
             command("profiles.open", {{"path", utf8(file.wstring())}});
         }
     }
-    size_t source_index() {
-        auto index = SendMessageW(windows_list, CB_GETCURSEL, 0, 0);
-        return index >= 0 && static_cast<size_t>(index) < windows.size()
-                   ? static_cast<size_t>(index)
-                   : 0;
+    const CaptureSource &selected_source() const {
+        const auto *source =
+            sources.at(static_cast<int>(SendMessageW(windows_list, CB_GETCURSEL, 0, 0)));
+        if (!source || !source->available())
+            throw std::runtime_error("分享来源已关闭或不可用，请刷新来源并重新选择屏幕或窗口");
+        return *source;
     }
     void begin_live(bool synthetic) {
         if (busy())
             throw std::runtime_error("先停止当前分享");
+        if (!synthetic)
+            selected_source();
         select_route(dlna_ip);
         probe = synthetic;
         probe_prompted = false;
@@ -224,14 +228,14 @@ class DesktopApp {
                 return;
             const auto active = generation;
             const auto handle = core;
-            auto index = source_index();
+            const auto source = probe ? CaptureSource{} : selected_source();
             media =
                 std::make_unique<MediaSender>([target = main_window, active](auto type, auto body) {
                     post_media(target, active, type, body);
                 });
             media_generation = active;
             pending_live_url = body.at("url").get<std::string>();
-            media->start_live(windows[index], monitors[index], selected_audio, probe,
+            media->start_live(source.window, source.monitor, selected_audio, probe,
                               [handle](const uint8_t *bytes, size_t length) {
                                   return lancast_write_ts(handle, bytes, length);
                               });
@@ -310,22 +314,19 @@ class DesktopApp {
                 pending_session.clear();
                 session = body.at("sessionId").get<std::string>();
                 if (mode == "mirror") {
+                    const auto source = selected_source();
                     const auto active = ++generation;
                     media = std::make_unique<MediaSender>(
                         [target = main_window, active](auto type, auto body) {
                             post_media(target, active, type, body);
                         });
                     media_generation = active;
-                    auto index = SendMessageW(windows_list, CB_GETCURSEL, 0, 0);
-                    HWND selected = index > 0 && static_cast<size_t>(index) < windows.size()
-                                        ? windows[static_cast<size_t>(index)]
-                                        : nullptr;
                     auto profile = data.at("selectedProfile");
                     profile["width"] = std::min(profile.value("width", 1280), 1280);
                     profile["height"] = std::min(profile.value("height", 720), 720);
                     profile["fps"] = std::min(profile.value("fps", 30), 30);
-                    profile["monitor"] = reinterpret_cast<uintptr_t>(monitors[source_index()]);
-                    media->start(selected,
+                    profile["monitor"] = reinterpret_cast<uintptr_t>(source.monitor);
+                    media->start(source.window,
                                  SendMessageW(audio_check, BM_GETCHECK, 0, 0) == BST_CHECKED,
                                  profile);
                     status("正在启动屏幕分享…");
@@ -357,44 +358,17 @@ class DesktopApp {
         update_controls();
     }
     void refresh_windows() {
-        windows = {nullptr};
-        monitors = {nullptr};
-        SendMessageW(windows_list, CB_RESETCONTENT, 0, 0);
-        SendMessageW(windows_list, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"整个主屏幕"));
-        EnumDisplayMonitors(
-            nullptr, nullptr,
-            +[](HMONITOR monitor, HDC, LPRECT, LPARAM context) -> BOOL {
-                auto &self = *reinterpret_cast<DesktopApp *>(context);
-                MONITORINFOEXW info{};
-                info.cbSize = sizeof(info);
-                GetMonitorInfoW(monitor, &info);
-                if (info.dwFlags & MONITORINFOF_PRIMARY) {
-                    self.monitors[0] = monitor;
-                    return TRUE;
-                }
-                const auto label = L"扩展屏幕 " + std::to_wstring(self.monitors.size());
-                self.windows.push_back(nullptr);
-                self.monitors.push_back(monitor);
-                SendMessageW(self.windows_list, CB_ADDSTRING, 0,
-                             reinterpret_cast<LPARAM>(label.c_str()));
-                return TRUE;
-            },
-            reinterpret_cast<LPARAM>(this));
-        EnumWindows(
-            +[](HWND window, LPARAM context) -> BOOL {
-                auto &self = *reinterpret_cast<DesktopApp *>(context);
-                if (window == self.main_window || !IsWindowVisible(window) ||
-                    GetWindowTextLengthW(window) == 0)
-                    return TRUE;
-                wchar_t title[256];
-                GetWindowTextW(window, title, 256);
-                self.windows.push_back(window);
-                self.monitors.push_back(nullptr);
-                SendMessageW(self.windows_list, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(title));
-                return TRUE;
-            },
-            reinterpret_cast<LPARAM>(this));
-        SendMessageW(windows_list, CB_SETCURSEL, 0, 0);
+        const int previous = static_cast<int>(SendMessageW(windows_list, CB_GETCURSEL, 0, 0));
+        const int selected = sources.refresh(main_window, previous);
+        std::vector<std::wstring> labels;
+        labels.reserve(sources.entries().size());
+        for (const auto &source : sources.entries())
+            labels.push_back(source.name);
+        view.set_choices(MainView::sources, labels, selected);
+        if (selected < 0 && previous >= 0)
+            status("原分享来源已不可用，请重新选择屏幕或窗口。");
+        else
+            update_controls();
     }
     void click(int id) {
         switch (id) {
@@ -454,6 +428,7 @@ class DesktopApp {
                 throw std::runtime_error("原生媒体后端加载失败");
             if (busy())
                 throw std::runtime_error("先停止当前分享");
+            selected_source();
             if (!dlna_id.empty()) {
                 profile_pending = true;
                 ++generation;
@@ -620,6 +595,10 @@ class DesktopApp {
                     choose_network();
                     return 0;
                 }
+                if (HIWORD(w) == CBN_SELCHANGE && LOWORD(w) == MainView::sources) {
+                    update_controls();
+                    return 0;
+                }
                 if (HIWORD(w) == BN_CLICKED)
                     click(LOWORD(w));
                 return 0;
@@ -651,8 +630,7 @@ class DesktopApp {
             case MEDIA_EVENT: {
                 std::unique_ptr<Json> e(reinterpret_cast<Json *>(l));
                 auto kind = e->at("type").get<std::string>();
-                if (kind != "media.stopped" &&
-                    e->value("generation", uint64_t{0}) != generation)
+                if (kind != "media.stopped" && e->value("generation", uint64_t{0}) != generation)
                     return 0;
                 if (kind == "media.error" || kind == "media.ended") {
                     stop();
@@ -667,7 +645,8 @@ class DesktopApp {
                     finish_stop();
                 } else if (kind == "media.started") {
                     if (live_pending) {
-                        command("dlna.load", {{"deviceId", dlna_id}, {"url", pending_live_url}, {"live", true}});
+                        command("dlna.load",
+                                {{"deviceId", dlna_id}, {"url", pending_live_url}, {"live", true}});
                         pending_live_url.clear();
                         live_pending = false;
                     } else {
@@ -724,53 +703,57 @@ class DesktopApp {
         if (!ready)
             return;
         const bool active = busy();
+        const bool has_source =
+            sources.at(static_cast<int>(SendMessageW(windows_list, CB_GETCURSEL, 0, 0))) != nullptr;
         const UINT interval = active || connected || pairing || scanning || exiting ? 50 : 500;
         if (poll_interval != interval) {
             poll_interval = interval;
             SetTimer(main_window, 1, interval, nullptr);
         }
-        for (int id : {1, 16, 17, MainView::devices, MainView::invitation})
-            EnableWindow(view.get(id), !active && !connected && !pairing && !scanning && !exiting);
-        EnableWindow(view.get(4), !active && !connected && !pairing && !scanning && !exiting &&
-                                      !receiver_address.empty() && dlna_id.empty());
-        EnableWindow(view.get(5), !active && !pairing && !scanning && !exiting && media_available &&
-                                      (connected || !dlna_id.empty()));
-        EnableWindow(view.get(6), !active && !pairing && !scanning && !exiting &&
-                                      (connected || !dlna_id.empty()));
-        EnableWindow(view.get(14), !active && !pairing && !scanning && !exiting &&
-                                       media_available && !dlna_id.empty());
+        for (int id : {1, 16, 17, MainView::devices})
+            view.enable(id, !active && !connected && !pairing && !scanning && !exiting);
+        view.enable(4, !active && !connected && !pairing && !scanning && !exiting &&
+                           !receiver_address.empty() && dlna_id.empty());
+        view.enable(5, !active && !pairing && !scanning && !exiting && media_available &&
+                           has_source && (connected || !dlna_id.empty()));
+        view.enable(6, !active && !pairing && !scanning && !exiting &&
+                           (connected || !dlna_id.empty()));
+        view.enable(14, !active && !pairing && !scanning && !exiting && media_available &&
+                            !dlna_id.empty());
         for (int id : {7, 8, 9})
-            EnableWindow(view.get(id),
-                         mode == "file" && !shared_file.is_null() && !stopping && !exiting);
-        EnableWindow(view.get(10), active && !stopping && !exiting);
-        EnableWindow(view.get(11),
-                     !exiting && (connected || pairing || active || !dlna_id.empty()));
+            view.enable(id, mode == "file" && !shared_file.is_null() && !stopping && !exiting);
+        view.enable(10, active && !stopping && !exiting);
+        view.enable(11, !exiting && (connected || pairing || active || !dlna_id.empty()));
         for (int id : {MainView::sources, MainView::audio, 13})
-            EnableWindow(view.get(id), !active && !exiting);
-        SetWindowTextW(view.get(1), scanning ? L"搜索中…" : L"刷新电视");
-        SetWindowTextW(view.get(4), pairing     ? L"等待电视确认"
-                                    : connected ? L"已连接"
-                                                : L"连接电视");
-        EnableWindow(invitation, !active && !connected && !pairing && !scanning && dlna_id.empty());
+            view.enable(id, !active && !pairing && !exiting);
+        view.set_text(1, scanning ? L"搜索中…" : L"刷新电视");
+        view.set_text(4, pairing ? L"等待电视确认" : connected ? L"已连接" : L"连接电视");
+        view.enable(MainView::invitation,
+                    !active && !connected && !pairing && !scanning && !exiting && dlna_id.empty());
     }
     void refresh_network() {
         interfaces = network::interfaces();
-        auto combo = view.get(16);
-        SendMessageW(combo, CB_RESETCONTENT, 0, 0);
-        for (const auto &item : interfaces) {
-            auto label = item.name + L" · " + wide(item.ip);
-            SendMessageW(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
-        }
-        SendMessageW(combo, CB_SETCURSEL, interfaces.empty() ? -1 : 0, 0);
         local_address = interfaces.empty() ? "" : interfaces.front().ip;
+        refresh_interfaces();
         network_label();
+    }
+    void refresh_interfaces() {
+        std::vector<std::wstring> labels;
+        labels.reserve(interfaces.size());
+        int selected = -1;
+        for (const auto &item : interfaces) {
+            if (item.ip == local_address)
+                selected = static_cast<int>(labels.size());
+            labels.push_back(item.name + L" · " + wide(item.ip));
+        }
+        view.set_choices(16, labels, selected);
     }
     void network_label() {
         auto ip = local_address;
         auto label = ip.empty()
                          ? L"未连接局域网 · 请先连接与电视相同的 Wi-Fi 或网线"
                          : (manual_network ? L"手动选择网络 · " : L"已自动选择网络 · ") + wide(ip);
-        SetWindowTextW(view.get(MainView::network_summary), label.c_str());
+        view.set_text(MainView::network_summary, label);
     }
     void choose_network() {
         auto index = SendMessageW(view.get(16), CB_GETCURSEL, 0, 0);
@@ -789,15 +772,7 @@ class DesktopApp {
                 throw std::runtime_error(
                     "没有到这台电视的局域网路由，请检查网络或在高级设置中选择网卡");
             local_address = ip;
-            // Keep the advanced selector in sync with route selection.
-            auto combo = view.get(16);
-            SendMessageW(combo, CB_RESETCONTENT, 0, 0);
-            for (size_t i = 0; i < interfaces.size(); ++i) {
-                auto label = interfaces[i].name + L" · " + wide(interfaces[i].ip);
-                SendMessageW(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
-                if (interfaces[i].ip == ip)
-                    SendMessageW(combo, CB_SETCURSEL, i, 0);
-            }
+            refresh_interfaces();
         } else {
             auto current = network::interfaces();
             if (std::none_of(current.begin(), current.end(),
@@ -832,18 +807,18 @@ class DesktopApp {
         status("正在搜索电视… 请让电视接收端保持打开，并连接同一网络。");
     }
     void refresh_devices() {
-        SendMessageW(devices_list, CB_RESETCONTENT, 0, 0);
         int selected = -1;
         const auto &entries = catalog.entries();
+        std::vector<std::wstring> labels;
+        labels.reserve(entries.size());
         for (size_t i = 0; i < entries.size(); ++i) {
             const auto &d = entries[i];
-            const auto label =
-                wide(d.name + (d.dlna ? " · 普通电视 (DLNA) · " : " · LanCast · ") + d.ip);
-            SendMessageW(devices_list, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
+            labels.push_back(
+                wide(d.name + (d.dlna ? " · 普通电视 (DLNA) · " : " · LanCast · ") + d.ip));
             if (d.key == selected_key)
                 selected = static_cast<int>(i);
         }
-        SendMessageW(devices_list, CB_SETCURSEL, selected, 0);
+        view.set_choices(MainView::devices, labels, selected);
         update_controls();
     }
     void select_device() {
@@ -933,7 +908,6 @@ class DesktopApp {
                          instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
                          GetSystemMetrics(SM_CYSMICON), LR_SHARED)));
         view.create(main_window);
-        status_text = view.get(MainView::status);
         invitation = view.get(MainView::invitation);
         windows_list = view.get(MainView::sources);
         audio_check = view.get(MainView::audio);

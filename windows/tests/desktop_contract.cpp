@@ -2,6 +2,7 @@
 #include "network.h"
 #include <iostream>
 #include <stdexcept>
+#include <windows.h>
 using Json = nlohmann::json;
 static void check(bool value, const char *message) {
     if (!value)
@@ -33,6 +34,23 @@ int main() {
                   catalog.entries()[0].address == "192.168.1.8:8787",
               "usable endpoint instead of first IPv6 address");
         check(valid_fingerprint(catalog.entries()[0].fingerprint), "pin hint retained");
+        for (const std::string tail : {"\xe7\x94\xb5", "\xf0\x9f\x93\xba"}) {
+            for (size_t prefix = 253; prefix <= 256; ++prefix) {
+                native["name"] = std::string(prefix, 'a') + tail + "TV";
+                catalog.update(Json::array({native}), false);
+                const auto &name = catalog.entries()[0].name;
+                check(name.size() <= 256 &&
+                          MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name.data(),
+                                              static_cast<int>(name.size()), nullptr, 0) > 0,
+                      "bounded Chinese/emoji names remain valid UTF-8");
+                check(!Json(name).dump().empty(), "device names remain serializable");
+            }
+        }
+        for (const auto *name : {"", " \r\n\t", "._lancast._tcp.local."}) {
+            native["name"] = name;
+            catalog.update(Json::array({native}), false);
+            check(catalog.entries()[0].name == "TV", "empty device labels use a visible fallback");
+        }
         native["fingerprint"] = nullptr;
         catalog.update(Json::array({native}), false);
         check(catalog.entries().size() == 1 && catalog.entries()[0].dlna,

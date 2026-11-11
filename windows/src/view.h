@@ -1,5 +1,6 @@
 #pragma once
 #include "view_scroll.h"
+#include <string>
 #include <vector>
 #include <windows.h>
 
@@ -17,6 +18,9 @@ class MainView {
     }
     void resize();
     void toggle_advanced();
+    void set_text(int id, const std::wstring &text);
+    void enable(int id, bool enabled);
+    void set_choices(int id, const std::vector<std::wstring> &labels, int selected);
     bool handle(UINT message, WPARAM w, LPARAM l, LRESULT &result);
 
   private:
