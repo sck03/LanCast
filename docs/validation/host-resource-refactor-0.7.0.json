@@ -1,0 +1,701 @@
+{
+  "date": "2026-11-20",
+  "version": "0.7.0",
+  "build_number": 41,
+  "initial_source_commit": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+  "final_source_commit": "cc72aea3e75e198aa55054d9ba5d9b6513bb3819",
+  "scope": "Automated tests, builds, and archive verification; no physical-device, performance or signing acceptance.",
+  "local": {
+    "rust_tests": 153,
+    "airplay_tests": 41,
+    "python_tests": 57,
+    "kotlin_receiver_contracts": 14,
+    "cpp_contracts": [
+      "capture_pacing_contract",
+      "view_contract (MinGW, includes tray/resources and screenshot review)"
+    ],
+    "clippy": "passed -D warnings",
+    "rust_features": [
+      "all",
+      "none",
+      "legacy"
+    ],
+    "architecture": "passed"
+  },
+  "initial_ci": [
+    {
+      "workflow": "windows.yml",
+      "run": 44634829914,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "push",
+      "title": "refactor: unify host lifecycle and scoped media resources",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44634829914"
+    },
+    {
+      "workflow": "android.yml",
+      "run": 44634829865,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "push",
+      "title": "Android · all products · default configuration",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44634829865"
+    },
+    {
+      "workflow": "macos.yml",
+      "run": 44634829931,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "push",
+      "title": "refactor: unify host lifecycle and scoped media resources",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44634829931"
+    },
+    {
+      "workflow": "ios.yml",
+      "run": 44634829995,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "push",
+      "title": "refactor: unify host lifecycle and scoped media resources",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44634829995"
+    },
+    {
+      "workflow": "tvos.yml",
+      "run": 44634829851,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "push",
+      "title": "refactor: unify host lifecycle and scoped media resources",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44634829851"
+    },
+    {
+      "workflow": "core-linux.yml",
+      "run": 44634830030,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "push",
+      "title": "refactor: unify host lifecycle and scoped media resources",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44634830030"
+    },
+    {
+      "workflow": "native-linux.yml",
+      "run": 44634829839,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "push",
+      "title": "refactor: unify host lifecycle and scoped media resources",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44634829839"
+    },
+    {
+      "workflow": "airplay.yml",
+      "run": 44635522699,
+      "sha": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+      "event": "workflow_dispatch",
+      "title": "AirPlay protocol checks (no APK)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/sck03/LanCast/actions/runs/44635522699"
+    }
+  ],
+  "macos_tests": {
+    "swift_contracts": 9,
+    "integration": 11,
+    "failures": 0
+  },
+  "windows_tests": {
+    "ctest": 9,
+    "passed": 8,
+    "skipped": [
+      "video_pool_contract: hardware unavailable on runner"
+    ]
+  },
+  "apple_archive_verification": {
+    "commit": "1b7607e4ec1d2e8cdcd07407f7be4632530dfbd8",
+    "packages": [
+      {
+        "file": "LanCastMac-Sender-Receiver-Universal-0.7.0-41-Release.zip",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "minimumOS": "15.0",
+        "version": "0.7.0",
+        "buildNumber": "41",
+        "bytes": 22393718,
+        "sha256": "7226be8ee2879972d109c0c503c64f483658d8d7d6cfe23bf76f7c3ae1d0c78b",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastIOS-Sender-Receiver-Device-0.7.0-41-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "16.0",
+        "version": "0.7.0",
+        "buildNumber": "41",
+        "bytes": 20087152,
+        "sha256": "0e7fe137b4dc2b28399fbe515b5e060372f3c4e5d20836c1fc12487a590a5be5",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastIOS-Sender-Receiver-Simulator-0.7.0-41-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "16.0",
+        "version": "0.7.0",
+        "buildNumber": "41",
+        "bytes": 34724808,
+        "sha256": "4503f9b6f43a948e7bb09700c78530ca80a9eefb3d8d479a90d852357be8fa80",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastTV-Receiver-Device-0.7.0-41-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "17.0",
+        "version": "0.7.0",
+        "buildNumber": "41",
+        "bytes": 9904194,
+        "sha256": "e8639f24612cfa9fa91ca03af5ef9b48d82f21d634c928ea7cf135d796a6cb68",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      },
+      {
+        "file": "LanCastTV-Receiver-Simulator-0.7.0-41-Debug.zip",
+        "architectures": [
+          "arm64"
+        ],
+        "minimumOS": "17.0",
+        "version": "0.7.0",
+        "buildNumber": "41",
+        "bytes": 10159152,
+        "sha256": "1f891e1fba71abc43b0303bedcbbd115336244828e3254e60caa9d588c3d3719",
+        "metadataAndFramework": "passed",
+        "testBundleAbsent": true
+      }
+    ]
+  },
+  "follow_up": {
+    "changed_platforms": [
+      "android",
+      "windows"
+    ],
+    "unaffected_inputs_verified": [
+      ".gitignore",
+      "android/app-sender/src/main/kotlin/dev/lancast/sender/MainActivity.kt",
+      "android/player-legacy/src/main/kotlin/dev/lancast/player/PlatformPlayer.kt",
+      "\"docs/14-\\346\\216\\247\\345\\210\\266\\350\\277\\236\\346\\216\\245\\347\\224\\237\\345\\221\\275\\345\\221\\250\\346\\234\\237\\344\\270\\216\\347\\273\\264\\346\\212\\244\\350\\276\\271\\347\\225\\214.md\"",
+      "\"docs/25-\\345\\256\\277\\344\\270\\273\\344\\272\\213\\344\\273\\266\\344\\270\\216\\345\\252\\222\\344\\275\\223\\347\\224\\237\\345\\221\\275\\345\\221\\250\\346\\234\\237\\347\\273\\264\\346\\212\\244.md\"",
+      "windows/src/view_paint.cpp"
+    ],
+    "ci": [
+      {
+        "workflow": "windows.yml",
+        "run": 44637093339,
+        "sha": "cc72aea3e75e198aa55054d9ba5d9b6513bb3819",
+        "event": "push",
+        "title": "fix: retire media grants and ignore stale host failures",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/44637093339"
+      },
+      {
+        "workflow": "android.yml",
+        "run": 44637093363,
+        "sha": "cc72aea3e75e198aa55054d9ba5d9b6513bb3819",
+        "event": "push",
+        "title": "Android · all products · default configuration",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/sck03/LanCast/actions/runs/44637093363"
+      }
+    ]
+  },
+  "limitations": [
+    "No physical casting, ReplayKit permission/background lifecycle, changing real network or WGC resize acceptance",
+    "No CPU/RSS/GPU, A/V sync or two-hour endurance measurements",
+    "Apple device packages unsigned; not production delivery"
+  ],
+  "android_report_verification": {
+    "run": 44637093363,
+    "tests": {
+      "tests": 46,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "suite": "dev.lancast.airplay.ResourceSetupTest",
+        "variant": "testDebugUnitTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.airplay.ResourceSetupTest",
+        "variant": "testReleaseUnitTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.sender.CaptureCompletionTest",
+        "variant": "testDebugUnitTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.sender.CodecBuffersTest",
+        "variant": "testDebugUnitTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.sender.CaptureCompletionTest",
+        "variant": "testReleaseUnitTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.sender.CodecBuffersTest",
+        "variant": "testReleaseUnitTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.control.ConnectionHintsTest",
+        "variant": "testDebugUnitTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.control.HostCoreLeaseTest",
+        "variant": "testDebugUnitTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.control.ConnectionHintsTest",
+        "variant": "testReleaseUnitTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.control.HostCoreLeaseTest",
+        "variant": "testReleaseUnitTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.media.CaptureSizeTest",
+        "variant": "testDebugUnitTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.media.CaptureSizeTest",
+        "variant": "testReleaseUnitTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.receiver.contracts.MediaQueueTest",
+        "variant": "test",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.receiver.contracts.ReceiverContractsTest",
+        "variant": "test",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "dev.lancast.receiver.contracts.WorkerCompletionTest",
+        "variant": "test",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "reports": [
+      {
+        "source_commit": "cc72aea3e75e198aa55054d9ba5d9b6513bb3819",
+        "source_dirty": false,
+        "version": "0.7.0",
+        "build_number": 41,
+        "configuration": "Debug",
+        "artifacts": [
+          {
+            "product": "sender",
+            "role": "sender",
+            "application_id": "dev.lancast.sender",
+            "minimum_sdk": 29,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 35715804,
+            "sha256": "51aa8b8e0d8a3a50582ad55d1aebecad8f5adfffc2b340c0684b19efc1b3f0ba",
+            "dex_bytes": 4759040,
+            "native_bytes": 30843460,
+            "resource_bytes": 1404,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore",
+              "dev.lancast.sender.TsMux",
+              "dev.lancast.sender.TsMux$Sink"
+            ],
+            "file": "android/app-sender/build/outputs/apk/debug/app-sender-debug.apk",
+            "package_file": "dist/android/0.7.0-41-Debug/sender/LanCast-Android-Sender-0.7.0-41-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          },
+          {
+            "product": "receiver-standard",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 34647325,
+            "sha256": "d0fb2a0402762368631a487302be2858f8012e7bb303d35d5b365e7522ffc321",
+            "dex_bytes": 15389400,
+            "native_bytes": 27679544,
+            "resource_bytes": 376518,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "file": "android/app-receiver/build/outputs/apk/standard/debug/app-receiver-standard-debug.apk",
+            "package_file": "dist/android/0.7.0-41-Debug/receiver-standard/LanCast-Android-Receiver-Standard-0.7.0-41-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          },
+          {
+            "product": "receiver-legacy",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.legacy",
+            "minimum_sdk": 21,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 30799787,
+            "sha256": "e1449522088db64d724cc568a7522ca4760bb6cc6dbadb45694f5b79527bee28",
+            "dex_bytes": 7159964,
+            "native_bytes": 27800504,
+            "resource_bytes": 8080,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "file": "android/app-receiver/build/outputs/apk/legacy/debug/app-receiver-legacy-debug.apk",
+            "package_file": "dist/android/0.7.0-41-Debug/receiver-legacy/LanCast-Android-Receiver-Legacy-0.7.0-41-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          },
+          {
+            "product": "receiver-airplay",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.airplay",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "GPL-3.0-only",
+            "bytes": 39135141,
+            "sha256": "1cbddbe2861e612b13d32ecf3dd7c002bb29004edf26efbdd1d3ceb32351d621",
+            "dex_bytes": 15505676,
+            "native_bytes": 32074604,
+            "resource_bytes": 376518,
+            "verified_jni_classes": [
+              "dev.lancast.airplay.NativeEngine",
+              "dev.lancast.control.NativeCore"
+            ],
+            "file": "android/app-receiver/build/outputs/apk/airplay/debug/app-receiver-airplay-debug.apk",
+            "package_file": "dist/android/0.7.0-41-Debug/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.7.0-41-Debug.apk",
+            "signing": "Debug development signature; upgrades require the same signing key"
+          }
+        ]
+      },
+      {
+        "source_commit": "cc72aea3e75e198aa55054d9ba5d9b6513bb3819",
+        "source_dirty": false,
+        "version": "0.7.0",
+        "build_number": 41,
+        "configuration": "Release",
+        "artifacts": [
+          {
+            "product": "sender",
+            "role": "sender",
+            "application_id": "dev.lancast.sender",
+            "minimum_sdk": 29,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 31435166,
+            "sha256": "df842503067d747ee63d8037fe28e7601c12fb1280b37f2439aebfafa8d76057",
+            "dex_bytes": 476496,
+            "native_bytes": 30843460,
+            "resource_bytes": 1388,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore",
+              "dev.lancast.sender.TsMux",
+              "dev.lancast.sender.TsMux$Sink"
+            ],
+            "r8_mapping_sha256": "206bcc1597a935aad6d8fd796f9e3b54a6c9cb30ff4332760187e7d0299bb64d",
+            "file": "android/app-sender/build/outputs/apk/release/app-sender-release-unsigned.apk",
+            "package_file": "dist/android/0.7.0-41-Release/sender/LanCast-Android-Sender-0.7.0-41-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          },
+          {
+            "product": "receiver-standard",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 29113382,
+            "sha256": "2a40cd3813fb06d6f46bb7ca4aab0c9b168db596e921e7502014bdefabfc2936",
+            "dex_bytes": 2184372,
+            "native_bytes": 27679544,
+            "resource_bytes": 279901,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "af5b2e70d8c809c4e8632c091323477bd7abae6257932edfc255668a0f3f20a6",
+            "file": "android/app-receiver/build/outputs/apk/standard/release/app-receiver-standard-release-unsigned.apk",
+            "package_file": "dist/android/0.7.0-41-Release/receiver-standard/LanCast-Android-Receiver-Standard-0.7.0-41-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          },
+          {
+            "product": "receiver-legacy",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.legacy",
+            "minimum_sdk": 21,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "Apache-2.0 with third-party notices",
+            "bytes": 28185736,
+            "sha256": "584f75f69fb8834fa205c0db9cc98a3a94eeb317d5e2ab3c13ac5e369e4c5dfd",
+            "dex_bytes": 713992,
+            "native_bytes": 27800504,
+            "resource_bytes": 7777,
+            "verified_jni_classes": [
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "3eaef8dd3936d7a9f0478d5b48a1c1f74bbeff801a5aac7d290036602244126d",
+            "file": "android/app-receiver/build/outputs/apk/legacy/release/app-receiver-legacy-release-unsigned.apk",
+            "package_file": "dist/android/0.7.0-41-Release/receiver-legacy/LanCast-Android-Receiver-Legacy-0.7.0-41-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          },
+          {
+            "product": "receiver-airplay",
+            "role": "receiver",
+            "application_id": "dev.lancast.receiver.airplay",
+            "minimum_sdk": 23,
+            "abis": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "license": "GPL-3.0-only",
+            "bytes": 33566070,
+            "sha256": "1fea70d96774ce9b040d491666dc5d40700ca4a2fad782263c44f899504c44e1",
+            "dex_bytes": 2228220,
+            "native_bytes": 32074604,
+            "resource_bytes": 279901,
+            "verified_jni_classes": [
+              "dev.lancast.airplay.NativeEngine",
+              "dev.lancast.control.NativeCore"
+            ],
+            "r8_mapping_sha256": "94526ef207e52bdee6bfe692f690c4a136ab789cb786e89e20d78e0dd91cd33a",
+            "file": "android/app-receiver/build/outputs/apk/airplay/release/app-receiver-airplay-release-unsigned.apk",
+            "package_file": "dist/android/0.7.0-41-Release/receiver-airplay/LanCast-Android-Receiver-AirPlay-0.7.0-41-Release.apk",
+            "signing": "Unsigned Release APK; sign before installation"
+          }
+        ]
+      }
+    ],
+    "scope": "Downloaded CI reports and test XML; APK validation performed in the CI build pipeline."
+  },
+  "windows_archive_verification": {
+    "run": 44637093339,
+    "build": {
+      "platform": "windows",
+      "version": "0.7.0",
+      "build_number": 41,
+      "configuration": "Release",
+      "android_abis": [
+        "armeabi-v7a",
+        "arm64-v8a"
+      ],
+      "source_commit": "cc72aea3e75e198aa55054d9ba5d9b6513bb3819",
+      "source_dirty": false,
+      "source_tree_sha256": "0f776e425cc164613b55d17d9b4af824083b101f3d325817301877dafcc3d28e",
+      "artifact_label": "0.7.0-41-Release",
+      "signing": "development or unsigned; no production signing credentials used"
+    },
+    "fileVersion": "0.7.0.41",
+    "productVersion": "0.7.0",
+    "binary_dependencies": [
+      {
+        "file": "LanCast.exe",
+        "bytes": 485376,
+        "sha256": "2c475e323c285f9df3bf5bbacf477a3ddaac320ad0cb01fef91ee3d492698521",
+        "imports": [
+          "comctl32.dll",
+          "comdlg32.dll",
+          "gdi32.dll",
+          "iphlpapi.dll",
+          "kernel32.dll",
+          "lancast_core.dll",
+          "ole32.dll",
+          "shell32.dll",
+          "user32.dll",
+          "ws2_32.dll"
+        ]
+      },
+      {
+        "file": "lancast_core.dll",
+        "bytes": 6724096,
+        "sha256": "d93cbb8ad83f0fbf18a5977903e7a31433db4f7e311fb300536838f5dc490ef2",
+        "imports": [
+          "advapi32.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "bcrypt.dll",
+          "bcryptprimitives.dll",
+          "crypt32.dll",
+          "iphlpapi.dll",
+          "kernel32.dll",
+          "ntdll.dll",
+          "ws2_32.dll"
+        ]
+      },
+      {
+        "file": "lancast_rtc.dll",
+        "bytes": 2871808,
+        "sha256": "2e2948b5c9389602c6e602f762b1f5662138868bfb32ca263ccb42959bb01fe2",
+        "imports": [
+          "api-ms-win-core-com-l1-1-0.dll",
+          "api-ms-win-core-console-l1-1-0.dll",
+          "api-ms-win-core-datetime-l1-1-0.dll",
+          "api-ms-win-core-debug-l1-1-0.dll",
+          "api-ms-win-core-errorhandling-l1-1-0.dll",
+          "api-ms-win-core-fibers-l1-1-0.dll",
+          "api-ms-win-core-file-l1-1-0.dll",
+          "api-ms-win-core-heap-l1-1-0.dll",
+          "api-ms-win-core-interlocked-l1-1-0.dll",
+          "api-ms-win-core-libraryloader-l1-2-0.dll",
+          "api-ms-win-core-localization-l1-2-0.dll",
+          "api-ms-win-core-memory-l1-1-0.dll",
+          "api-ms-win-core-processenvironment-l1-1-0.dll",
+          "api-ms-win-core-processthreads-l1-1-0.dll",
+          "api-ms-win-core-processthreads-l1-1-1.dll",
+          "api-ms-win-core-profile-l1-1-0.dll",
+          "api-ms-win-core-rtlsupport-l1-1-0.dll",
+          "api-ms-win-core-string-l1-1-0.dll",
+          "api-ms-win-core-synch-l1-1-0.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "api-ms-win-core-sysinfo-l1-1-0.dll",
+          "api-ms-win-core-sysinfo-l1-2-0.dll",
+          "api-ms-win-core-timezone-l1-1-0.dll",
+          "api-ms-win-core-util-l1-1-0.dll",
+          "api-ms-win-core-winrt-error-l1-1-1.dll",
+          "api-ms-win-core-winrt-l1-1-0.dll",
+          "bcrypt.dll",
+          "d3d11.dll",
+          "dxgi.dll",
+          "kernel32.dll",
+          "mfplat.dll",
+          "oleaut32.dll",
+          "user32.dll",
+          "ws2_32.dll"
+        ]
+      },
+      {
+        "file": "lancast_ts.dll",
+        "bytes": 1375232,
+        "sha256": "d2826f8e8018f7556bb3d23b053d7b40f217ea5cd43635330d4e50f3bbb1b8b7",
+        "imports": [
+          "api-ms-win-crt-convert-l1-1-0.dll",
+          "api-ms-win-crt-environment-l1-1-0.dll",
+          "api-ms-win-crt-filesystem-l1-1-0.dll",
+          "api-ms-win-crt-heap-l1-1-0.dll",
+          "api-ms-win-crt-locale-l1-1-0.dll",
+          "api-ms-win-crt-math-l1-1-0.dll",
+          "api-ms-win-crt-private-l1-1-0.dll",
+          "api-ms-win-crt-runtime-l1-1-0.dll",
+          "api-ms-win-crt-stdio-l1-1-0.dll",
+          "api-ms-win-crt-string-l1-1-0.dll",
+          "api-ms-win-crt-time-l1-1-0.dll",
+          "api-ms-win-crt-utility-l1-1-0.dll",
+          "bcrypt.dll",
+          "kernel32.dll"
+        ]
+      }
+    ],
+    "files": 19,
+    "bytes": 11578542,
+    "checks": [
+      "hashes including licenses",
+      "x64 PE imports",
+      "system DLL allowlist and bundled dependencies",
+      "Release TS symbol policy",
+      "actual executable version resource",
+      "source commit and clean source tree"
+    ]
+  },
+  "documentation_links": {
+    "files": 30,
+    "links": 251,
+    "broken": 0
+  }
+}

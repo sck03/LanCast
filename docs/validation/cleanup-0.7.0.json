@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-20",
+  "workspace": "E:\\cast\\LanCast",
+  "removed_files": 4696,
+  "removed_bytes": 2785961785,
+  "removed": [
+    {
+      "path": "target",
+      "category": "build",
+      "files": 2972,
+      "bytes": 1878339403,
+      "fingerprint": "596b890d0f15e87690ef24b6300486ba1da0775ea358076ed07475f0ca0f2c11"
+    },
+    {
+      "path": "airplay-native/target",
+      "category": "build",
+      "files": 1271,
+      "bytes": 719795342,
+      "fingerprint": "05c4e06e2907f7da64835e136a3b6a6a3e4c836fe0a21655ee0733f91fb1e567"
+    },
+    {
+      "path": "android/.gradle",
+      "category": "build",
+      "files": 15,
+      "bytes": 175302,
+      "fingerprint": "2c36eda3c349cf51f8ac574ccb94d2c139ebd8658fb9c8bdc5a80140af881b1d"
+    },
+    {
+      "path": "android/.kotlin",
+      "category": "build",
+      "files": 0,
+      "bytes": 0,
+      "fingerprint": "57f0a96557a3c2068cdd6360c230012a14bb0b8a2f9bd72196b728b6e88fe620"
+    },
+    {
+      "path": "android/build",
+      "category": "build",
+      "files": 1,
+      "bytes": 135890,
+      "fingerprint": "9399fc7acb34003e738976ce2b350d1e5e6f40417630bf2bd65a0ace347645b5"
+    },
+    {
+      "path": "android/receiver-contracts/build",
+      "category": "build",
+      "files": 199,
+      "bytes": 1057168,
+      "fingerprint": "d57d59f17200355a64f202fbb7dcf3b6be26823c09cefd650246652a4e46abca"
+    },
+    {
+      "path": ".cache",
+      "category": "generated downloads and validation outputs",
+      "files": 56,
+      "bytes": 121360545,
+      "fingerprint": "ad856256a5cac1f81260777ab46f86566230328abb2064f775ab72bcf966d780"
+    },
+    {
+      "path": ".cache",
+      "category": "final downloaded validation reports and package",
+      "files": 182,
+      "bytes": 65098135,
+      "fingerprint": "b71d3d7695a228cfd2cc0c736e744fa32e568633636165f781932ae40af0d8e1"
+    }
+  ],
+  "manual_delete_folder": null,
+  "remaining_bytes": 10963294,
+  "remaining_known_generated_paths": []
+}
