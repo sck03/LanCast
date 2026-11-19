@@ -2,6 +2,7 @@
 **/build/
 **/build-*/
 **/.gradle/
+**/.kotlin/
 **/.cache/
 **/node_modules/
 **/local.properties

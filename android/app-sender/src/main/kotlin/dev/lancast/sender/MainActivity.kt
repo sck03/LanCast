@@ -164,6 +164,8 @@ class MainActivity : Activity() {
     }
     private fun onEvent(event: JSONObject) {
         val body = event.optJSONObject("body") ?: JSONObject()
+        if (event.optString("type") == "error" && body.optString("op") == "profile.check" &&
+            (profileRequest == null || body.optString("requestId") != profileRequest)) return
         if (event.optString("type") in listOf("media.status", "error", "disconnected", "stopped")) externalRequest = false
         if (body.optBoolean("terminal") || event.optString("type") in listOf("disconnected", "stopped")) profileRequest = null
         when (event.optString("type")) {
@@ -190,7 +192,6 @@ class MainActivity : Activity() {
             "disconnected" -> state.text = "连接已断开，屏幕采集已停止；请重新配对"
             "error" -> {
                 if (body.optString("op") == "profile.check") {
-                    if (profileRequest == null || body.optString("requestId") != profileRequest) return
                     profileRequest = null
                 }
                 state.text = if (body.optBoolean("terminal")) "控制服务已停止，分享已结束，请重新连接电视" else body.optString("code")

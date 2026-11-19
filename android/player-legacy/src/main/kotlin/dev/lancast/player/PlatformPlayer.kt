@@ -32,7 +32,7 @@ class PlatformPlayer(context: Context, private val event: (String) -> Unit) : Fi
         surface.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) { hasSurface = true; prepare() }
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
-            override fun surfaceDestroyed(holder: SurfaceHolder) { hasSurface = false; close() }
+            override fun surfaceDestroyed(holder: SurfaceHolder) { hasSurface = false; close(); event("ended") }
         })
     }
     override fun load(url: String, fingerprint: String) {

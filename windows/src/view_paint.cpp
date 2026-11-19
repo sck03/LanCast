@@ -85,8 +85,8 @@ bool MainView::paint_message(UINT message, WPARAM w, LPARAM l, LRESULT &result) 
                 rounded(dc, rect, color, surface == Surface::card ? border : color, scale(18));
             };
             panel(112, 310 + extra, Surface::card);
-            panel(320 + extra, 566 + extra, Surface::card);
-            panel(574 + extra, 634 + extra, Surface::notice);
+            panel(320 + extra, 602 + extra, Surface::card);
+            panel(604 + extra, 664 + extra, Surface::notice);
             auto icon = reinterpret_cast<HICON>(SendMessageW(window_, WM_GETICON, ICON_BIG, 0));
             DrawIconEx(dc, scale(28), scale(24) - scroll_, icon, scale(36), scale(36), 0, nullptr,
                        DI_NORMAL);
