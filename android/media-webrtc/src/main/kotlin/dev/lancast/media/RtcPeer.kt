@@ -92,7 +92,6 @@ class RtcPeer(
             .setVideoEncoderFactory(HardwareVideoEncoderFactory(egl!!.eglBaseContext, false, true))
             .setVideoDecoderFactory(HardwareVideoDecoderFactory(egl!!.eglBaseContext)).createPeerConnectionFactory()
         createPeer()
-        worker.postDelayed(stats, 1000)
     }
     private fun createPeer() {
         transportGeneration++
@@ -258,21 +257,6 @@ class RtcPeer(
         override fun onRemoveStream(stream: MediaStream) {}
         override fun onDataChannel(channel: DataChannel) { channel.close(); channel.dispose() }
         override fun onRenegotiationNeeded() {}
-    }
-    private val stats = object : Runnable {
-        override fun run() {
-            if (closed.get()) return
-            peer?.getStats { report ->
-                val measured = JSONObject().put("timestampUs", report.timestampUs)
-                report.statsMap.values.filter { it.type == "inbound-rtp" || it.type == "outbound-rtp" }.forEach {
-                    val values = JSONObject()
-                    for (key in listOf("bytesReceived", "bytesSent", "framesDecoded", "framesEncoded", "packetsLost", "jitter", "framesPerSecond")) it.members[key]?.let { value -> values.put(key, value) }
-                    measured.put(it.id, values)
-                }
-                status("statistics:" + measured.toString())
-            }
-            worker.postDelayed(this, 1000)
-        }
     }
     private fun boundedFps(profile: JSONObject): Int = profile.optInt("fps", 30).coerceIn(1, 60)
     private fun boundedCaptureSize(width: Int, height: Int, profile: JSONObject): Pair<Int, Int> {

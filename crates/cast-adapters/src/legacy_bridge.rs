@@ -1,4 +1,4 @@
-//! One pinned HTTPS grant exposed only on loopback for Android's system MediaPlayer.
+//! One pinned HTTPS grant exposed on loopback for Apple AVPlayer and Android MediaPlayer.
 use crate::{
     auth,
     http_server::{self, Body, empty},

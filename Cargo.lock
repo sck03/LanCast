@@ -167,9 +167,6 @@ dependencies = [
 [[package]]
 name = "cast-core"
 version = "0.2.0"
-dependencies = [
- "cast-domain",
-]
 
 [[package]]
 name = "cast-domain"

@@ -28,6 +28,8 @@
 
 Android 发送/接收复用同一 drawable 图标，资源移入 control-bridge，避免两份标识源文件；发送端补齐启动图标。没有引入新的运行框架。JUnit 与 JVM JSON 实现仅用于测试，不进入 APK。
 
+0.7.0进一步修复文件选择期间核心所有权、macOS来源保留、iOS扩展状态对账，补齐接收ready与音量适配，并监听接收地址变化；详见[28](28-宿主状态与资源收敛.md)。
+
 ## 状态与安全
 
 切换设备清空旧指纹和配对码。Android 两类扫描使用共享核心的 `scanGeneration`，超时或重建后丢弃旧结果；multicast lock 在完成/超时/关闭时释放。Apple使用独立Bonjour对象，取消后清除delegate、服务和定时任务，忽略旧回调。

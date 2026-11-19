@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
+import dev.lancast.control.FileBridge
 import dev.lancast.control.ControlSession
 import dev.lancast.control.localAddresses
 import dev.lancast.player.PlatformPlayer
@@ -20,6 +21,8 @@ import dev.lancast.receiver.contracts.ReceiverOwnership
 
 class MainActivity : Activity() {
     private var core: ControlSession? = null
+    private var fileBridge: FileBridge? = null
+    private var networkMonitor: dev.lancast.control.NetworkMonitor? = null
     private var peer: RtcPeer? = null
     private var player: PlatformPlayer? = null
     private var sessionId: String? = null
@@ -83,10 +86,12 @@ class MainActivity : Activity() {
         val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicast = wifi.createMulticastLock("lancast-discovery").apply { setReferenceCounted(false); acquire() }
         core = ControlSession(::onEvent)
+        if (BuildConfig.FLAVOR == "legacy") fileBridge = FileBridge(core!!)
         core!!.command("listen", JSONObject().put("address", address.text.toString()).put("name", "LanCast TV").put("variant", if (BuildConfig.FLAVOR == "legacy") "legacy" else "standard"))
         state.text = "正在启动安全接收服务…"
     }
     private fun onEvent(event: JSONObject) {
+        if (fileBridge?.onEvent(event) == true) return
         val body = event.optJSONObject("body") ?: JSONObject()
         when (event.getString("type")) {
             "receiver.ready" -> { connectionInfo = body; showInvitation(); state.text = "在发送端选择此设备并输入配对码，再在本屏允许连接" }
@@ -115,7 +120,16 @@ class MainActivity : Activity() {
             "message" -> if (body.optString("sessionId") == sessionId) when (body.getString("type")) {
                 "rtc.offer" -> body.getJSONObject("body").let { negotiationId = it.getString("negotiationId"); readySent = false; peer?.receiveOffer(it.getString("sdp"), negotiationId!!) }
                 "rtc.ice" -> peer?.ice(body.getJSONObject("body"))
-                "file.load" -> body.getJSONObject("body").let { player?.load(it.getString("url"), it.getString("fingerprint")) }
+                "file.load" -> body.getJSONObject("body").let { source ->
+                    val bridge = fileBridge
+                    if (bridge == null) player?.load(source.getString("url"), source.getString("fingerprint"))
+                    else {
+                        val activeSession = sessionId
+                        bridge.open(source.getString("url"), source.getString("fingerprint")) { result ->
+                            if (sessionId == activeSession) result.onSuccess { player?.load(it, "") }.onFailure { mediaStatus("MEDIA_SOURCE_FAILED") }
+                        }
+                    }
+                }
                 "playback.command" -> body.getJSONObject("body").let {
                     when (it.getString("action")) { "play" -> player?.play(); "pause" -> player?.pause(); "seek" -> player?.seek(it.getLong("positionMs")); "volume" -> player?.volume(it.getDouble("value").toFloat()) }
                 }
@@ -124,11 +138,7 @@ class MainActivity : Activity() {
             "session.closed", "stopped" -> stopMedia()
             "error" -> {
                 if (body.optBoolean("terminal") || !connectionInfo.has("fingerprint")) {
-                    clearApproval(); stopMedia()
-                    core?.close(); core = null; address.isEnabled = true
-                    connectionInfo = JSONObject(); codeLabel.text = ""; invitation.text = ""
-                    multicast?.let { if (it.isHeld) it.release() }; multicast = null
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    stopReceiver()
                 }
                 state.text = if (body.optBoolean("terminal")) "控制服务已停止，请重新启动接收" else body.optString("code")
             }
@@ -141,7 +151,6 @@ class MainActivity : Activity() {
                 state.text = "正在播放"
                 if (!readySent) { readySent = true; core?.send("session.state", sessionId, JSONObject().put("state", "ready").put("negotiationId", negotiationId)) }
             }
-            value.startsWith("statistics:") -> core?.send("statistics", sessionId, JSONObject(value.removePrefix("statistics:")))
             value == "ended" -> { core?.command("stop"); stopMedia() }
             value.endsWith("FAILED") || value == "MEDIA_UNSUPPORTED" || value == "MEDIA_SOURCE_FAILED" -> {
                 core?.command("stop"); stopMedia(); state.text = value
@@ -197,6 +206,7 @@ class MainActivity : Activity() {
         negotiationId = null; readySent = false
         val previousPeer = peer; peer = null
         player?.close(); player = null
+        fileBridge?.close()
         if (ReceiverOwnership.leases.owns(receivingLease)) display.removeAllViews()
         val held = if (releaseLease) receivingLease.also { receivingLease = null } else null
         if (previousPeer != null) {
@@ -225,16 +235,25 @@ class MainActivity : Activity() {
         }
         networkLabel.text = if (address.text.isEmpty()) "未连接局域网，请连接 Wi-Fi 或网线" else "${if (automaticAddress) "自动选择网络" else "所选网络"} · ${address.text}"
     }
-    override fun onStart() { super.onStart(); address.isEnabled = core == null; refreshAddress(); airplay.onStart() }
-    override fun onStop() {
-        airplay.onStop()
-        clearApproval()
-        stopMedia()
-        core?.close(); core = null
+    override fun onStart() {
+        super.onStart(); address.isEnabled = core == null; refreshAddress(); airplay.onStart()
+        networkMonitor = dev.lancast.control.NetworkMonitor(this) {
+            val bound = connectionInfo.optString("address", address.text.toString()).substringBeforeLast(':')
+            if (core != null && bound !in localAddresses(this)) {
+                stopReceiver(); refreshAddress(); state.text = "本机网络已改变，请重新启动接收并配对"
+            } else if (core == null) refreshAddress()
+        }
+    }
+    private fun stopReceiver() {
+        clearApproval(); stopMedia()
+        fileBridge = null; core?.close(); core = null; address.isEnabled = true
         connectionInfo = JSONObject(); codeLabel.text = ""; invitation.text = ""
         multicast?.let { if (it.isHeld) it.release() }; multicast = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        super.onStop()
+    }
+    override fun onStop() {
+        networkMonitor?.close(); networkMonitor = null
+        airplay.onStop(); stopReceiver(); super.onStop()
     }
     @Deprecated("Android back compatibility")
     override fun onBackPressed() {

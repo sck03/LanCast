@@ -1,5 +1,6 @@
 #include "capture.h"
 #include "audio.h"
+#include "capture_pacing.h"
 #include "encoder.h"
 #include "video_pool.h"
 #include <algorithm>
@@ -59,6 +60,9 @@ class Converter {
         : config_(c), output_(device, c) {
         check(device->QueryInterface(IID_PPV_ARGS(&video_)), "GPU_VIDEO_UNAVAILABLE");
         check(context->QueryInterface(IID_PPV_ARGS(&context_)), "GPU_VIDEO_CONTEXT_FAILED");
+    }
+    void release_inputs() {
+        inputs_.clear();
     }
     ComPtr<IMFSample> convert(ID3D11Texture2D *input, unsigned width, unsigned height) {
         D3D11_TEXTURE2D_DESC source{};
@@ -173,6 +177,8 @@ struct Capture::State {
             GraphicsCaptureItem item{nullptr};
             Direct3D11CaptureFramePool pool{nullptr};
             GraphicsCaptureSession session{nullptr};
+            Direct3D11::IDirect3DDevice direct{nullptr};
+            SizeInt32 pool_size{};
             GraphicsCaptureItem::Closed_revoker closed_event;
             auto source_closed = std::make_shared<std::atomic_bool>(false);
             ComPtr<ID3D11Texture2D> synthetic;
@@ -216,9 +222,10 @@ struct Capture::State {
                 winrt::com_ptr<IInspectable> inspectable;
                 check(CreateDirect3D11DeviceFromDXGIDevice(dxgi.Get(), inspectable.put()),
                       "WGC_DEVICE_FAILED");
-                auto direct = inspectable.as<Direct3D11::IDirect3DDevice>();
+                direct = inspectable.as<Direct3D11::IDirect3DDevice>();
+                pool_size = item.Size();
                 pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
-                    direct, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, item.Size());
+                    direct, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, pool_size);
                 session = pool.CreateCaptureSession(item);
                 closed_event =
                     item.Closed(winrt::auto_revoke, [source_closed](auto const &, auto const &) {
@@ -283,33 +290,45 @@ struct Capture::State {
                         height = static_cast<unsigned>(size.Height);
                         if (!width || !height)
                             throw std::runtime_error("CAPTURE_SOURCE_CLOSED");
-                        auto access = frame.Surface()
-                                          .as<::Windows::Graphics::DirectX::Direct3D11::
-                                                  IDirect3DDxgiInterfaceAccess>();
-                        check(access->GetInterface(IID_PPV_ARGS(&texture)), "WGC_TEXTURE_FAILED");
-                        D3D11_TEXTURE2D_DESC desc{};
-                        texture->GetDesc(&desc);
-                        if (!previous_frame || width != previous_width ||
-                            height != previous_height) {
-                            if (previous_frame)
-                                throw std::runtime_error("CAPTURE_SIZE_CHANGED_RESTART_REQUIRED");
-                            desc.BindFlags = D3D11_BIND_RENDER_TARGET;
-                            desc.MiscFlags = 0;
-                            check(device->CreateTexture2D(&desc, nullptr, &previous_frame),
-                                  "FRAME_CACHE_FAILED");
-                            previous_width = width;
-                            previous_height = height;
+                        if (size.Width != pool_size.Width || size.Height != pool_size.Height) {
+                            frame.Close();
+                            previous_frame.Reset();
+                            converter.release_inputs();
+                            pool.Recreate(direct, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2,
+                                          size);
+                            pool_size = size;
+                            keyframe = true;
+                            last_frame = now;
+                        } else {
+                            auto access = frame.Surface()
+                                              .as<::Windows::Graphics::DirectX::Direct3D11::
+                                                      IDirect3DDxgiInterfaceAccess>();
+                            check(access->GetInterface(IID_PPV_ARGS(&texture)),
+                                  "WGC_TEXTURE_FAILED");
+                            D3D11_TEXTURE2D_DESC desc{};
+                            texture->GetDesc(&desc);
+                            if (!previous_frame || width != previous_width ||
+                                height != previous_height) {
+                                previous_frame.Reset();
+                                desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+                                desc.MiscFlags = 0;
+                                check(device->CreateTexture2D(&desc, nullptr, &previous_frame),
+                                      "FRAME_CACHE_FAILED");
+                                previous_width = width;
+                                previous_height = height;
+                            }
+                            context->CopyResource(previous_frame.Get(), texture.Get());
+                            // Consume the borrowed frame before closing it. The NV12 output has
+                            // independent ownership.
+                            auto converted = converter.convert(texture.Get(), width, height);
+                            if (converted && video.video(converted.Get(), now - origin,
+                                                         keyframe.load(), bitrate.load()))
+                                keyframe = false;
+                            last_frame = now;
+                            texture.Reset();
                         }
-                        context->CopyResource(previous_frame.Get(), texture.Get());
-                        // Consume the borrowed frame before closing it. The NV12 output has
-                        // independent ownership.
-                        auto converted = converter.convert(texture.Get(), width, height);
-                        if (converted && video.video(converted.Get(), now - origin, keyframe.load(),
-                                                     bitrate.load()))
-                            keyframe = false;
-                        last_frame = now;
-                        texture.Reset();
-                    } else if (previous_frame) {
+                    } else if (previous_frame &&
+                               repeat_capture(config.live, keyframe.load(), now, last_frame)) {
                         texture = previous_frame;
                         width = previous_width;
                         height = previous_height;
@@ -383,7 +402,8 @@ struct Capture::State {
                         pcm.erase(pcm.begin(), pcm.begin() + static_cast<ptrdiff_t>(count));
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(3));
+                std::this_thread::sleep_for(std::chrono::microseconds(
+                    capture_delay_us(clock_us(), next_video, config.audio)));
             }
         } catch (const winrt::hresult_error &e) {
             if (!stopped)

@@ -36,10 +36,14 @@ final class SenderModel: ObservableObject {
     @Published var sources: [MacCapture.Source] = []
     @Published var selectedSource = ""
     private let capture = MacCapture()
+    private var sourceRefresh = UUID()
     #endif
     private let sender = SenderSession()
     private var discovery: ReceiverDiscovery?
     private var generation = UUID()
+    #if os(iOS)
+    private var broadcastMonitor: Timer?
+    #endif
     init() {
         sender.status = { [weak self] value in self?.status = value; self?.connected = self?.sender.connected ?? false; self?.connecting = self?.sender.connecting ?? false }
         sender.ended = { [weak self] in self?.stopCapture() }
@@ -69,7 +73,7 @@ final class SenderModel: ObservableObject {
         if broadcastPrepared {
             broadcastPrepared = false
             #if os(iOS)
-            BroadcastStore.clear()
+            BroadcastStore.clear(); resumeHost()
             #endif
         }
     }
@@ -104,7 +108,7 @@ final class SenderModel: ObservableObject {
                 #endif
             case .broadcast:
                 #if os(iOS)
-                sender.stop(); try BroadcastStore.save(request.ticket); broadcastPrepared = true
+                sender.stop(); try BroadcastStore.save(request.ticket); resumeHost()
                 status = "2 分钟内点击系统广播按钮，并在电视允许连接；请保留系统录屏授权步骤。"
                 #else
                 throw CastFailure.invalid("此平台请使用屏幕或窗口分享")
@@ -147,15 +151,38 @@ final class SenderModel: ObservableObject {
         sender.playback(action, positionMs: Int(position * 1000), volume: volume)
     }
     #if os(iOS)
+    func resumeHost() {
+        reconcileBroadcast()
+        if broadcastPrepared && broadcastMonitor == nil {
+            broadcastMonitor = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.reconcileBroadcast() }
+        }
+    }
+    private func reconcileBroadcast() {
+        let previous = broadcastPrepared
+        let state = BroadcastStore.current()
+        broadcastPrepared = state?.isLive() == true
+        if !broadcastPrepared {
+            broadcastMonitor?.invalidate(); broadcastMonitor = nil
+            if previous { status = state?.phase == .failed ? "系统广播启动失败或已中止，请重新准备" : "系统广播已结束或准备已过期，可重新选择设备" }
+        } else if state?.phase == .broadcasting { status = "系统广播正在运行，可在系统控制中心或本页停止" }
+    }
     func prepareBroadcast() {
         requestPairing(.broadcast)
     }
     #endif
     #if os(macOS)
     func refreshSources() {
+        let refresh = UUID(); sourceRefresh = refresh
         Task { @MainActor in
-            do { sources = try await MacCapture.sources(); selectedSource = sources.first?.id ?? "" }
-            catch { status = "读取来源失败，请检查系统屏幕录制权限：\(error.localizedDescription)" }
+            do {
+                let available = try await MacCapture.sources()
+                guard sourceRefresh == refresh else { return }
+                sources = available
+                let previous = selectedSource
+                selectedSource = SourceSelection.reconcile(selected: previous, available: available.map(\.id))
+                if !previous.isEmpty && selectedSource.isEmpty { status = "原分享来源已关闭，请重新选择窗口或显示器" }
+            }
+            catch { if sourceRefresh == refresh { status = "读取来源失败，请检查系统屏幕录制权限：\(error.localizedDescription)" } }
         }
     }
     func startMirror() {
@@ -191,9 +218,19 @@ final class SenderModel: ObservableObject {
     func stop() {
         stopCapture(); sender.stop(); discovery?.stop(); discovery = nil; scanning = false; cancelConfirmation(); broadcastPrepared = false
         #if os(iOS)
-        BroadcastStore.clear()
+        BroadcastStore.clear(); resumeHost()
         #endif
     }
-    func suspendHost() { stopCapture(); sender.stop(); discovery?.stop(); discovery = nil; scanning = false; cancelConfirmation() }
+    func suspendHost() {
+        stopCapture(); sender.stop(); discovery?.stop(); discovery = nil; scanning = false; cancelConfirmation()
+        #if os(iOS)
+        broadcastMonitor?.invalidate(); broadcastMonitor = nil
+        #endif
+    }
+    deinit {
+        #if os(iOS)
+        broadcastMonitor?.invalidate()
+        #endif
+    }
 }
 #endif

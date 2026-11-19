@@ -25,9 +25,7 @@ fn a_stalled_host_gets_a_terminal_error_and_remote_session_is_revoked() {
     );
     event(&receiver, "session.started");
     message(&sender, "session.accepted");
-    let filler = json!({"op":"route.plan","intent":"file",
-        "device":{"receiver":false,"rtc":"unknown","receiverFile":"unknown","dlna":false,"dlnaFile":"unknown","dlnaLive":"unknown","systemGuide":false},
-        "backend":{"rtc":false,"ts":false,"file":false}});
+    let filler = json!({"op":"unknown.operation"});
     // Deliberately do not poll the sender. Native teardown must not depend on UI progress.
     let deadline = Instant::now() + Duration::from_secs(8);
     let mut submitted = 0;
@@ -157,9 +155,9 @@ fn dlna_search_does_not_block_control_commands() {
     engine
         .command(json!({"op":"dlna.scan","scanGeneration":1,"interface":ip}))
         .unwrap();
-    engine.command(json!({"op":"route.plan","intent":"file",
-        "device":{"receiver":false,"rtc":"unknown","receiverFile":"unknown","dlna":false,"dlnaFile":"unknown","dlnaLive":"unknown","systemGuide":false},
-        "backend":{"rtc":false,"ts":false,"file":false}})).unwrap();
+    engine
+        .command(json!({"op":"unknown.operation","requestId":"scan-barrier"}))
+        .unwrap();
     let deadline = Instant::now() + Duration::from_secs(2);
     let mut responsive = false;
     while let Some(left) = deadline.checked_duration_since(Instant::now()) {
@@ -167,7 +165,7 @@ fn dlna_search_does_not_block_control_commands() {
             break;
         };
         let value: Value = serde_json::from_str(&text).unwrap();
-        if value["type"] == "route.plan" {
+        if value["type"] == "error" && value["body"]["requestId"] == "scan-barrier" {
             responsive = true;
             break;
         }
@@ -430,10 +428,15 @@ fn negotiated_recovery_relays_new_transport_and_filters_stale_signals() {
         session,
         json!({"state":"ready"}),
     );
-    signal(&receiver, "statistics", session, json!({}));
+    signal(
+        &receiver,
+        "session.state",
+        session,
+        json!({"state":"loading"}),
+    );
     // A valid wire message without a negotiation must not turn the pre-offer
     // session into a streaming session or reach the sender's platform callback.
-    assert_eq!(event(&sender, "message")["type"], "statistics");
+    assert_eq!(event(&sender, "message")["type"], "session.state");
     let first = uuid::Uuid::new_v4();
     let second = uuid::Uuid::new_v4();
     signal(
@@ -574,4 +577,73 @@ fn rejected_file_command_closes_the_transferred_descriptor() {
     if let Ok(now) = std::fs::read_link(path) {
         assert_ne!(now, before);
     }
+}
+
+#[test]
+#[cfg(feature = "sender")]
+fn failed_profile_check_preserves_request_identity_and_does_not_stop_engine() {
+    let engine = Engine::new().unwrap();
+    engine.command(json!({"op":"profile.check","deviceId":"missing","requestId":"profile-7","generation":7})).unwrap();
+    let error = event(&engine, "error");
+    assert_eq!(
+        error,
+        json!({"code":"DLNA_UNAVAILABLE","op":"profile.check","requestId":"profile-7","generation":7})
+    );
+    engine
+        .command(json!({"op":"listen","address":"127.0.0.1:0","advertise":false}))
+        .unwrap();
+    event(&engine, "receiver.ready");
+    engine.close();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[cfg(feature = "legacy")]
+async fn bridge_replacement_and_stale_close_preserve_the_receiver_listener() {
+    let engine = Engine::new().unwrap();
+    engine
+        .command(json!({"op":"listen","address":"127.0.0.1:0","advertise":false}))
+        .unwrap();
+    let receiver = event(&engine, "receiver.ready");
+    let source = "https://127.0.0.1:9/media/test";
+    for id in ["first", "second"] {
+        engine.command(json!({"op":"bridge.create","requestId":id,"url":source,"fingerprint":receiver["fingerprint"]})).unwrap();
+        let ready = event(&engine, "bridge.ready");
+        assert_eq!(ready["requestId"], id);
+        if id == "second" {
+            engine
+                .command(json!({"op":"bridge.close","requestId":"first"}))
+                .unwrap();
+            engine.command(json!({"op":"invite"})).unwrap();
+            event(&engine, "receiver.invite");
+            let client = reqwest::Client::builder().no_proxy().build().unwrap();
+            // A live proxy returns upstream failure; a mistakenly closed one refuses TCP.
+            assert_eq!(
+                client
+                    .get(ready["url"].as_str().unwrap())
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                502
+            );
+            engine
+                .command(json!({"op":"bridge.close","requestId":"second"}))
+                .unwrap();
+            engine.command(json!({"op":"invite"})).unwrap();
+            event(&engine, "receiver.invite");
+            assert!(
+                client
+                    .get(ready["url"].as_str().unwrap())
+                    .send()
+                    .await
+                    .is_err()
+            );
+        }
+    }
+    assert!(
+        tokio::net::TcpStream::connect(receiver["address"].as_str().unwrap())
+            .await
+            .is_ok()
+    );
+    engine.close();
 }

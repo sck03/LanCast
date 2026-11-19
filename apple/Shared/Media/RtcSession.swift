@@ -40,7 +40,6 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
     private var localIce: [LKRTCIceCandidate] = []
     private var closed = false
     private var receivedFrame = false
-    private var statsTimer: DispatchSourceTimer?
     private var frameSize: FrameSize?
     private var maxWidth: Int32 = 1280
     private var maxHeight: Int32 = 720
@@ -52,16 +51,14 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
     private let signal: (String, JSONObject) -> Void
     private let status: (String) -> Void
     private let track: (LKRTCVideoTrack?) -> Void
-    private let statistics: (JSONObject) -> Void
     private let sending: Bool
     private let withAudio: Bool
     private let recoveryEnabled: Bool
 
     init(sending: Bool, audio: Bool, signal: @escaping (String, JSONObject) -> Void,
          status: @escaping (String) -> Void, track: @escaping (LKRTCVideoTrack?) -> Void = { _ in },
-         statistics: @escaping (JSONObject) -> Void = { _ in }, recoveryEnabled: Bool = false) {
+         recoveryEnabled: Bool = false) {
         self.sending = sending; withAudio = audio; self.signal = signal; self.status = status; self.track = track
-        self.statistics = statistics
         self.recoveryEnabled = recoveryEnabled
         super.init()
     }
@@ -90,9 +87,6 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
             factory = receiver
         }
         try createPeer()
-        let timer = DispatchSource.makeTimerSource(queue: queue); statsTimer = timer
-        timer.schedule(deadline: .now() + 1, repeating: 1)
-        timer.setEventHandler { [weak self] in self?.measure() }; timer.resume()
     }
     private func createPeer() throws {
         transportGeneration = UUID(); let current = transportGeneration
@@ -246,24 +240,10 @@ final class RtcSession: NSObject, LKRTCPeerConnectionDelegate {
             defer { audioSlots.signal() }; guard let self, !self.closed else { return }; self.audioInput?.pushSample(sample)
         }
     }
-    private func measure() {
-        guard !closed else { return }
-        peer?.statistics { [weak self] report in
-            self?.submit {
-                guard let self else { return }
-                var values: JSONObject = [:]
-                for (id, stat) in report.statistics where stat.type == "inbound-rtp" || stat.type == "outbound-rtp" {
-                    values[id] = stat.values.filter { ["bytesReceived", "bytesSent", "framesDecoded", "framesEncoded", "packetsLost", "jitter"].contains($0.key) }
-                }
-                self.statistics(values)
-            }
-        }
-    }
     private func fail(_ message: String) { status(message); dispose() }
     func close() { queue.async { [self] in dispose() } }
     private func dispose() {
         guard !closed else { return }; closed = true
-        statsTimer?.cancel(); statsTimer = nil
         clearPeer()
         _ = audioInput?.terminateDevice()
         capturer = nil; source = nil; videoTrack = nil; audioTrack = nil; factory = nil; audioInput = nil

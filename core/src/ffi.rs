@@ -199,7 +199,8 @@ mod tests {
             assert!(!result.data.is_null());
             let text = unsafe { std::slice::from_raw_parts(result.data, result.len) };
             let value: serde_json::Value = serde_json::from_slice(text).unwrap();
-            assert_eq!(value["type"], "route.plan");
+            assert_eq!(value["type"], "error");
+            assert_eq!(value["body"]["requestId"], "ffi-request");
             unsafe { lancast_free_buffer(result) };
         });
         started.recv().unwrap();
@@ -207,7 +208,7 @@ mod tests {
         assert_eq!(
             command(
                 id,
-                r#"{"op":"route.plan","intent":"file","device":{"receiver":false,"rtc":"unknown","receiverFile":"unknown","dlna":false,"dlnaFile":"unknown","dlnaLive":"unknown","systemGuide":false},"backend":{"rtc":false,"ts":false,"file":false}}"#
+                r#"{"op":"unknown.operation","requestId":"ffi-request"}"#
             ),
             0
         );

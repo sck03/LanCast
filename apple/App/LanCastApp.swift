@@ -31,7 +31,15 @@ struct ContentView: View {
             receiverPanel
             #endif
         }.padding(24)
+        .onAppear {
+            #if os(iOS)
+            sender.resumeHost()
+            #endif
+        }
         .onChange(of: scenePhase) { phase in
+            #if os(iOS)
+            if phase == .active { sender.resumeHost() }
+            #endif
             #if !os(macOS)
             if phase == .background {
                 receiver.stop()

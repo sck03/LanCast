@@ -20,7 +20,8 @@ final class ReceiverModel: ObservableObject {
     @Published var listening = false
     private var core: CoreSession?
     private var advertisement: ReceiverAdvertisement?
-    private var fileBridge: CoreSession?
+    private var networkMonitor: NetworkMonitor?
+    private var bridgeRequest: String?
     private var rtc: RtcSession?
     private var session: String?
     private var negotiation: String?
@@ -42,9 +43,17 @@ final class ReceiverModel: ObservableObject {
             UIApplication.shared.isIdleTimerDisabled = true
             #endif
             core = try CoreSession { [weak self] in self?.event($0) }
+            networkMonitor = NetworkMonitor { [weak self] in self?.reconcileNetwork() }
             core?.command("listen", ["address": address, "name": "LanCast Apple", "variant": "apple", "advertise": false])
             status = "正在启动安全接收…"
         } catch { stop(); status = error.localizedDescription }
+    }
+    private func reconcileNetwork() {
+        guard core != nil else { return }
+        let bound = String(address.split(separator: ":").first ?? "")
+        guard localAddresses().contains(bound) else {
+            stop(); refreshNetwork(); status = "本机网络已改变，请重新启动接收并配对"; return
+        }
     }
     func refreshNetwork() {
         guard core == nil else { return }
@@ -65,6 +74,7 @@ final class ReceiverModel: ObservableObject {
         core?.command("stop"); clearMedia(); status = "投屏已停止，可刷新配对码"
     }
     func stop() {
+        networkMonitor = nil
         advertisement?.stop(); advertisement = nil
         clearMedia(); core?.close(); core = nil; listening = false; pendingApprovalID = nil; approval = nil; invite = ""; fingerprint = ""
         #if !os(macOS)
@@ -80,10 +90,14 @@ final class ReceiverModel: ObservableObject {
     private func clearPlayer() {
         observation = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver) }; endObserver = nil
         player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
-        fileBridge?.close(); fileBridge = nil
+        if let id = bridgeRequest { core?.command("bridge.close", ["requestId": id]) }
+        bridgeRequest = nil
     }
     private func event(_ event: JSONObject) {
         let body = event.object("body")
+        if event.string("type") == "bridge.ready" || (event.string("type") == "error" && body.string("op").hasPrefix("bridge.")) {
+            fileEvent(event); return
+        }
         switch event.string("type") {
         case "receiver.ready":
             address = body.string("address"); fingerprint = body.string("fingerprint"); invite = body.string("invite")
@@ -150,20 +164,16 @@ final class ReceiverModel: ObservableObject {
     private func prepareFile(_ data: JSONObject) {
         clearPlayer(); generation = UUID()
         let current = generation
-        do {
-            fileBridge = try CoreSession { [weak self] event in
-                guard let self, self.generation == current else { return }
-                self.fileEvent(event)
-            }
-            fileBridge?.command("bridge.create", ["url": data.string("url"), "fingerprint": data.string("fingerprint")])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
-                guard let self, self.generation == current, self.player?.currentItem?.status != .readyToPlay else { return }
-                self.stopMedia(); self.status = "文件加载超时，请检查发送端与媒体格式"
-            }
-        } catch { stopMedia(); status = error.localizedDescription }
+        let id = UUID().uuidString; bridgeRequest = id
+        core?.command("bridge.create", ["url": data.string("url"), "fingerprint": data.string("fingerprint"), "requestId": id])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            guard let self, self.generation == current, self.player?.currentItem?.status != .readyToPlay else { return }
+            self.stopMedia(); self.status = "文件加载超时，请检查发送端与媒体格式"
+        }
     }
     private func fileEvent(_ event: JSONObject) {
         let body = event.object("body")
+        guard let bridgeRequest, body.string("requestId") == bridgeRequest else { return }
         switch event.string("type") {
         case "bridge.ready":
             guard session != nil, let url = URL(string: body.string("url")), url.host == "127.0.0.1", url.scheme == "http" else { return }
@@ -189,5 +199,5 @@ final class ReceiverModel: ObservableObject {
         if let negotiation { body["negotiationId"] = negotiation }
         core?.send("session.state", session: session, body: body)
     }
-    deinit { core?.close(); fileBridge?.close(); rtc?.close(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
+    deinit { core?.close(); rtc?.close(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
 }

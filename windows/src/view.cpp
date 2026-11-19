@@ -90,9 +90,12 @@ void MainView::create(HWND window) {
     add(L"BUTTON", L"跳到 60 秒", WS_TABSTOP, 340, 520, 160, 34, 9);
     add(L"BUTTON", L"停止投屏", WS_TABSTOP, 516, 520, 140, 34, 10);
     add(L"BUTTON", L"断开连接", WS_TABSTOP, 672, 520, 140, 34, 11);
-    add(L"STATIC", L"正在准备…", SS_LEFT | SS_NOPREFIX, 28, 585, 784, 44, status, 0, false,
+    add(L"STATIC", L"文件音量（自有接收端）", 0, 28, 565, 240, 26, 0);
+    add(L"BUTTON", L"音量 50%", WS_TABSTOP, 340, 560, 220, 34, 18);
+    add(L"BUTTON", L"音量 100%", WS_TABSTOP, 576, 560, 236, 34, 19);
+    add(L"STATIC", L"正在准备…", SS_LEFT | SS_NOPREFIX, 28, 615, 784, 44, status, 0, false,
         Surface::notice);
-    add(L"STATIC", L"最小化会收到托盘并继续投屏；关闭窗口会退出。", 0, 28, 646, 784, 24, 0, 3,
+    add(L"STATIC", L"最小化会收到托盘并继续投屏；关闭窗口会退出。", 0, 28, 676, 784, 24, 0, 3,
         false, Surface::canvas);
     fonts();
     resize();
@@ -118,7 +121,7 @@ void MainView::fonts() {
 void MainView::resize() {
     RECT client{};
     GetClientRect(window_, &client);
-    const int total = scale(686 + (advanced_ ? 56 : 0));
+    const int total = scale(716 + (advanced_ ? 56 : 0));
     scroll_ = std::clamp(scroll_, 0, std::max(0, total - static_cast<int>(client.bottom)));
     SCROLLINFO info{sizeof(info),
                     SIF_RANGE | SIF_PAGE | SIF_POS,
@@ -161,7 +164,7 @@ void MainView::resize() {
 void MainView::scroll_to(int position) {
     RECT client{};
     GetClientRect(window_, &client);
-    const int total = scale(686 + (advanced_ ? 56 : 0));
+    const int total = scale(716 + (advanced_ ? 56 : 0));
     position = std::clamp(position, 0, std::max(0, total - static_cast<int>(client.bottom)));
     if (position == scroll_)
         return;

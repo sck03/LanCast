@@ -79,13 +79,7 @@ impl Server {
         ensure!(
             matches!(
                 msg.kind.as_str(),
-                "rtc.answer"
-                    | "rtc.ice"
-                    | "rtc.state"
-                    | "statistics"
-                    | "session.state"
-                    | "session.stop"
-                    | "error"
+                "rtc.answer" | "rtc.ice" | "rtc.state" | "session.state" | "session.stop" | "error"
             ),
             "INVALID_DIRECTION"
         );
@@ -276,7 +270,14 @@ async fn receiver_connection<
     let timer = tokio::time::sleep_until(next_ping);
     tokio::pin!(timer);
     let run = async {
-        send(&mut ws,&pair.reply("pair.accepted",json!({"pairingVersion":auth::PAIRING_VERSION,"receiverDeviceId":server.identity.id,"deviceToken":auth::random_token(),"receiverPublicKey":server.identity.public_key,"trust":"session_only"}))).await?;
+        send(
+            &mut ws,
+            &pair.reply(
+                "pair.accepted",
+                json!({"pairingVersion":auth::PAIRING_VERSION,"trust":"session_only"}),
+            ),
+        )
+        .await?;
         loop {
             heartbeat.check()?;
             if tokio::time::Instant::now() >= next_ping {
@@ -353,7 +354,7 @@ async fn handle_request(
         let mode = request.string("mode")?;
         let mut session = Session::new(owner, mode)?;
         session.rtc_recovery = mode == "mirror" && request.body["rtcRecovery"] == CAPABILITY;
-        let mut response=request.reply("session.accepted",json!({"sessionId":session.id,"selectedProfile":Profile::conservative(server.variant=="legacy"),"audioPolicy":"explicit_capture_only"}));
+        let mut response=request.reply("session.accepted",json!({"sessionId":session.id,"selectedProfile":Profile::conservative(server.variant=="legacy")}));
         if session.rtc_recovery {
             response.body["rtcRecovery"] = json!(CAPABILITY);
         }
@@ -538,10 +539,10 @@ mod tests {
                         .await
                         .unwrap();
                 }
-                let mut barrier = Message::new("statistics", json!({}));
+                let mut barrier = Message::new("session.state", json!({"state":"loading"}));
                 barrier.session_id = accepted.session_id;
                 server.send(barrier).await.unwrap();
-                assert_eq!(receive(&mut peer).await.unwrap().kind, "statistics");
+                assert_eq!(receive(&mut peer).await.unwrap().kind, "session.state");
                 assert_eq!(
                     server.session.lock().await.as_ref().unwrap().state,
                     crate::session::State::Negotiating
@@ -675,7 +676,7 @@ mod tests {
         *server.session.lock().await = Some(session);
         let (sender, _receiver) = mpsc::channel(1);
         sender
-            .try_send(Message::new("statistics", json!({})))
+            .try_send(Message::new("session.state", json!({"state":"loading"})))
             .unwrap();
         let cancel = CancellationToken::new();
         server.connections.lock().await.insert(

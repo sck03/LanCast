@@ -8,8 +8,6 @@ import android.view.SurfaceView
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
-import dev.lancast.control.ControlSession
-import org.json.JSONObject
 
 /** API21 system player. HTTPS pinning and Range proxying live in the Rust adapter. */
 class PlatformPlayer(context: Context, private val event: (String) -> Unit) : FilePlayer {
@@ -26,7 +24,6 @@ class PlatformPlayer(context: Context, private val event: (String) -> Unit) : Fi
     }
     override val view: View get() = root
     private var media: MediaPlayer? = null
-    private var bridge: ControlSession? = null
     private var localUrl: String? = null
     private var hasSurface = false
     private var ready = false
@@ -40,13 +37,9 @@ class PlatformPlayer(context: Context, private val event: (String) -> Unit) : Fi
     }
     override fun load(url: String, fingerprint: String) {
         close()
-        val current = generation
-        bridge = ControlSession { message ->
-            if (current == generation) when (message.optString("type")) {
-                "bridge.ready" -> { localUrl = message.getJSONObject("body").getString("url"); prepare() }
-                "error" -> { close(); event("MEDIA_SOURCE_FAILED") }
-            }
-        }.also { it.command("bridge.create", JSONObject().put("url", url).put("fingerprint", fingerprint)) }
+        val source = android.net.Uri.parse(url)
+        require(source.scheme == "http" && source.host == "127.0.0.1") { "Pinned loopback source required" }
+        localUrl = url; prepare()
     }
     private fun prepare() {
         val url = localUrl ?: return
@@ -77,6 +70,5 @@ class PlatformPlayer(context: Context, private val event: (String) -> Unit) : Fi
     override fun close() {
         generation++; ready = false; localUrl = null
         media?.release(); media = null
-        bridge?.close(); bridge = null
     }
 }

@@ -195,6 +195,9 @@ class DesktopApp {
             stop();
             status("连接已断开，分享已停止；重新连接需要电视确认");
         } else if (type == "error" || type == "live.failed") {
+            if (body.contains("generation") && !body["generation"].is_null() &&
+                body.value("generation", uint64_t{0}) != generation)
+                return;
             pairing = false;
             file_pending = false;
             pending_session.clear();
@@ -488,6 +491,12 @@ class DesktopApp {
                 send("playback.command", {{"action", action}, {"positionMs", 60000}});
             break;
         }
+        case 18:
+        case 19:
+            if (mode != "file" || shared_file.is_null() || !dlna_id.empty())
+                throw std::runtime_error("音量仅用于自有接收端的视频文件");
+            send("playback.command", {{"action", "volume"}, {"value", id == 18 ? 0.5 : 1.0}});
+            break;
         case 10:
             stop();
             break;
@@ -722,6 +731,9 @@ class DesktopApp {
                             !dlna_id.empty());
         for (int id : {7, 8, 9})
             view.enable(id, mode == "file" && !shared_file.is_null() && !stopping && !exiting);
+        for (int id : {18, 19})
+            view.enable(id, mode == "file" && !shared_file.is_null() && dlna_id.empty() &&
+                                !stopping && !exiting);
         view.enable(10, active && !stopping && !exiting);
         view.enable(11, !exiting && (connected || pairing || active || !dlna_id.empty()));
         for (int id : {MainView::sources, MainView::audio, 13})

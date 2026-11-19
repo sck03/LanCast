@@ -18,6 +18,12 @@ use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+#[cfg(feature = "legacy")]
+mod bridge_resource;
+mod command_context;
+#[cfg(feature = "sender")]
+mod live_commands;
+
 fn string<'a>(v: &'a Value, key: &str) -> anyhow::Result<&'a str> {
     v[key].as_str().with_context(|| format!("MISSING_{key}"))
 }
@@ -124,7 +130,7 @@ impl Engine {
                         dlna_playing: None,
                         events: events.clone(),
                         #[cfg(feature = "legacy")]
-                        bridges: Vec::new(),
+                        bridge: bridge_resource::BridgeResource::default(),
                         #[cfg(feature = "sender")]
                         live: live_worker,
                         #[cfg(feature = "sender")]
@@ -152,6 +158,7 @@ impl Engine {
                         }
                         // Once teardown begins, finish its bounded renderer cleanup. A duplicate
                         // stop must not detach the old cleanup and let it race a new session.
+                        let context = command_context::CommandContext::new(&command.value);
                         let result = if command.value["op"] == "stop" {
                             Some(state
                                 .command(command.value, command.file, command.generation)
@@ -165,7 +172,7 @@ impl Engine {
                         };
                         match result {
                             Some(Err(error)) => {
-                                event(&events, "error", json!({"code":error.to_string()}))
+                                event(&events, "error", context.failure(&error))
                             }
                             None => {
                                 let _ = state
@@ -273,7 +280,7 @@ struct Runtime {
     dlna_playing: Option<(dlna::Controller, String)>,
     events: Events,
     #[cfg(feature = "legacy")]
-    bridges: Vec<Arc<crate::legacy_bridge::Bridge>>,
+    bridge: bridge_resource::BridgeResource,
     #[cfg(feature = "sender")]
     live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
     #[cfg(feature = "sender")]
@@ -398,9 +405,7 @@ impl Runtime {
                 self.scan.stop().await;
                 self.dlna_discovery.stop().await;
                 #[cfg(feature = "legacy")]
-                for bridge in self.bridges.drain(..) {
-                    bridge.revoke();
-                }
+                self.bridge.close(None).await;
                 #[cfg(feature = "sender")]
                 if let Some(live) = self.live.lock().unwrap().take() {
                     live.revoke();
@@ -497,12 +502,18 @@ impl Runtime {
             }
             "dlna.load" | "dlna.command" => {
                 ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
-                let device = self
-                    .dlna_discovery
-                    .get(string(&c, "deviceId")?)
-                    .context("DLNA_UNAVAILABLE")?
-                    .clone();
-                let controller = dlna::Controller::new(device)?;
+                let device_id = string(&c, "deviceId")?;
+                let controller = if let Some((controller, _)) = &self.dlna_playing
+                    && controller.device.id == device_id
+                {
+                    controller.clone()
+                } else {
+                    let device = self
+                        .dlna_discovery
+                        .get(device_id)
+                        .context("DLNA_UNAVAILABLE")?;
+                    dlna::Controller::new(device.clone())?
+                };
                 #[cfg(feature = "sender")]
                 if c["op"] == "dlna.load" && c["live"].as_bool().unwrap_or(false) {
                     let context = self.live_context.as_ref().context("LIVE_NOT_PREPARED")?;
@@ -573,199 +584,33 @@ impl Runtime {
                     );
                 }
             }
-            "route.plan" => {
-                let device = serde_json::from_value(c["device"].clone())?;
-                let backend = serde_json::from_value(c["backend"].clone())?;
-                let intent = serde_json::from_value(c["intent"].clone())?;
+            #[cfg(feature = "legacy")]
+            "bridge.create" => {
+                let id = string(&c, "requestId")?;
+                let url = self
+                    .bridge
+                    .open(
+                        id.to_owned(),
+                        string(&c, "url")?,
+                        string(&c, "fingerprint")?,
+                    )
+                    .await?;
                 event(
                     &self.events,
-                    "route.plan",
-                    serde_json::to_value(cast_core::plan(intent, &device, backend))?,
+                    "bridge.ready",
+                    json!({"url":url,"requestId":id}),
                 );
             }
             #[cfg(feature = "legacy")]
-            "bridge.create" => {
-                ensure!(self.bridges.is_empty(), "BRIDGE_ALREADY_ACTIVE");
-                let (url, bridge, task) = crate::legacy_bridge::Bridge::bind(
-                    string(&c, "url")?,
-                    string(&c, "fingerprint")?,
-                )
-                .await?;
-                self.bridges.push(bridge);
-                self.resource_tasks.push(task);
-                event(&self.events, "bridge.ready", json!({"url":url}));
+            "bridge.close" => {
+                self.bridge.close(Some(string(&c, "requestId")?)).await;
             }
             #[cfg(feature = "sender")]
-            "profiles.open" => {
-                ensure!(self.profiles.is_none(), "PROFILES_ALREADY_OPEN");
-                let path = string(&c, "path")?.into();
-                let profiles = self
-                    .io
-                    .run(command_generation, move |guard| {
-                        crate::profiles::ProfileStore::open_checked(path, || guard.check())
-                    })
-                    .await?;
-                if command_generation != self.generation.load(std::sync::atomic::Ordering::Acquire)
-                {
-                    return Ok(());
-                }
-                self.profiles = Some(Arc::new(StdMutex::new(profiles)));
-            }
-            #[cfg(feature = "sender")]
-            "profile.check" => {
-                let device = self
-                    .dlna_discovery
-                    .get(string(&c, "deviceId")?)
-                    .context("DLNA_UNAVAILABLE")?
-                    .clone();
-                let profile = live_profile(c["audio"].as_bool().unwrap_or(true));
-                let evidence = self
-                    .profile_evidence(&device, &profile, command_generation)
-                    .await?;
-                event(
-                    &self.events,
-                    "profile.checked",
-                    json!({"deviceId":device.id,"profile":profile,"passed":evidence.as_ref().is_some_and(|e| e.passed),"evidence":evidence,"generation":c["generation"],"requestId":c["requestId"]}),
-                );
-            }
-            #[cfg(feature = "sender")]
-            "probe.confirm" => {
-                let context = self.live_context.as_ref().context("NO_PROBE")?;
-                let device = &context.device;
-                let profile = &context.profile;
-                ensure!(context.probe, "NO_PROBE");
-                let live = self
-                    .live
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .cloned()
-                    .context("NO_PROBE")?;
-                ensure!(!live.cancellation().is_cancelled(), "PROBE_EXPIRED");
-                let passed = c["passed"].as_bool().context("PROBE_RESULT_REQUIRED")?;
-                ensure!(!passed || live.delivered() > 0, "PROBE_NOT_PULLING");
-                let profiles = self.profiles.clone().context("PROFILE_STORE_REQUIRED")?;
-                let device_id = device.id.clone();
-                let evidence = crate::profiles::Evidence {
-                    signature: device.signature.clone(),
-                    profile: profile.clone(),
-                    confirmed_at: crate::profiles::now(),
-                    passed,
-                    source: "user_confirmed_synthetic".into(),
-                };
-                self.io
-                    .run(command_generation, move |guard| {
-                        let mut profiles = profiles
-                            .lock()
-                            .map_err(|_| anyhow::anyhow!("PROFILE_STORE_FAILED"))?;
-                        guard.check()?;
-                        profiles.save_checked(device_id, evidence, || guard.check())
-                    })
-                    .await?;
-                if command_generation != self.generation.load(std::sync::atomic::Ordering::Acquire)
-                {
-                    return Ok(());
-                }
-                event(
-                    &self.events,
-                    "probe.saved",
-                    json!({"deviceId":device.id,"passed":passed,"profile":profile}),
-                );
-                live.revoke();
-            }
-            #[cfg(feature = "sender")]
-            "live.create" => {
-                ensure!(self.live.lock().unwrap().is_none(), "LIVE_ALREADY_ACTIVE");
-                let generation = c["generation"].as_u64().context("GENERATION_REQUIRED")?;
-                let device = self
-                    .dlna_discovery
-                    .get(string(&c, "deviceId")?)
-                    .context("DLNA_UNAVAILABLE")?
-                    .clone();
-                let probe = c["synthetic"].as_bool().unwrap_or(false);
-                let profile = live_profile(c["audio"].as_bool().unwrap_or(true));
-                if !probe {
-                    ensure!(
-                        self.profile_evidence(&device, &profile, command_generation)
-                            .await?
-                            .is_some_and(|e| e.passed),
-                        "SYNTHETIC_PROBE_REQUIRED"
-                    );
-                }
-                ensure!(
-                    string(&c, "allowedIp")?.parse::<IpAddr>()? == device.ip,
-                    "LIVE_DEVICE_MISMATCH"
-                );
-                let live = crate::live::LiveResource::new(string(&c, "allowedIp")?.parse()?);
-                let (url, task) = live.clone().bind(string(&c, "address")?.parse()?).await?;
-                *self.live.lock().unwrap() = Some(live);
-                self.live_context = Some(LiveContext {
-                    device,
-                    profile,
-                    probe,
-                    url: url.clone(),
-                    generation,
-                });
-                self.resource_tasks.push(task);
-                event(
-                    &self.events,
-                    "live.created",
-                    json!({"url":url,"mime":"video/mpeg","encrypted":false,"synthetic":probe,"generation":c["generation"]}),
-                );
-            }
-            #[cfg(feature = "sender")]
-            "live.stats" => {
-                let pulls = self
-                    .live
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .map(|r| r.pulls())
-                    .unwrap_or(0);
-                event(
-                    &self.events,
-                    "live.stats",
-                    json!({"httpPulls":pulls,"firstFrameMeasured":false}),
-                );
+            "profiles.open" | "profile.check" | "probe.confirm" | "live.create" => {
+                self.live_command(c, command_generation).await?;
             }
             _ => anyhow::bail!("UNKNOWN_COMMAND"),
         }
         Ok(())
     }
-    #[cfg(feature = "sender")]
-    async fn profile_evidence(
-        &self,
-        device: &dlna::Renderer,
-        profile: &str,
-        generation: u64,
-    ) -> anyhow::Result<Option<crate::profiles::Evidence>> {
-        let Some(profiles) = self.profiles.clone() else {
-            return Ok(None);
-        };
-        let device = device.clone();
-        let profile = profile.to_owned();
-        self.io
-            .run(generation, move |guard| {
-                let profiles = profiles
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("PROFILE_STORE_FAILED"))?;
-                guard.check()?;
-                Ok(profiles
-                    .get(
-                        &device.id,
-                        &device.signature,
-                        &profile,
-                        crate::profiles::now(),
-                    )
-                    .cloned())
-            })
-            .await
-    }
-}
-#[cfg(feature = "sender")]
-fn live_profile(audio: bool) -> String {
-    format!(
-        "ts-h264-baseline-1280x720-30-v1-{}",
-        if audio { "aac48-stereo" } else { "silent" }
-    )
 }

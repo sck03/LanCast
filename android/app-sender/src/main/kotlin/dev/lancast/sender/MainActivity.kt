@@ -16,7 +16,10 @@ class MainActivity : Activity() {
     private lateinit var state: TextView
     private lateinit var connection: ConnectionForm
     private val controls = mutableListOf<Pair<Button, () -> Boolean>>()
-    private var externalRequest = false
+    private var externalRequest: Boolean
+        get() = SenderRuntime.externalRequest
+        set(value) { SenderRuntime.externalRequest = value }
+    private lateinit var volume: SeekBar
     private var captureRequest: String? = null
     private lateinit var audio: CheckBox
     private var pendingAudio = false
@@ -24,7 +27,6 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         captureRequest = savedInstanceState?.getString("captureRequest")
-        externalRequest = savedInstanceState?.getBoolean("externalRequest", false) ?: false
         pendingAudio = savedInstanceState?.getBoolean("pendingAudio", false) ?: false
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 16, 24, 16) }
         root.addView(TextView(this).apply { text = "LanCast · 局域网分享"; textSize = 26f })
@@ -70,11 +72,24 @@ class MainActivity : Activity() {
         button("选择 MP4 视频播放", { (SenderRuntime.connected || SenderRuntime.dlnaId != null) && canStart() }) {
             check(SenderRuntime.connected || SenderRuntime.dlnaId != null) { "先选择自有接收端或 DLNA 电视" }
             externalRequest = true
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("video/mp4").addCategory(Intent.CATEGORY_OPENABLE), 20)
+            try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("video/mp4").addCategory(Intent.CATEGORY_OPENABLE), 20) }
+            catch (error: Exception) { externalRequest = false; throw error }
         }
         button("暂停", { SenderRuntime.filePlaying }) { SenderRuntime.playback("pause") }
         button("播放", { SenderRuntime.filePlaying }) { SenderRuntime.playback("play") }
         button("跳到 60 秒", { SenderRuntime.filePlaying }) { SenderRuntime.playback("seek", 60000) }
+        root.addView(TextView(this).apply { text = "文件音量（自有接收端）" })
+        volume = SeekBar(this).apply {
+            max = 100; progress = 100
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {}
+                override fun onStartTrackingTouch(bar: SeekBar?) {}
+                override fun onStopTrackingTouch(bar: SeekBar?) {
+                    runCatching { SenderRuntime.playback("volume", value = progress / 100.0) }.onFailure { state.text = it.message }
+                }
+            })
+        }
+        root.addView(volume)
         button("停止") { profileRequest = null; externalRequest = false; SenderRuntime.stop() }
         button("断开连接") { profileRequest = null; SenderRuntime.close(); connection.clear(); state.text = "已断开，请刷新并重新选择电视" }
         button("电视不能安装 App？") { AlertDialog.Builder(this).setTitle("系统投屏与安装限制").setMessage(SystemGuide.TEXT).setPositiveButton("知道了", null).show() }
@@ -103,6 +118,7 @@ class MainActivity : Activity() {
         connection.render(SenderRuntime.catalog.devices, SenderRuntime.scanning, SenderRuntime.selectionLocked || profileRequest != null || externalRequest, SenderRuntime.selectedDevice)
         for ((button, enabled) in controls) button.isEnabled = enabled()
         audio.isEnabled = canStart()
+        volume.isEnabled = SenderRuntime.filePlaying && SenderRuntime.dlnaId == null
     }
     private fun requestCapture() {
         runCatching {
@@ -111,7 +127,7 @@ class MainActivity : Activity() {
         }.onFailure { SenderRuntime.cancelCapture(captureRequest); captureRequest = null; externalRequest = false; state.text = it.message; updateControls() }
     }
     override fun onSaveInstanceState(state: Bundle) {
-        state.putString("captureRequest", captureRequest); state.putBoolean("externalRequest", externalRequest)
+        state.putString("captureRequest", captureRequest)
         state.putBoolean("pendingAudio", pendingAudio)
         super.onSaveInstanceState(state)
     }
@@ -149,6 +165,7 @@ class MainActivity : Activity() {
     private fun onEvent(event: JSONObject) {
         val body = event.optJSONObject("body") ?: JSONObject()
         if (event.optString("type") in listOf("media.status", "error", "disconnected", "stopped")) externalRequest = false
+        if (body.optBoolean("terminal") || event.optString("type") in listOf("disconnected", "stopped")) profileRequest = null
         when (event.optString("type")) {
             "profile.checked" -> {
                 if (profileRequest == null || body.optString("requestId") != profileRequest) return
@@ -171,11 +188,20 @@ class MainActivity : Activity() {
             "probe.saved" -> state.text = if (body.optBoolean("passed")) "测试档案已保存。现在可点击开始 DLNA 屏幕直播，再授权分享内容。" else "此配置未通过；仍可尝试 MP4 文件播放。"
             "connected" -> state.text = "安全连接已建立"
             "disconnected" -> state.text = "连接已断开，屏幕采集已停止；请重新配对"
-            "error" -> state.text = if (body.optBoolean("terminal")) "控制服务已停止，分享已结束，请重新连接电视" else body.optString("code")
-            "media.status" -> if (!body.optString("status").startsWith("statistics:")) state.text = body.optString("status")
+            "error" -> {
+                if (body.optString("op") == "profile.check") {
+                    if (profileRequest == null || body.optString("requestId") != profileRequest) return
+                    profileRequest = null
+                }
+                state.text = if (body.optBoolean("terminal")) "控制服务已停止，分享已结束，请重新连接电视" else body.optString("code")
+            }
+            "media.status" -> state.text = body.optString("status")
             "devices", "dlna.devices", "discovery.updated" -> if (!SenderRuntime.scanning) state.text = if (SenderRuntime.catalog.devices.isEmpty()) "未发现电视，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" else "请选择电视，将自动获取地址和指纹"
             "dlna.state" -> state.text = "DLNA 指令已返回，实际画面请以电视为准"
-            "message" -> if (body.optString("type") == "error") state.text = body.getJSONObject("body").optString("code")
+            "message" -> when (body.optString("type")) {
+                "error" -> state.text = body.getJSONObject("body").optString("code")
+                "session.state" -> if (body.getJSONObject("body").optString("state") == "ready") state.text = "接收端已开始播放"
+            }
         }
         updateControls()
     }
