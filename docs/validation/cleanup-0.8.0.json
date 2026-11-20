@@ -1,0 +1,236 @@
+{
+  "date": "2026-11-20",
+  "workspace": "E:/cast/LanCast",
+  "phases": [
+    {
+      "mode": "clean",
+      "workspace": "E:\\cast\\LanCast",
+      "before_bytes": 4050351565,
+      "after_bytes": 267407134,
+      "reclaimable_bytes": 3782944431,
+      "removed_bytes": 3782944431,
+      "paths": [
+        {
+          "path": "target",
+          "category": "build",
+          "files": 3421,
+          "bytes": 3063149089,
+          "fingerprint": "7651df7f3bc56c9fc6933de16401c8bb1b61a39b80174c75a9c6a4ad73a0de5f"
+        },
+        {
+          "path": "airplay-native/target",
+          "category": "build",
+          "files": 1271,
+          "bytes": 719795342,
+          "fingerprint": "c63fe808bc55e5da22a9571081365aceb474ebe46a22369437382dbc2949f787"
+        }
+      ]
+    },
+    {
+      "mode": "clean",
+      "workspace": "E:\\cast\\LanCast",
+      "before_bytes": 267411118,
+      "after_bytes": 12781754,
+      "reclaimable_bytes": 254629364,
+      "removed_bytes": 254629364,
+      "paths": [
+        {
+          "path": ".cache/artifacts",
+          "category": "download",
+          "files": 553,
+          "bytes": 254629364,
+          "fingerprint": "b3cb3aca96063249f441dc4d46715b7c1e00f3532b0486d604339ea2d653baa2"
+        }
+      ]
+    },
+    {
+      "date": "2026-11-20",
+      "workspace": "E:\\cast\\LanCast",
+      "reason": "Task CI logs; counts, provenance and log hashes retained in validation JSON. Original logs remain in GitHub Actions.",
+      "paths": [
+        {
+          "path": ".cache/ci-136102822612.log",
+          "files": 1,
+          "bytes": 133157,
+          "sha256": "96f0d39030dec0c2316a36efa1e6f06e317f216079ddc3515d9d9fcb47f29be1"
+        },
+        {
+          "path": ".cache/ci-136102823368.log",
+          "files": 1,
+          "bytes": 244491,
+          "sha256": "272ca0ab348dc5315a32d5def4f1347b77abc0bb464ec58119f4dec9fcba605d"
+        },
+        {
+          "path": ".cache/ci-136102824187.log",
+          "files": 1,
+          "bytes": 77253,
+          "sha256": "f11b209641a2805c8e9623a891f95754216a2d64f6b308cb49d87827189821a1"
+        },
+        {
+          "path": ".cache/ci-136102944076.log",
+          "files": 1,
+          "bytes": 248482,
+          "sha256": "4b106dd222c5b60782cca44bcd5f7dc900acc1a0c4af49018090f54d5918c353"
+        },
+        {
+          "path": ".cache/ci-136103094824.log",
+          "files": 1,
+          "bytes": 25393,
+          "sha256": "880b17c8439ab05ba323afb6d34457928c89b7bf117621758f3b7a551789fde8"
+        },
+        {
+          "path": ".cache/ci-136107377836.log",
+          "files": 1,
+          "bytes": 391243,
+          "sha256": "ff463dda7b8147787b276a074dfc6f08fe407d250261a7a662cb3a4f6d842ee6"
+        },
+        {
+          "path": ".cache/ci-136107378061.log",
+          "files": 1,
+          "bytes": 75387,
+          "sha256": "a08fc8a1f8358d10ba3abc546b6661aab90264a63977bce3d14f7673e643b90c"
+        },
+        {
+          "path": ".cache/ci-136107427774.log",
+          "files": 1,
+          "bytes": 72594,
+          "sha256": "c94594d0295af38bc3e63c9c60073d0af8160ec62082fd67216c29776cd0c466"
+        },
+        {
+          "path": ".cache/ci-136107428060.log",
+          "files": 1,
+          "bytes": 86875,
+          "sha256": "988ea293da434cb1a04d7526a4280689ad120682258f206bbc8662f6cee7512f"
+        }
+      ],
+      "removed_bytes": 1354875,
+      "removed_files": 9
+    },
+    {
+      "mode": "clean",
+      "workspace": "E:\\cast\\LanCast",
+      "before_bytes": 23263560,
+      "after_bytes": 11664538,
+      "reclaimable_bytes": 11599022,
+      "removed_bytes": 11599022,
+      "paths": [
+        {
+          "path": ".cache/artifacts",
+          "category": "download",
+          "files": 20,
+          "bytes": 11599022,
+          "fingerprint": "cef389c0c66061f6c7ea295a032fb44ad620576ce4c9ad51dbe6eea0e350cf80"
+        }
+      ]
+    },
+    {
+      "mode": "clean",
+      "scope": "This task's generated evidence drafts, CI logs and temporary patch/contract tools",
+      "paths": [
+        {
+          "path": ".cache/ci-136124121674.log",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\ci-136124121674.log",
+          "files": 1,
+          "bytes": 96113,
+          "sha256": "57369882ae340b4c964df32780b3d20aeb93b9b56894ee15e0e1452d9176bd0b"
+        },
+        {
+          "path": ".cache/ci-136124121920.log",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\ci-136124121920.log",
+          "files": 1,
+          "bytes": 72676,
+          "sha256": "507ea0e4265a0ecaeb87d48b714841b729cb5414107af5766db3c186baa1993a"
+        },
+        {
+          "path": ".cache/refactor-apple-verification.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-apple-verification.json",
+          "files": 1,
+          "bytes": 9276,
+          "sha256": "df9c02734a4da2c47bf4c79b5ec4a6cb493196e655a9735326a05b4764429adb"
+        },
+        {
+          "path": ".cache/refactor-cleanup-build.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-cleanup-build.json",
+          "files": 1,
+          "bytes": 637,
+          "sha256": "0630b44d93c0422e94c0ad8262503738af7557b084be05b247d9c36c840c044b"
+        },
+        {
+          "path": ".cache/refactor-cleanup-downloads.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-cleanup-downloads.json",
+          "files": 1,
+          "bytes": 423,
+          "sha256": "bd0f4190de417f27693e3e9fa18c6d9a52d36b57523de76f30150f7b4f97a4cd"
+        },
+        {
+          "path": ".cache/refactor-cleanup-logs.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-cleanup-logs.json",
+          "files": 1,
+          "bytes": 1949,
+          "sha256": "540c06ebae98b284a3f1eec84f4d533451efd89d2ac54ee16fe850ff8fe6ea62"
+        },
+        {
+          "path": ".cache/refactor-doc-links.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-doc-links.json",
+          "files": 1,
+          "bytes": 71,
+          "sha256": "7f97fb5e3e4944b928bdd1262d6553f166dd20b787550021a8d0fc2fbcd77641"
+        },
+        {
+          "path": ".cache/refactor-evidence-draft.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-evidence-draft.json",
+          "files": 1,
+          "bytes": 54600,
+          "sha256": "56bee0c066926ba3ecf0ed6f4aa8ad9ac3c3e8bbea54a51b22967edb35326e14"
+        },
+        {
+          "path": ".cache/refactor-final-ci.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-final-ci.json",
+          "files": 1,
+          "bytes": 5505,
+          "sha256": "d83ce4ed3c86865f393a93cd6fa97f7d9460d305259b437a3d6b90dca0cd8620"
+        },
+        {
+          "path": ".cache/refactor-windows-ci.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-windows-ci.json",
+          "files": 1,
+          "bytes": 733,
+          "sha256": "5d46e8a59d5f64808fa76b95e5d362152513db86253834a7c20f877616eb61c0"
+        },
+        {
+          "path": ".cache/refactor-windows-version.json",
+          "absolute_path": "E:\\cast\\LanCast\\.cache\\refactor-windows-version.json",
+          "files": 1,
+          "bytes": 65,
+          "sha256": "b7ab3abd146a69b982cbda90fa22f1539bcf414007b32291e58ae301a05a3922"
+        },
+        {
+          "path": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast_refactor_patch.py",
+          "absolute_path": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast_refactor_patch.py",
+          "files": 1,
+          "bytes": 826,
+          "sha256": "ed0464a19e766fae8386b2c725d63d61a43161cb12bfc9af1b35cbe808748063"
+        },
+        {
+          "path": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast-core-events-contract.exe",
+          "absolute_path": "C:\\Users\\bridge\\AppData\\Local\\Temp\\lancast-core-events-contract.exe",
+          "files": 1,
+          "bytes": 163533,
+          "sha256": "01f07e6fdef8f9229c84e6a3df6da1904653033fc1494375a6211e538761fd7c"
+        }
+      ],
+      "removed_files": 13,
+      "removed_bytes": 406407
+    }
+  ],
+  "removed_bytes": 4050934099,
+  "removed_files": 5287,
+  "quarantine_directory": null,
+  "notes": [
+    "Only verified ignored generated output paths and this task's known logs were deleted.",
+    "Source, vendored dependencies and licenses, media fixtures and historical design/evidence were preserved.",
+    "Counts are logical file bytes, not physical filesystem allocation."
+  ],
+  "remaining_generated_candidates": [],
+  "all_selected_paths_removed": true
+}
