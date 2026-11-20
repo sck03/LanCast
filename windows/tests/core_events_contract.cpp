@@ -3,13 +3,14 @@
 #include <chrono>
 #include <cstring>
 #include <deque>
+#include <limits>
 
 namespace {
 void require(bool condition) { if (!condition) throw std::runtime_error("core event contract failed"); }
 std::mutex lock;
 std::condition_variable wake;
 std::deque<std::string> source;
-bool closed = false, fail_read = false;
+bool closed = false, invalid_buffer = false;
 unsigned consumed = 0;
 LancastBuffer pop() {
     if (source.empty()) return {};
@@ -31,7 +32,9 @@ MSG next(HWND window) {
 extern "C" LancastBuffer lancast_poll(LancastHandle) { std::lock_guard guard(lock); return pop(); }
 extern "C" LancastBuffer lancast_wait_poll(LancastHandle, uint32_t ms) {
     std::unique_lock guard(lock);
-    if (fail_read) throw std::runtime_error("synthetic native failure");
+    // C ABI calls do not throw; force the C++ string construction to reject an
+    // impossible native buffer length instead. /EHsc assumes extern C cannot throw.
+    if (invalid_buffer) return {new uint8_t[1], std::numeric_limits<size_t>::max()};
     wake.wait_for(guard, std::chrono::milliseconds(ms), [] { return closed || !source.empty(); });
     return pop();
 }
@@ -62,11 +65,12 @@ int main() {
     events.start(window, WM_APP, 8);
     // A worker blocked in native wait is also woken and joined by stop.
     events.stop();
-    { std::lock_guard guard(lock); closed = false; fail_read = true; }
+    { std::lock_guard guard(lock); closed = false; invalid_buffer = true; }
     events.start(window, WM_APP, 9);
     require(next(window).wParam == 9);
     const auto failure = events.take();
     require(failure.size() == 1 && failure.front().find("\"terminal\":true") != std::string::npos);
+    require(events.take().empty());
     events.stop();
     DestroyWindow(window);
 }
