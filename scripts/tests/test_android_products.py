@@ -115,7 +115,7 @@ class AndroidProductsTests(unittest.TestCase):
                 with self.subTest(product=product.key):
                     apk = Path(directory) / (product.key + ".apk")
                     make_apk(apk, product)
-                    manifest = "dev.lancast.airplay.AirPlayService" if product.airplay else ""
+                    manifest = "dev.lancast.airplay.AirPlayService android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" if product.airplay else ""
                     if product.role == "sender":
                         manifest += SENDER_MANIFEST
                     report = verify_apk(apk, product, CONFIG, metadata(product), manifest)
@@ -143,7 +143,7 @@ class AndroidProductsTests(unittest.TestCase):
             apk = Path(directory) / "sender.apk"
             make_apk(apk, sender)
             for missing in (".FileShareService", "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"):
-                with self.assertRaisesRegex(ValueError, "File service"):
+                with self.assertRaisesRegex(ValueError, "service"):
                     verify_apk(apk, sender, CONFIG, metadata(sender), SENDER_MANIFEST.replace(missing, ""))
 
     def test_extra_native_libraries_also_require_page_alignment(self):

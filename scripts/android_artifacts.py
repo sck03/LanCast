@@ -102,8 +102,8 @@ def verify_apk(apk, product, config, metadata, manifest):
             "Capture permission role mismatch")
     file_service = re.search(r'"(?:dev\.lancast\.sender)?\.FileShareService"', manifest) is not None
     require(file_service == (product.role == "sender"), "File service role mismatch")
-    require(("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" in manifest) == (product.role == "sender"),
-            "File service permission role mismatch")
+    require(("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" in manifest) == (product.role == "sender" or product.airplay),
+            "Connected-device service permission role mismatch")
     require("BOOT_COMPLETED" not in manifest, "Products must never start capture or AirPlay on boot")
     with zipfile.ZipFile(apk) as archive:
         names = archive.namelist()
