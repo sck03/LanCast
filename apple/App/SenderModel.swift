@@ -194,12 +194,12 @@ final class SenderModel: ObservableObject {
         stopCapture()
         let current = UUID(); generation = current
         let wantsAudio = ticket.audio
-        capture.video = { [weak self] in self?.sender.pushVideo($0) }
-        capture.audio = { [weak self] in self?.sender.pushAudio($0) }
         capture.failed = { [weak self] value in self?.stop(); self?.status = value }
         sender.readyForCapture = { [weak self] in
             Task { @MainActor in
                 guard let self, self.generation == current else { return }
+                let input = self.sender.captureInputs()
+                self.capture.video = input.video; self.capture.audio = input.audio
                 do { try await self.capture.start(source: source, audio: wantsAudio) }
                 catch {
                     guard self.generation == current else { return }

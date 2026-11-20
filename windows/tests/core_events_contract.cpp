@@ -9,7 +9,7 @@ void require(bool condition) { if (!condition) throw std::runtime_error("core ev
 std::mutex lock;
 std::condition_variable wake;
 std::deque<std::string> source;
-bool closed = false;
+bool closed = false, fail_read = false;
 unsigned consumed = 0;
 LancastBuffer pop() {
     if (source.empty()) return {};
@@ -31,6 +31,7 @@ MSG next(HWND window) {
 extern "C" LancastBuffer lancast_poll(LancastHandle) { std::lock_guard guard(lock); return pop(); }
 extern "C" LancastBuffer lancast_wait_poll(LancastHandle, uint32_t ms) {
     std::unique_lock guard(lock);
+    if (fail_read) throw std::runtime_error("synthetic native failure");
     wake.wait_for(guard, std::chrono::milliseconds(ms), [] { return closed || !source.empty(); });
     return pop();
 }
@@ -60,6 +61,12 @@ int main() {
     }
     events.start(window, WM_APP, 8);
     // A worker blocked in native wait is also woken and joined by stop.
+    events.stop();
+    { std::lock_guard guard(lock); closed = false; fail_read = true; }
+    events.start(window, WM_APP, 9);
+    require(next(window).wParam == 9);
+    const auto failure = events.take();
+    require(failure.size() == 1 && failure.front().find("\"terminal\":true") != std::string::npos);
     events.stop();
     DestroyWindow(window);
 }

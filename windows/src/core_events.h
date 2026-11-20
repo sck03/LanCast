@@ -3,7 +3,6 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
-#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -47,7 +46,8 @@ class CoreEvents {
     }
     std::vector<std::string> take() {
         std::lock_guard lock(mutex_);
-        if (failed_) throw std::runtime_error("CONTROL_EVENT_DELIVERY_FAILED");
+        if (failed_.exchange(false))
+            return {R"({"type":"error","body":{"code":"CONTROL_EVENT_DELIVERY_FAILED","terminal":true}})"};
         auto result = std::move(pending_);
         pending_.clear();
         delivered_.notify_one();

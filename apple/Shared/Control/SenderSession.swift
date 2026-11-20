@@ -85,6 +85,12 @@ final class SenderSession {
         default: break
         }
     }
+    // Capture callbacks retain the transport identity they were created for.
+    // A late frame from a retiring SCStream can never enter a replacement session.
+    func captureInputs() -> (video: (CMSampleBuffer) -> Void, audio: (CMSampleBuffer) -> Void) {
+        let active = rtc
+        return ({ [weak active] in active?.pushVideo($0) }, { [weak active] in active?.pushAudio($0) })
+    }
     func pushVideo(_ sample: CMSampleBuffer, rotation: LKRTCVideoRotation = ._0) { rtc?.pushVideo(sample, rotation: rotation) }
     func pushAudio(_ sample: CMSampleBuffer) { rtc?.pushAudio(sample) }
     func playback(_ action: String, positionMs: Int = 0, volume: Double = 1) {
