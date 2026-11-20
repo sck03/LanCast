@@ -6,7 +6,13 @@ import LanCastContracts
 /// Owned by either the Mac application or the broadcast extension, never both.
 final class SenderSession {
     private(set) var core: CoreSession?
-    private var rtc: RtcSession?
+    private let mediaLock = NSLock()
+    private var mediaSession: RtcSession?
+    private var rtc: RtcSession? {
+        get { mediaLock.lock(); defer { mediaLock.unlock() }; return mediaSession }
+        set { mediaLock.lock(); mediaSession = newValue; mediaLock.unlock() }
+    }
+    private(set) var fileReady = false
     private var gate = SessionGate()
     private var ticket: BroadcastTicket?
     private var media: JSONObject?
@@ -35,7 +41,7 @@ final class SenderSession {
     }
     private func begin(_ mode: String) {
         let request = UUID().uuidString; gate.begin(request: request)
-        core?.send("session.start", session: nil, body: ["mode": mode, "audioRequested": ticket?.audio ?? true, "rtcRecovery": "replace-v1"], id: request)
+        core?.send("session.start", session: nil, body: ["mode": mode, "rtcRecovery": "replace-v1"], id: request)
     }
     private func event(_ event: JSONObject) {
         let body = event.object("body")
@@ -47,8 +53,7 @@ final class SenderSession {
             if body.string("type") == "session.accepted" {
                 guard gate.accept(reply: body.string("replyTo"), session: body.string("sessionId")) else { return }
                 if let media, !media.isEmpty {
-                    var load = media; load["mediaId"] = UUID().uuidString; load["durationMs"] = NSNull()
-                    core?.send("file.load", session: gate.session, body: load)
+                    core?.send("file.load", session: gate.session, body: media)
                 } else {
                     let generation = gate.generation
                     let rtc = RtcSession(sending: true, audio: ticket?.audio ?? false, signal: { [weak self] type, data in
@@ -70,10 +75,11 @@ final class SenderSession {
                 case "rtc.ice": rtc?.ice(data)
                 case "rtc.restart": rtc?.restart(previous: data.string("negotiationId"))
                 case "session.stop": terminate(data.string("reason") == "RTC_RECOVERY_EXHAUSTED" ? "媒体恢复超时，请重新分享" : "接收端已停止")
-                case "session.state": status(data.string("state") == "ready" ? "接收端正在播放" : data.string("state"))
+                case "session.state": fileReady = sharingFile && data.string("state") == "ready"; status(data.string("state") == "ready" ? "接收端正在播放" : data.string("state"))
                 default: break
                 }
             }
+        case "command.rejected": status(body.string("code"))
         case "error": terminate(body["terminal"] as? Bool == true ? "控制服务已停止，分享已结束，请重新连接接收端" : body.string("code"))
         case "disconnected": terminate("控制连接已断开，请重新授权分享")
         default: break
@@ -82,13 +88,14 @@ final class SenderSession {
     func pushVideo(_ sample: CMSampleBuffer, rotation: LKRTCVideoRotation = ._0) { rtc?.pushVideo(sample, rotation: rotation) }
     func pushAudio(_ sample: CMSampleBuffer) { rtc?.pushAudio(sample) }
     func playback(_ action: String, positionMs: Int = 0, volume: Double = 1) {
+        guard fileReady else { status("等待接收端播放就绪"); return }
         core?.send("playback.command", session: gate.session, body: ["action": action, "positionMs": max(0, positionMs), "value": min(1, max(0, volume))])
     }
     private func terminate(_ value: String) { stop(); status(value); ended() }
     func stop() {
         // Closing the authenticated connection revokes its remote session, including pending starts.
         gate.stop(); rtc?.close(); rtc = nil; core?.close(); core = nil
-        connected = false; connecting = false; ticket = nil; media = nil; sharingFile = false
+        connected = false; connecting = false; ticket = nil; media = nil; sharingFile = false; fileReady = false
         retainedFile?.stopAccessingSecurityScopedResource(); retainedFile = nil
     }
     deinit { stop() }

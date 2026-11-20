@@ -6,6 +6,11 @@ final class MacCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     struct Source: Identifiable { let id: String; let name: String; let filter: SCContentFilter }
     private var stream: SCStream?
     private var generation = UUID()
+    private let outputQueue = DispatchQueue(label: "dev.lancast.capture", qos: .userInitiated)
+    // These fields are accessed exclusively on outputQueue.
+    private var outputStream: SCStream?
+    private var videoSink: (CMSampleBuffer) -> Void = { _ in }
+    private var audioSink: (CMSampleBuffer) -> Void = { _ in }
     var video: (CMSampleBuffer) -> Void = { _ in }
     var audio: (CMSampleBuffer) -> Void = { _ in }
     var failed: (String) -> Void = { _ in }
@@ -18,31 +23,37 @@ final class MacCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     }
     @MainActor func start(source: Source, audio: Bool) async throws {
         let current = UUID(); generation = current
-        let previous = stream; stream = nil; try? await previous?.stopCapture()
+        let previous = stream; stream = nil
+        outputQueue.sync { outputStream = nil }
+        try? await previous?.stopCapture()
         guard generation == current else { return }
         let config = try MacCaptureConfiguration.make(contentRect: source.filter.contentRect,
             pointPixelScale: source.filter.pointPixelScale, audio: audio)
         let stream = SCStream(filter: source.filter, configuration: config, delegate: self); self.stream = stream
+        let video = self.video, audioSink = self.audio
+        outputQueue.sync { self.outputStream = stream; self.videoSink = video; self.audioSink = audioSink }
         do {
-            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
-            if audio { try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: .main) }
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: outputQueue)
+            if audio { try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: outputQueue) }
             try await stream.startCapture()
         }
-        catch { if generation == current { self.stream = nil }; throw error }
+        catch { if generation == current { self.stream = nil; outputQueue.sync { outputStream = nil } }; throw error }
         if generation != current { try? await stream.stopCapture() }
     }
     @MainActor func stop() async {
-        generation = UUID(); let old = stream; stream = nil; try? await old?.stopCapture()
+        generation = UUID(); let old = stream; stream = nil
+        outputQueue.sync { outputStream = nil; videoSink = { _ in }; audioSink = { _ in } }
+        try? await old?.stopCapture()
     }
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard stream === self.stream, CMSampleBufferIsValid(sampleBuffer) else { return }
+        guard stream === outputStream, CMSampleBufferIsValid(sampleBuffer) else { return }
         if type == .screen {
             guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
                   let raw = attachments.first?[.status] as? Int, raw == SCFrameStatus.complete.rawValue else { return }
-            video(sampleBuffer)
-        } else if type == .audio { audio(sampleBuffer) }
+            videoSink(sampleBuffer)
+        } else if type == .audio { audioSink(sampleBuffer) }
     }
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        DispatchQueue.main.async { [weak self] in guard let self, self.stream === stream else { return }; self.stream = nil; self.failed(error.localizedDescription) }
+        DispatchQueue.main.async { [weak self] in guard let self, self.stream === stream else { return }; self.stream = nil; self.outputQueue.sync { self.outputStream = nil }; self.failed(error.localizedDescription) }
     }
 }

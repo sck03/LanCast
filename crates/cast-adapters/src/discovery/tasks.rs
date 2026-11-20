@@ -1,15 +1,14 @@
 //! Search ownership and result delivery; protocol I/O stays in discovery.
-use super::{scan_dlna, scan_lancast};
-use crate::{
-    dlna::Renderer,
-    events::{Events, event},
-};
+#[cfg(feature = "dlna")]
+use super::scan_dlna;
+use super::scan_lancast;
+#[cfg(feature = "dlna")]
+use crate::dlna::Renderer;
+use crate::events::{Events, event};
 use serde_json::json;
-use std::{
-    collections::HashMap,
-    future::{Future, pending},
-    net::Ipv4Addr,
-};
+use std::future::Future;
+#[cfg(feature = "dlna")]
+use std::{collections::HashMap, future::pending, net::Ipv4Addr};
 use tokio::task::JoinHandle;
 
 /// Replacing or stopping a search joins cancellation. Dropping its owner aborts it.
@@ -54,12 +53,14 @@ impl<T> Drop for ScanTask<T> {
     }
 }
 
+#[cfg(feature = "dlna")]
 #[derive(Default)]
 pub(crate) struct DlnaDiscovery {
     scan: ScanTask<anyhow::Result<Vec<Renderer>>>,
     generation: u64,
     devices: HashMap<String, Renderer>,
 }
+#[cfg(feature = "dlna")]
 impl DlnaDiscovery {
     pub async fn start(&mut self, interface: Ipv4Addr, generation: u64) {
         self.replace(generation, scan_dlna(interface)).await;
@@ -99,7 +100,7 @@ impl DlnaDiscovery {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "dlna"))]
 mod tests {
     use super::*;
     use futures_util::FutureExt;

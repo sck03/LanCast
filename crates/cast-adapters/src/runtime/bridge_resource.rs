@@ -1,5 +1,5 @@
 //! A receiver's loopback file resource shares its engine, but owns its cancellation.
-use crate::legacy_bridge::Bridge;
+use crate::file_proxy::Bridge;
 use std::{sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 

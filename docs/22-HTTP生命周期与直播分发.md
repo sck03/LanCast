@@ -23,7 +23,7 @@
 | [live](../crates/cast-adapters/src/live.rs) | 资源撤销、TS入口、私有订阅、容量/时间限制和分发 | `Subscription`拥有接收通道、起播门控和取消；仅编码后的TS进入此模块 |
 | [live_session](../crates/cast-adapters/src/live_session.rs) | DLNA起播、状态监控、一次恢复及有界停止 | 私有monitor独立等待拉流进展、状态查询和Probe截止；不新增后台任务，不依赖UI |
 | [ts](../crates/cast-adapters/src/ts.rs) | TS校验、PAT/PMT及实际SPS/PPS/IDR起播解析 | 不拥有网络任务或平台采集资源 |
-| [media_http](../crates/cast-adapters/src/media_http.rs) / [legacy_bridge](../crates/cast-adapters/src/legacy_bridge.rs) | 文件Range/HEAD与固定HTTPS上游桥 | 共用连接生命周期，各自保留授权和响应策略 |
+| [media_http](../crates/cast-adapters/src/media_http.rs) / [file_proxy](../crates/cast-adapters/src/file_proxy.rs) | 文件Range/HEAD与固定HTTPS上游桥 | 共用连接生命周期，各自保留授权和响应策略 |
 
 服务端生命周期调整不新增crate或运行依赖；D44客户端依赖变化见05。后续增加HTTP资源时，复用服务的任务所有权与请求取消令牌，资源自身处理授权、数据策略和撤销；不能在平台UI重新实现网络停止流程。正常`serve`返回是连接任务回收屏障；外部强制中止只发出子任务中止，调用方若需要确定完成应走资源撤销并等待监听退出。D22由Runtime独立持有资源任务，撤销后等待回收才交付stopped，文件顺序读取与取消位置提示合同见[26](26-截止与资源退出维护.md)。
 
@@ -45,7 +45,7 @@ DLNA和媒体桥共用`http_client`：禁用代理、自动重定向与库内自
 
 保留Hyper默认的100个响应头上限及栈上解析缓冲，101个头拒绝；不使用会为每个响应增加堆分配的自定义数量设置。公开证书路径拒绝自签名媒体身份，媒体桥仅接受配对指纹；已有Range、HEAD、错误指纹和撤销回归继续执行。重试由业务层负责：只读SOAP查询最多再执行一次，播放、停止、跳转等动作不自动重试。
 
-新模块集中连接政策，`auth`继续拥有配对指纹验证，`dlna`保留SOAP/总期限，`legacy_bridge`保留媒体流和资源撤销。没有新增后台任务、周期轮询或旧应用协议回退。上游计时器复用与空闲池预算是可核对的资源路径变化；本轮未测量真实投屏CPU、RSS、延迟或长稳性能。
+新模块集中连接政策，`auth`继续拥有配对指纹验证，`dlna`保留SOAP/总期限，`file_proxy`保留媒体流和资源撤销。没有新增后台任务、周期轮询或旧应用协议回退。上游计时器复用与空闲池预算是可核对的资源路径变化；本轮未测量真实投屏CPU、RSS、延迟或长稳性能。
 
 ## 分发与预算
 
@@ -129,7 +129,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-features --locked
 cargo check -p cast-ffi --no-default-features --locked
-cargo check -p cast-ffi --no-default-features --features legacy --locked
+cargo check -p cast-ffi --no-default-features --features file-proxy --locked
 python scripts/check-architecture.py
 python -m unittest discover -s scripts/tests
 ```

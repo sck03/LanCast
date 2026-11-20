@@ -1,7 +1,7 @@
-#![cfg(feature = "legacy")]
+#![cfg(all(feature = "file-proxy", feature = "file-sender"))]
 use cast_adapters::{
     auth::Identity,
-    legacy_bridge::Bridge,
+    file_proxy::Bridge,
     media_http::{Resource, bind_resource},
 };
 use std::{io::Write, sync::Arc, time::Duration};

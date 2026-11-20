@@ -38,57 +38,78 @@ Encoder::Encoder(ID3D11Device *device, const CaptureConfig &c, PacketSink sink)
     : sink_(std::move(sink)), kind_(Codec::H264), fps_(c.fps), bitrate_(c.bitrate) {
     MFT_REGISTER_TYPE_INFO in{MFMediaType_Video, MFVideoFormat_NV12},
         out{MFMediaType_Video, MFVideoFormat_H264};
-    IMFActivate **activations = nullptr;
-    UINT32 count = 0;
-    check(MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
-                    MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, &in, &out, &activations,
-                    &count),
-          "H264_ENUM_FAILED");
-    HRESULT selected = E_FAIL;
-    for (UINT32 i = 0; i < count; ++i) {
-        if (!transform_)
-            selected = activations[i]->ActivateObject(IID_PPV_ARGS(&transform_));
-        activations[i]->Release();
+    ComPtr<IDXGIDevice> dxgi;
+    ComPtr<IDXGIAdapter> adapter;
+    DXGI_ADAPTER_DESC description{};
+    check(device->QueryInterface(IID_PPV_ARGS(&dxgi)), "GPU_ADAPTER_FAILED");
+    check(dxgi->GetAdapter(&adapter), "GPU_ADAPTER_FAILED");
+    check(adapter->GetDesc(&description), "GPU_ADAPTER_FAILED");
+    ComPtr<IMFAttributes> filter;
+    check(MFCreateAttributes(&filter, 1), "ENCODER_FILTER_FAILED");
+    check(filter->SetBlob(MFT_ENUM_ADAPTER_LUID,
+                          reinterpret_cast<const UINT8 *>(&description.AdapterLuid), sizeof(LUID)),
+          "ENCODER_ADAPTER_FAILED");
+    struct Activations {
+        IMFActivate **items = nullptr;
+        UINT32 count = 0;
+        ~Activations() {
+            for (UINT32 i = 0; i < count; ++i) items[i]->Release();
+            CoTaskMemFree(items);
+        }
+    } candidates;
+    check(MFTEnum2(MFT_CATEGORY_VIDEO_ENCODER,
+                  MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, &in, &out,
+                  filter.Get(), &candidates.items, &candidates.count), "H264_ENUM_FAILED");
+    std::string failure = "H264_HARDWARE_UNAVAILABLE";
+    for (UINT32 i = 0; i < candidates.count; ++i) {
+        try {
+            check(candidates.items[i]->ActivateObject(IID_PPV_ARGS(&transform_)), "H264_ACTIVATE_FAILED");
+            ComPtr<IMFAttributes> attributes;
+            check(transform_->GetAttributes(&attributes), "MFT_ATTRIBUTES_FAILED");
+            UINT32 async = 0;
+            attributes->GetUINT32(MF_TRANSFORM_ASYNC, &async);
+            asynchronous_ = async != 0;
+            if (asynchronous_) {
+                check(attributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, TRUE), "MFT_ASYNC_FAILED");
+                check(transform_.As(&events_), "MFT_EVENTS_FAILED");
+            }
+            UINT32 aware = 0;
+            attributes->GetUINT32(MF_SA_D3D11_AWARE, &aware);
+            if (!aware)
+                throw std::runtime_error("H264_GPU_INPUT_UNAVAILABLE");
+            UINT token = 0;
+            check(MFCreateDXGIDeviceManager(&token, &manager_), "GPU_MANAGER_FAILED");
+            check(manager_->ResetDevice(device, token), "GPU_DEVICE_FAILED");
+            check(transform_->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER,
+                                             reinterpret_cast<ULONG_PTR>(manager_.Get())),
+                  "GPU_ENCODER_FAILED");
+            transform_.As(&codec_);
+            configure_codec(CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_CBR);
+            configure_codec(CODECAPI_AVEncCommonMeanBitRate, c.bitrate);
+            configure_codec(CODECAPI_AVEncMPVGOPSize, c.fps);
+            configure_codec(CODECAPI_AVEncMPVDefaultBPictureCount, 0);
+            if (codec_) {
+                VARIANT v;
+                VariantInit(&v);
+                v.vt = VT_BOOL;
+                v.boolVal = VARIANT_TRUE;
+                codec_->SetValue(&CODECAPI_AVLowLatencyMode, &v);
+            }
+            auto output = video_type(MFVideoFormat_H264, c), input = video_type(MFVideoFormat_NV12, c);
+            check(transform_->SetOutputType(0, output.Get(), 0), "H264_OUTPUT_FAILED");
+            check(transform_->SetInputType(0, input.Get(), 0), "H264_INPUT_FAILED");
+            check(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0), "H264_BEGIN_FAILED");
+            check(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0), "H264_START_FAILED");
+            return;
+        } catch (const std::exception &error) {
+            failure = error.what();
+            candidates.items[i]->ShutdownObject();
+            codec_.Reset(); events_.Reset(); transform_.Reset(); manager_.Reset();
+            asynchronous_ = false;
+        }
     }
-    CoTaskMemFree(activations);
-    if (!transform_)
-        check(FAILED(selected) ? selected : E_FAIL, "H264_HARDWARE_UNAVAILABLE");
-    ComPtr<IMFAttributes> attributes;
-    check(transform_->GetAttributes(&attributes), "MFT_ATTRIBUTES_FAILED");
-    UINT32 async = 0;
-    attributes->GetUINT32(MF_TRANSFORM_ASYNC, &async);
-    asynchronous_ = async != 0;
-    if (asynchronous_) {
-        check(attributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, TRUE), "MFT_ASYNC_FAILED");
-        check(transform_.As(&events_), "MFT_EVENTS_FAILED");
-    }
-    UINT32 aware = 0;
-    attributes->GetUINT32(MF_SA_D3D11_AWARE, &aware);
-    if (!aware)
-        throw std::runtime_error("H264_GPU_INPUT_UNAVAILABLE");
-    UINT token = 0;
-    check(MFCreateDXGIDeviceManager(&token, &manager_), "GPU_MANAGER_FAILED");
-    check(manager_->ResetDevice(device, token), "GPU_DEVICE_FAILED");
-    check(transform_->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER,
-                                     reinterpret_cast<ULONG_PTR>(manager_.Get())),
-          "GPU_ENCODER_FAILED");
-    transform_.As(&codec_);
-    configure_codec(CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_CBR);
-    configure_codec(CODECAPI_AVEncCommonMeanBitRate, c.bitrate);
-    configure_codec(CODECAPI_AVEncMPVGOPSize, c.fps);
-    configure_codec(CODECAPI_AVEncMPVDefaultBPictureCount, 0);
-    if (codec_) {
-        VARIANT v;
-        VariantInit(&v);
-        v.vt = VT_BOOL;
-        v.boolVal = VARIANT_TRUE;
-        codec_->SetValue(&CODECAPI_AVLowLatencyMode, &v);
-    }
-    auto output = video_type(MFVideoFormat_H264, c), input = video_type(MFVideoFormat_NV12, c);
-    check(transform_->SetOutputType(0, output.Get(), 0), "H264_OUTPUT_FAILED");
-    check(transform_->SetInputType(0, input.Get(), 0), "H264_INPUT_FAILED");
-    check(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0), "H264_BEGIN_FAILED");
-    check(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0), "H264_START_FAILED");
+    throw std::runtime_error(failure);
+
 }
 Encoder::Encoder(PacketSink sink) : sink_(std::move(sink)), kind_(Codec::Aac) {
     check(CoCreateInstance(CLSID_AACMFTEncoder, nullptr, CLSCTX_INPROC_SERVER,

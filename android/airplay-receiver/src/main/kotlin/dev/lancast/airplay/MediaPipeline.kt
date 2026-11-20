@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.*
 import android.os.Build
 import android.view.Surface
+import dev.lancast.receiver.contracts.DecoderInput
 import dev.lancast.receiver.contracts.MediaQueue
 import dev.lancast.receiver.contracts.WorkerCompletion
 import java.nio.ByteBuffer
@@ -71,10 +72,11 @@ internal class MediaPipeline(
     private fun videoLoop() {
         var codec: MediaCodec? = null
         var needKey = true
+        val inputState = DecoderInput<VideoWork.Frame>(500_000_000)
         val info = MediaCodec.BufferInfo()
         try {
             while (running.get()) {
-                val item = if (codec == null) videoQueue.take() else videoQueue.poll(DECODER_POLL_MS)
+                val item = inputState.pending ?: if (codec == null) videoQueue.take() else videoQueue.poll(DECODER_POLL_MS)
                 if (!running.get()) break
                 when (item) {
                     is VideoWork.Format -> {
@@ -99,12 +101,16 @@ internal class MediaPipeline(
                         val active = codec ?: continue
                         if (needKey && !item.key) continue
                         needKey = false
+                        inputState.checkDeadline(System.nanoTime())
                         val input = active.dequeueInputBuffer(10_000)
-                        if (input < 0) throw IllegalStateException("视频解码器处理不及时")
-                        val buffer = active.getInputBuffer(input)!!
-                        require(item.data.size <= buffer.capacity()) { "视频帧超过解码器容量" }
-                        buffer.clear(); buffer.put(item.data)
-                        active.queueInputBuffer(input, 0, item.data.size, item.pts, 0)
+                        if (input < 0) inputState.defer(item, System.nanoTime())
+                        else {
+                            val buffer = active.getInputBuffer(input)!!
+                            require(item.data.size <= buffer.capacity()) { "视频帧超过解码器容量" }
+                            buffer.clear(); buffer.put(item.data)
+                            active.queueInputBuffer(input, 0, item.data.size, item.pts, 0)
+                            inputState.accepted()
+                        }
                     }
                     null -> Unit
                 }
@@ -131,6 +137,7 @@ internal class MediaPipeline(
         var codec: MediaCodec? = null
         var track: AudioTrack? = null
         var format: AudioWork.Format? = null
+        val inputState = DecoderInput<AudioWork.Frame>(500_000_000)
         var focus: AudioFocusRequest? = null
         var hasFocus = false
         val focusListener = AudioManager.OnAudioFocusChangeListener { if (it == AudioManager.AUDIOFOCUS_LOSS || it == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) error("声音播放被其他应用中断") }
@@ -168,16 +175,20 @@ internal class MediaPipeline(
                 while (running.get() && System.nanoTime() / 1000 < writeAt) Thread.sleep(2)
             } else waitUntil(pts)
             val initial = bytes.remaining()
+            var progressDeadline = System.nanoTime() + 500_000_000
             while (running.get() && bytes.hasRemaining()) {
                 val n = active.write(bytes, bytes.remaining(), AudioTrack.WRITE_NON_BLOCKING)
                 if (n < 0) throw IllegalStateException("声音输出失败")
-                if (n == 0) Thread.sleep(2)
+                if (n == 0) {
+                    check(System.nanoTime() < progressDeadline) { "声音输出持续拥塞" }
+                    Thread.sleep(2)
+                } else progressDeadline = System.nanoTime() + 500_000_000
             }
             writtenFrames += (initial - bytes.remaining()) / (2 * outputChannels)
         }
         try {
             while (running.get()) {
-                val item = if (codec == null) audioQueue.take() else audioQueue.poll(DECODER_POLL_MS)
+                val item = inputState.pending ?: if (codec == null) audioQueue.take() else audioQueue.poll(DECODER_POLL_MS)
                 if (!running.get()) break
                 when (item) {
                     is AudioWork.Format -> {
@@ -204,10 +215,14 @@ internal class MediaPipeline(
                         if (format?.codec == 3) writePcm(ByteBuffer.wrap(item.data), item.pts)
                         else {
                             val active = codec ?: continue
+                            inputState.checkDeadline(System.nanoTime())
                             val input = active.dequeueInputBuffer(10_000)
-                            if (input < 0) throw IllegalStateException("声音解码器处理不及时")
-                            val buffer = active.getInputBuffer(input)!!; require(item.data.size <= buffer.capacity())
-                            buffer.clear(); buffer.put(item.data); active.queueInputBuffer(input, 0, item.data.size, item.pts, 0)
+                            if (input < 0) inputState.defer(item, System.nanoTime())
+                            else {
+                                val buffer = active.getInputBuffer(input)!!; require(item.data.size <= buffer.capacity())
+                                buffer.clear(); buffer.put(item.data); active.queueInputBuffer(input, 0, item.data.size, item.pts, 0)
+                                inputState.accepted()
+                            }
                         }
                     }
                     null -> Unit

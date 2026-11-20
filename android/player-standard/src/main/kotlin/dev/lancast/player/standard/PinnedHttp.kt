@@ -1,4 +1,4 @@
-package dev.lancast.control
+package dev.lancast.player.standard
 
 import okhttp3.OkHttpClient
 import java.security.MessageDigest

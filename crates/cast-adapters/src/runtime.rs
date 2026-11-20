@@ -1,11 +1,16 @@
+#[cfg(feature = "dlna")]
+use crate::dlna;
 use crate::{
     auth::Identity,
-    blocking_io::BlockingIo,
     control::{Client, Server},
-    discovery, dlna,
+    discovery,
     events::{self, EventInbox, Events, event},
-    media_http::{self, Resource},
     protocol::Message,
+};
+#[cfg(feature = "file-sender")]
+use crate::{
+    blocking_io::BlockingIo,
+    media_http::{self, Resource},
 };
 use anyhow::{Context, ensure};
 use serde_json::{Value, json};
@@ -18,10 +23,10 @@ use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-#[cfg(feature = "legacy")]
+#[cfg(feature = "file-proxy")]
 mod bridge_resource;
 mod command_context;
-#[cfg(feature = "sender")]
+#[cfg(feature = "dlna-live")]
 mod live_commands;
 
 fn string<'a>(v: &'a Value, key: &str) -> anyhow::Result<&'a str> {
@@ -33,25 +38,12 @@ struct QueuedCommand {
     generation: u64,
 }
 impl QueuedCommand {
-    fn new(value: Value) -> anyhow::Result<Self> {
-        #[cfg(unix)]
-        let file = if value["op"] == "file.share" && value["path"].is_null() {
-            use std::os::fd::FromRawFd;
-            let fd = value["fd"].as_i64().context("FILE_REQUIRED")?;
-            ensure!(fd >= 0 && fd <= i32::MAX as i64, "INVALID_FD");
-            // Native caller transfers a valid detached descriptor. Queue rejection,
-            // cancellation and shutdown now close it through ordinary RAII.
-            Some(unsafe { std::fs::File::from_raw_fd(fd as i32) })
-        } else {
-            None
-        };
-        #[cfg(not(unix))]
-        let file = None;
-        Ok(Self {
+    fn new(value: Value) -> Self {
+        Self {
             value,
-            file,
+            file: None,
             generation: 0,
-        })
+        }
     }
     fn stop() -> Self {
         Self {
@@ -68,7 +60,7 @@ pub struct Engine {
     shutdown: CancellationToken,
     stop: Arc<tokio::sync::Notify>,
     generation: Arc<std::sync::atomic::AtomicU64>,
-    #[cfg(feature = "sender")]
+    #[cfg(feature = "dlna-live")]
     live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
 }
 impl Engine {
@@ -82,9 +74,9 @@ impl Engine {
         let stop_worker = stop.clone();
         let generation = Arc::new(std::sync::atomic::AtomicU64::new(0));
         let worker_generation = generation.clone();
-        #[cfg(feature = "sender")]
+        #[cfg(feature = "dlna-live")]
         let live = Arc::new(StdMutex::new(None));
-        #[cfg(feature = "sender")]
+        #[cfg(feature = "dlna-live")]
         let live_worker = live.clone();
         let thread = std::thread::Builder::new()
             .name("lancast-control".into())
@@ -121,30 +113,35 @@ impl Engine {
                         server: None,
                         client: None,
                         tasks: Vec::new(),
+                        #[cfg(feature = "file-sender")]
                         resource_tasks: Vec::new(),
                         generation: worker_generation.clone(),
+                        #[cfg(feature = "file-sender")]
                         io: BlockingIo::new(worker_generation.clone(), shutdown_worker.clone()),
                         scan: discovery::ScanTask::default(),
+                        #[cfg(feature = "file-sender")]
                         resources: Vec::new(),
+                        #[cfg(feature = "dlna")]
                         dlna_discovery: discovery::DlnaDiscovery::default(),
+                        #[cfg(feature = "dlna")]
                         dlna_playing: None,
                         events: events.clone(),
-                        #[cfg(feature = "legacy")]
+                        #[cfg(feature = "file-proxy")]
                         bridge: bridge_resource::BridgeResource::default(),
-                        #[cfg(feature = "sender")]
+                        #[cfg(feature = "dlna-live")]
                         live: live_worker,
-                        #[cfg(feature = "sender")]
+                        #[cfg(feature = "dlna-live")]
                         profiles: None,
-                        #[cfg(feature = "sender")]
+                        #[cfg(feature = "dlna-live")]
                         live_context: None,
-                        #[cfg(feature = "sender")]
+                        #[cfg(feature = "dlna-live")]
                         live_task: None,
                     };
                     loop {
                         let command = tokio::select! { biased;
                             _ = shutdown_worker.cancelled() => break,
                             _ = stop_worker.notified() => Some(QueuedCommand::stop()),
-                            _ = state.dlna_discovery.complete(&events) => continue,
+                            _ = state.complete_discovery(&events) => continue,
                             c = receiver.recv() => c,
                         };
                         let Some(command) = command else {
@@ -186,6 +183,7 @@ impl Engine {
                             _ => {}
                         }
                         state.tasks.retain(|task| !task.is_finished());
+                        #[cfg(feature = "file-sender")]
                         state.resource_tasks.retain(|task| !task.is_finished());
                     }
                     let _ = state
@@ -195,12 +193,14 @@ impl Engine {
                             worker_generation.load(std::sync::atomic::Ordering::Acquire),
                         )
                         .await;
+                    #[cfg(feature = "file-sender")]
                     for resource in state.resources {
                         resource.revoke();
                     }
                     for task in state.tasks {
                         task.abort();
                     }
+                    #[cfg(feature = "file-sender")]
                     for task in state.resource_tasks {
                         task.abort();
                     }
@@ -215,12 +215,20 @@ impl Engine {
             shutdown,
             stop,
             generation,
-            #[cfg(feature = "sender")]
+            #[cfg(feature = "dlna-live")]
             live,
         })
     }
     pub fn command(&self, value: Value) -> anyhow::Result<()> {
-        let mut command = QueuedCommand::new(value)?;
+        self.enqueue(QueuedCommand::new(value))
+    }
+    pub fn share_file(&self, value: Value, file: std::fs::File) -> anyhow::Result<()> {
+        ensure!(value["op"] == "file.share", "INVALID_FILE_COMMAND");
+        let mut command = QueuedCommand::new(value);
+        command.file = Some(file);
+        self.enqueue(command)
+    }
+    fn enqueue(&self, mut command: QueuedCommand) -> anyhow::Result<()> {
         ensure!(!self.shutdown.is_cancelled(), "ENGINE_CLOSED");
         if command.value["op"] == "stop" {
             self.generation
@@ -255,7 +263,7 @@ impl Engine {
         self.shutdown.cancel();
         self.events.wake();
     }
-    #[cfg(feature = "sender")]
+    #[cfg(feature = "dlna-live")]
     pub fn write_ts(&self, data: &[u8]) -> anyhow::Result<()> {
         let live = self
             .live
@@ -271,26 +279,31 @@ struct Runtime {
     server: Option<Arc<Server>>,
     client: Option<Client>,
     tasks: Vec<JoinHandle<()>>,
+    #[cfg(feature = "file-sender")]
     resource_tasks: Vec<JoinHandle<()>>,
     generation: Arc<std::sync::atomic::AtomicU64>,
+    #[cfg(feature = "file-sender")]
     io: BlockingIo,
     scan: discovery::ScanTask,
+    #[cfg(feature = "file-sender")]
     resources: Vec<Arc<Resource>>,
+    #[cfg(feature = "dlna")]
     dlna_discovery: discovery::DlnaDiscovery,
+    #[cfg(feature = "dlna")]
     dlna_playing: Option<(dlna::Controller, String)>,
     events: Events,
-    #[cfg(feature = "legacy")]
+    #[cfg(feature = "file-proxy")]
     bridge: bridge_resource::BridgeResource,
-    #[cfg(feature = "sender")]
+    #[cfg(feature = "dlna-live")]
     live: Arc<StdMutex<Option<Arc<crate::live::LiveResource>>>>,
-    #[cfg(feature = "sender")]
+    #[cfg(feature = "dlna-live")]
     profiles: Option<Arc<StdMutex<crate::profiles::ProfileStore>>>,
-    #[cfg(feature = "sender")]
+    #[cfg(feature = "dlna-live")]
     live_context: Option<LiveContext>,
-    #[cfg(feature = "sender")]
+    #[cfg(feature = "dlna-live")]
     live_task: Option<JoinHandle<()>>,
 }
-#[cfg(feature = "sender")]
+#[cfg(feature = "dlna-live")]
 struct LiveContext {
     device: dlna::Renderer,
     profile: String,
@@ -299,6 +312,15 @@ struct LiveContext {
     generation: u64,
 }
 impl Runtime {
+    async fn complete_discovery(&mut self, events: &Events) {
+        #[cfg(feature = "dlna")]
+        self.dlna_discovery.complete(events).await;
+        #[cfg(not(feature = "dlna"))]
+        {
+            let _ = events;
+            std::future::pending::<()>().await;
+        }
+    }
     async fn command(
         &mut self,
         mut c: Value,
@@ -310,6 +332,8 @@ impl Runtime {
         {
             return Ok(());
         }
+        #[cfg(not(feature = "file-sender"))]
+        let _ = granted_file;
         match string(&c, "op")? {
             "listen" => {
                 ensure!(self.server.is_none(), "ALREADY_LISTENING");
@@ -403,14 +427,15 @@ impl Runtime {
             }
             "stop" => {
                 self.scan.stop().await;
+                #[cfg(feature = "dlna")]
                 self.dlna_discovery.stop().await;
-                #[cfg(feature = "legacy")]
+                #[cfg(feature = "file-proxy")]
                 self.bridge.close(None).await;
-                #[cfg(feature = "sender")]
+                #[cfg(feature = "dlna-live")]
                 if let Some(live) = self.live.lock().unwrap().take() {
                     live.revoke();
                 }
-                #[cfg(feature = "sender")]
+                #[cfg(feature = "dlna-live")]
                 {
                     self.live_context = None;
                     if let Some(task) = self.live_task.take() {
@@ -421,9 +446,11 @@ impl Runtime {
                     client.close().await;
                 }
                 self.client = None;
+                #[cfg(feature = "file-sender")]
                 for resource in self.resources.drain(..) {
                     resource.revoke();
                 }
+                #[cfg(feature = "file-sender")]
                 for mut task in self.resource_tasks.drain(..) {
                     if tokio::time::timeout(Duration::from_secs(2), &mut task)
                         .await
@@ -433,6 +460,7 @@ impl Runtime {
                         let _ = task.await;
                     }
                 }
+                #[cfg(feature = "dlna")]
                 if let Some((controller, url)) = self.dlna_playing.take() {
                     let _ = tokio::time::timeout(Duration::from_secs(2), async {
                         if controller.current_uri().await? == url {
@@ -447,16 +475,16 @@ impl Runtime {
                 }
                 event(&self.events, "stopped", json!({}));
             }
+            #[cfg(feature = "dlna")]
             "dlna.scan" => {
-                ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let generation = c["scanGeneration"]
                     .as_u64()
                     .context("SCAN_GENERATION_REQUIRED")?;
                 let interface = string(&c, "interface")?.parse()?;
                 self.dlna_discovery.start(interface, generation).await;
             }
+            #[cfg(feature = "file-sender")]
             "file.share" => {
-                ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 ensure!(self.resources.is_empty(), "STOP_CURRENT_FILE_FIRST");
                 let allowed_ip: IpAddr = string(&c, "allowedIp")?.parse()?;
                 let path = c["path"].as_str().map(str::to_owned);
@@ -500,8 +528,8 @@ impl Runtime {
                 self.resources.push(resource);
                 self.resource_tasks.push(task);
             }
+            #[cfg(feature = "dlna")]
             "dlna.load" | "dlna.command" => {
-                ensure!(cfg!(feature = "sender"), "BACKEND_NOT_BUILT");
                 let device_id = string(&c, "deviceId")?;
                 let controller = if let Some((controller, _)) = &self.dlna_playing
                     && controller.device.id == device_id
@@ -514,7 +542,7 @@ impl Runtime {
                         .context("DLNA_UNAVAILABLE")?;
                     dlna::Controller::new(device.clone())?
                 };
-                #[cfg(feature = "sender")]
+                #[cfg(feature = "dlna-live")]
                 if c["op"] == "dlna.load" && c["live"].as_bool().unwrap_or(false) {
                     let context = self.live_context.as_ref().context("LIVE_NOT_PREPARED")?;
                     let device = &context.device;
@@ -571,20 +599,31 @@ impl Runtime {
                     event(
                         &self.events,
                         "dlna.state",
-                        json!({"state":"command_accepted","firstFrameMeasured":false}),
+                        json!({"deviceId":device_id,"action":"load","response":{"kind":"accepted"},"firstFrameMeasured":false}),
                     );
                 } else {
-                    let response = controller
-                        .command(string(&c, "action")?, c["positionMs"].as_u64())
-                        .await?;
+                    let action = string(&c, "action")?;
+                    let response = match controller.command(action, c["positionMs"].as_u64()).await
+                    {
+                        Ok(response) => response,
+                        Err(error) if matches!(action, "state" | "position") => {
+                            event(
+                                &self.events,
+                                "dlna.state",
+                                json!({"deviceId":device_id,"action":action,"error":error.to_string(),"firstFrameMeasured":false}),
+                            );
+                            return Ok(());
+                        }
+                        Err(error) => return Err(error),
+                    };
                     event(
                         &self.events,
                         "dlna.state",
-                        json!({"response":response,"firstFrameMeasured":false}),
+                        json!({"deviceId":device_id,"action":c["action"],"response":response,"firstFrameMeasured":false}),
                     );
                 }
             }
-            #[cfg(feature = "legacy")]
+            #[cfg(feature = "file-proxy")]
             "bridge.create" => {
                 let id = string(&c, "requestId")?;
                 let url = self
@@ -601,11 +640,11 @@ impl Runtime {
                     json!({"url":url,"requestId":id}),
                 );
             }
-            #[cfg(feature = "legacy")]
+            #[cfg(feature = "file-proxy")]
             "bridge.close" => {
                 self.bridge.close(Some(string(&c, "requestId")?)).await;
             }
-            #[cfg(feature = "sender")]
+            #[cfg(feature = "dlna-live")]
             "profiles.open" | "profile.check" | "probe.confirm" | "live.create" => {
                 self.live_command(c, command_generation).await?;
             }

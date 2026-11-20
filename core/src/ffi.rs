@@ -39,6 +39,23 @@ pub fn command(handle: u64, text: &str) -> i32 {
     }))
     .unwrap_or(-3)
 }
+#[cfg(target_os = "android")]
+pub fn share_file(handle: u64, file: std::fs::File, text: &str) -> i32 {
+    catch_unwind(AssertUnwindSafe(|| {
+        let engine = engines().lock().unwrap().get(&handle).cloned();
+        let Some(engine) = engine else {
+            return -1;
+        };
+        match crate::protocol::parse_command(text)
+            .ok()
+            .and_then(|value| engine.share_file(value, file).ok())
+        {
+            Some(()) => 0,
+            None => -2,
+        }
+    }))
+    .unwrap_or(-3)
+}
 pub fn poll(handle: u64) -> Option<String> {
     let engine = engines().lock().ok()?.get(&handle).cloned()?;
     engine.poll()
@@ -103,7 +120,7 @@ pub unsafe extern "C" fn lancast_write_ts(handle: u64, data: *const u8, len: usi
     if data.is_null() || len == 0 || len > 65_424 || !len.is_multiple_of(188) {
         return -2;
     }
-    #[cfg(feature = "sender")]
+    #[cfg(feature = "dlna-live")]
     {
         catch_unwind(|| {
             let engine = engines().lock().unwrap().get(&handle).cloned();
@@ -119,7 +136,7 @@ pub unsafe extern "C" fn lancast_write_ts(handle: u64, data: *const u8, len: usi
         })
         .unwrap_or(-3)
     }
-    #[cfg(not(feature = "sender"))]
+    #[cfg(not(feature = "dlna-live"))]
     {
         let _ = handle;
         -4

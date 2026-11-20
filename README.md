@@ -36,6 +36,8 @@ Windows DLNA：选择标注为普通电视（DLNA）的设备，无需配对码�
 
 Windows“刷新来源”会保留所选屏幕或窗口；原窗口已关闭时，需重新选择来源才能开始投屏。窗口标题变化不影响选择，刷新不会自动切换成整个主屏幕。
 
+本轮 0.8.0 / 42 的文件就绪状态、后台文件服务、媒体缓冲、按能力裁剪与协议升级核对见[重构说明](docs/29-会话就绪与能力模块重构.md)。自有客户端需配套更新，不保留旧命令、裸 FD 传递或旧 feature 别名。
+
 ## 构建与测试
 
 [GitHub Actions](https://github.com/sck03/LanCast/actions)包含五个平台构建和三个独立检查（Linux 核心、Linux 原生媒体、AirPlay 协议）。手动构建选择平台，点击 **Run workflow**，通常保留默认、文本框留空；Android 可以选择全部产品、发送端、全部接收端或一个接收变体。填写方法、产物和构建模块见[独立构建指南](docs/13-独立平台构建与版本配置.md)。
@@ -63,7 +65,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-features --locked
 cargo test --workspace --no-default-features --locked
-cargo test --workspace --no-default-features --features legacy --locked
+cargo test --workspace --no-default-features --features file-proxy --locked
 cargo test --manifest-path airplay-native/Cargo.toml --workspace --locked
 ```
 

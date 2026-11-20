@@ -2,7 +2,7 @@ package dev.lancast.sender
 
 /** All access is serialized by DlnaCapture's codec worker. */
 class TsMux(width: Int, height: Int, audio: Boolean, sink: Sink) : AutoCloseable {
-    fun interface Sink { fun onTs(bytes: ByteArray): Int }
+    fun interface Sink { fun onTs(bytes: java.nio.ByteBuffer): Int }
     companion object { init { System.loadLibrary("lancast_media") } }
     private external fun create(width: Int, height: Int, audio: Boolean, sink: Sink): Long
     private external fun write(handle: Long, audio: Boolean, bytes: ByteArray, ptsUs: Long): Int

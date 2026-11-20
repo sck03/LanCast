@@ -37,9 +37,13 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo test --workspace --all-features --locked
       - run: cargo check -p cast-ffi --no-default-features --locked
-      - run: cargo check -p cast-ffi --no-default-features --features legacy --locked
+      - run: cargo check -p cast-ffi --no-default-features --features file-proxy --locked
+      - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+      - run: cargo clippy --workspace --all-targets --no-default-features --features file-proxy -- -D warnings
+      - run: cargo clippy --workspace --all-targets --no-default-features --features file-sender,file-proxy -- -D warnings
+      - run: cargo clippy --workspace --all-targets --no-default-features --features dlna -- -D warnings
       - run: cargo test --workspace --no-default-features --locked
-      - run: cargo test --workspace --no-default-features --features legacy --locked
+      - run: cargo test --workspace --no-default-features --features file-proxy --locked
       - run: python -O -m unittest discover -s scripts/tests
       - run: python scripts/dependency-report.py
       - uses: actions/upload-artifact@v7

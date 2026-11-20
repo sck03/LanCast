@@ -15,6 +15,7 @@ pub(crate) fn builder(tls: rustls::ClientConfig) -> reqwest::ClientBuilder {
         .tls_backend_preconfigured(tls)
 }
 
+#[cfg(any(feature = "dlna", test))]
 pub(crate) fn public_roots() -> rustls::ClientConfig {
     rustls::ClientConfig::builder()
         .with_root_certificates(rustls::RootCertStore {
@@ -47,7 +48,10 @@ mod tests {
 
     #[tokio::test]
     async fn responses_enforce_header_budget_without_following_redirects() {
-        let client = crate::dlna::client().unwrap();
+        let client = super::builder(super::public_roots())
+            .timeout(super::TIMEOUT)
+            .build()
+            .unwrap();
         // Keep Hyper's default 100-header stack buffer; overriding its size
         // would allocate a header buffer on the heap for every response.
         for headers in [100, 101] {
@@ -81,7 +85,9 @@ mod tests {
             assert!(acceptor.accept(socket).await.is_err());
         });
         assert!(
-            crate::dlna::client()
+            super::builder(super::public_roots())
+                .timeout(super::TIMEOUT)
+                .build()
                 .unwrap()
                 .get(url)
                 .send()
@@ -125,7 +131,10 @@ mod tests {
                 result.unwrap();
             }
         });
-        let client = crate::dlna::client().unwrap();
+        let client = super::builder(super::public_roots())
+            .timeout(super::TIMEOUT)
+            .build()
+            .unwrap();
         let requests = (0..3).map(|_| client.get(&url).send());
         for response in futures_util::future::join_all(requests).await {
             response.unwrap().bytes().await.unwrap();

@@ -33,7 +33,7 @@ impl Bridge {
             .parse()?;
         ensure!(
             url.scheme() == "https"
-                && (crate::dlna::lan_ip(ip) || ip.is_loopback())
+                && (crate::network::lan_ip(ip) || ip.is_loopback())
                 && url.username().is_empty()
                 && url.password().is_none()
                 && url.query().is_none()

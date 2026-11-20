@@ -1,6 +1,6 @@
 use jni::{
     JNIEnv,
-    objects::{JByteArray, JClass, JString},
+    objects::{JByteBuffer, JClass, JString},
     sys::{jint, jlong, jstring},
 };
 #[unsafe(no_mangle)]
@@ -12,18 +12,18 @@ pub extern "system" fn Java_dev_lancast_control_NativeCore_writeTs(
     env: JNIEnv,
     _: JClass,
     handle: jlong,
-    input: JByteArray,
+    input: JByteBuffer,
 ) -> jint {
-    let Ok(length) = env.get_array_length(&input) else {
+    let Ok(length) = env.get_direct_buffer_capacity(&input) else {
         return -2;
     };
-    if length <= 0 || length > 65_424 {
+    if length == 0 || length > 65_424 {
         return -2;
     }
-    let Ok(bytes) = env.convert_byte_array(input) else {
+    let Ok(bytes) = env.get_direct_buffer_address(&input) else {
         return -2;
     };
-    unsafe { crate::ffi::lancast_write_ts(handle as u64, bytes.as_ptr(), bytes.len()) }
+    unsafe { crate::ffi::lancast_write_ts(handle as u64, bytes, length) }
 }
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lancast_control_NativeCore_command(
@@ -36,6 +36,27 @@ pub extern "system" fn Java_dev_lancast_control_NativeCore_command(
         return -2;
     };
     crate::ffi::command(handle as u64, &text.to_string_lossy())
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lancast_control_NativeCore_shareFile(
+    mut env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+    fd: jint,
+    input: JString,
+) -> jint {
+    use std::os::fd::BorrowedFd;
+    if fd < 0 {
+        return -2;
+    }
+    // The Java caller holds its ParcelFileDescriptor until this synchronous call returns.
+    let Ok(file) = (unsafe { BorrowedFd::borrow_raw(fd) }).try_clone_to_owned() else {
+        return -2;
+    };
+    let Ok(text) = env.get_string(&input) else {
+        return -2;
+    };
+    crate::ffi::share_file(handle as u64, file.into(), &text.to_string_lossy())
 }
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lancast_control_NativeCore_poll(

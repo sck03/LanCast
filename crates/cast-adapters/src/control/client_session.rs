@@ -10,22 +10,35 @@ use uuid::Uuid;
 #[derive(Default)]
 pub(super) struct ClientSession {
     active: Option<Uuid>,
-    pending: Option<(Uuid, bool)>,
+    pending: Option<(Uuid, bool, bool)>,
+    file_session: bool,
+    file_ready: bool,
+    file_deadline: Option<u64>,
     recovery: Option<RtcRecovery>,
 }
 
 pub(super) enum Outgoing {
     Forward(Message),
     Stop(Message),
+    Reject(Message),
     Ignore,
 }
 
 impl ClientSession {
     pub(super) fn outgoing(&mut self, request: Message, now: u64) -> Outgoing {
+        if request.kind == "playback.command"
+            && (!self.file_session
+                || !self.file_ready
+                || self.active.is_none()
+                || request.session_id != self.active)
+        {
+            return Outgoing::Reject(request);
+        }
         if request.kind == "session.start" {
             self.pending = Some((
                 request.id,
                 request.body["mode"] == "mirror" && request.body["rtcRecovery"] == CAPABILITY,
+                request.body["mode"] == "file",
             ));
         } else if matches!(request.kind.as_str(), "ping" | "pong") {
             // Heartbeats belong to the connection, not a media session.
@@ -34,6 +47,10 @@ impl ClientSession {
                 return Outgoing::Ignore;
             }
             match request.kind.as_str() {
+                "file.load" => {
+                    self.file_ready = false;
+                    self.file_deadline = Some(now.saturating_add(20_000));
+                }
                 "rtc.state" => {
                     if let Some(recovery) = &mut self.recovery {
                         recovery.report(&request, false, now);
@@ -60,7 +77,7 @@ impl ClientSession {
 
     pub(super) fn incoming(&mut self, response: &Message, now: u64) -> anyhow::Result<bool> {
         if response.kind == "session.accepted" {
-            let Some((request, recover)) = self.pending else {
+            let Some((request, recover, file)) = self.pending else {
                 return Ok(false);
             };
             if response.reply_to != Some(request) {
@@ -68,6 +85,9 @@ impl ClientSession {
             }
             let session = response.session_id.context("SESSION_REQUIRED")?;
             self.active = Some(session);
+            self.file_session = file;
+            self.file_deadline = file.then(|| now.saturating_add(20_000));
+            self.file_ready = false;
             self.pending = None;
             self.recovery = (recover && response.body["rtcRecovery"] == CAPABILITY)
                 .then(|| RtcRecovery::new(session, now));
@@ -79,7 +99,7 @@ impl ClientSession {
             }
         } else if response.kind == "error" {
             if let Some(reply) = response.reply_to {
-                if self.pending.is_none_or(|(request, _)| request != reply) {
+                if self.pending.is_none_or(|(request, _, _)| request != reply) {
                     return Ok(false);
                 }
                 // A rejected start never alters the already active session.
@@ -96,6 +116,15 @@ impl ClientSession {
             return Ok(false);
         }
         match response.kind.as_str() {
+            "session.state" if self.file_session => {
+                if self.file_deadline.is_some_and(|deadline| now >= deadline) {
+                    return Ok(false);
+                }
+                self.file_ready = response.body["state"] == "ready";
+                if self.file_ready {
+                    self.file_deadline = None;
+                }
+            }
             "rtc.state" => {
                 if let Some(recovery) = &mut self.recovery {
                     recovery.report(response, true, now);
@@ -109,6 +138,12 @@ impl ClientSession {
     }
 
     pub(super) fn poll(&mut self, now: u64) -> Option<Message> {
+        if self.file_deadline.is_some_and(|deadline| now >= deadline) {
+            let mut stop = Message::new("session.stop", json!({"reason":"FILE_LOAD_TIMEOUT"}));
+            stop.session_id = self.active;
+            self.clear();
+            return Some(stop);
+        }
         let message = self.recovery.as_mut()?.poll(now)?;
         if message.kind == "session.stop" {
             self.clear();
@@ -117,11 +152,15 @@ impl ClientSession {
     }
 
     pub(super) fn next_deadline(&self) -> Option<u64> {
-        self.recovery.as_ref().and_then(RtcRecovery::next_deadline)
+        self.file_deadline
+            .or_else(|| self.recovery.as_ref().and_then(RtcRecovery::next_deadline))
     }
 
     fn clear(&mut self) {
         self.active = None;
+        self.file_session = false;
+        self.file_deadline = None;
+        self.file_ready = false;
         self.pending = None;
         self.recovery = None;
     }
@@ -130,6 +169,74 @@ impl ClientSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_loading_has_a_fixed_deadline_and_ready_disarms_it() {
+        for completes in [false, true] {
+            let mut session = ClientSession::default();
+            let start = Message::new("session.start", json!({"mode":"file"}));
+            session.outgoing(start.clone(), 0);
+            let mut accepted = start.reply("session.accepted", json!({}));
+            accepted.session_id = Some(Uuid::new_v4());
+            session.incoming(&accepted, 1).unwrap();
+            let mut state = Message::new("session.state", json!({"state":"loading"}));
+            state.session_id = accepted.session_id;
+            session.incoming(&state, 15_000).unwrap();
+            assert_eq!(session.next_deadline(), Some(20_001));
+            if completes {
+                state.body["state"] = json!("ready");
+                session.incoming(&state, 19_000).unwrap();
+                assert!(session.next_deadline().is_none());
+                assert!(session.poll(25_000).is_none());
+            } else {
+                state.body["state"] = json!("ready");
+                assert!(!session.incoming(&state, 20_001).unwrap());
+                assert!(session.poll(20_000).is_none());
+                assert_eq!(
+                    session.poll(20_001).unwrap().body["reason"],
+                    "FILE_LOAD_TIMEOUT"
+                );
+                assert!(session.active.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn file_controls_require_current_ready_session_and_reset_on_reload() {
+        let mut session = ClientSession::default();
+        let mut command = Message::new("playback.command", json!({"action":"pause"}));
+        assert!(matches!(
+            session.outgoing(command.clone(), 0),
+            Outgoing::Reject(_)
+        ));
+        let start = Message::new("session.start", json!({"mode":"file"}));
+        session.outgoing(start.clone(), 1);
+        let mut accepted = start.reply("session.accepted", json!({}));
+        accepted.session_id = Some(Uuid::new_v4());
+        session.incoming(&accepted, 2).unwrap();
+        command.session_id = accepted.session_id;
+        assert!(matches!(
+            session.outgoing(command.clone(), 3),
+            Outgoing::Reject(_)
+        ));
+        let mut ready = Message::new("session.state", json!({"state":"ready"}));
+        ready.session_id = Some(Uuid::new_v4());
+        assert!(!session.incoming(&ready, 4).unwrap());
+        assert!(matches!(
+            session.outgoing(command.clone(), 5),
+            Outgoing::Reject(_)
+        ));
+        ready.session_id = accepted.session_id;
+        session.incoming(&ready, 6).unwrap();
+        assert!(matches!(
+            session.outgoing(command.clone(), 7),
+            Outgoing::Forward(_)
+        ));
+        let mut reload = command.clone();
+        reload.kind = "file.load".into();
+        session.outgoing(reload, 8);
+        assert!(matches!(session.outgoing(command, 9), Outgoing::Reject(_)));
+    }
 
     #[test]
     fn ready_requires_the_current_transport_and_cannot_cross_a_restart() {

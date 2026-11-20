@@ -139,6 +139,8 @@ impl Client {
                                     send(&mut ws, &stop).await?;
                                     events::message(&events, &stop);
                                 }
+                                Outgoing::Reject(request) => events::event(&events, "command.rejected",
+                                    json!({"code":"PLAYBACK_NOT_READY","requestId":request.id,"sessionId":request.session_id})),
                                 Outgoing::Ignore => {}
                             }
                         }

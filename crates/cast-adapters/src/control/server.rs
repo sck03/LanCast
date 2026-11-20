@@ -95,6 +95,8 @@ impl Server {
         }
         if ready {
             active.ready()?;
+        } else if msg.kind == "session.state" && active.mode == "file" {
+            active.state = crate::session::State::Loading;
         }
         let stopping = msg.kind == "session.stop";
         let delivery = {
@@ -410,9 +412,14 @@ async fn handle_request(
             );
             ensure!(request.string("mime")? == "video/mp4", "MEDIA_UNSUPPORTED");
             request.body["fingerprint"] = json!(fingerprint);
+            session.state = crate::session::State::Loading;
         }
         "playback.command" => {
             ensure!(session.mode == "file", "INVALID_STATE");
+            ensure!(
+                session.state == crate::session::State::Playing,
+                "PLAYBACK_NOT_READY"
+            );
             match request.string("action")? {
                 "play" | "pause" => {}
                 "seek" => ensure!(

@@ -8,7 +8,7 @@ class AppleProductsTests(unittest.TestCase):
     def test_tvos_remains_receiver_only(self):
         product = PRODUCTS["tvos"]
         self.assertEqual(product.role, "receiver")
-        self.assertEqual(product.rust_features, "legacy")
+        self.assertEqual(product.rust_features, "file-proxy")
         self.assertEqual(product.bundle_id, "dev.lancast.tv")
         self.assertIn("-Receiver-Device-", product.archive_name("Device", "0.6.1-9-Debug"))
         self.assertIn("-Receiver-Simulator-", product.archive_name("Simulator", "0.6.1-9-Debug"))

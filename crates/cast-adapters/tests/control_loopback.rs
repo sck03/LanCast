@@ -50,7 +50,7 @@ fn a_stalled_host_gets_a_terminal_error_and_remote_session_is_revoked() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[cfg(feature = "sender")]
+#[cfg(feature = "dlna-live")]
 async fn stop_revokes_shared_file_and_allows_a_fresh_share() {
     let file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(file.path(), b"synthetic lifecycle fixture").unwrap();
@@ -115,7 +115,7 @@ fn stopped_discovery_cannot_deliver_late_results() {
 fn invalid_scan_generations_do_not_enter_network_work_or_close_the_engine() {
     let engine = Engine::new().unwrap();
     for op in ["scan", "dlna.scan"] {
-        if op == "dlna.scan" && !cfg!(feature = "sender") {
+        if op == "dlna.scan" && !cfg!(feature = "dlna-live") {
             continue;
         }
         for generation in [
@@ -138,7 +138,7 @@ fn invalid_scan_generations_do_not_enter_network_work_or_close_the_engine() {
 }
 
 #[test]
-#[cfg(feature = "sender")]
+#[cfg(feature = "dlna-live")]
 fn dlna_search_does_not_block_control_commands() {
     // Selecting a route does not send UDP data or depend on a responding TV.
     let route = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -566,21 +566,26 @@ fn pinned_pairing_and_nonblocking_stop_during_pending_approval() {
 #[test]
 #[cfg(target_os = "linux")]
 fn rejected_file_command_closes_the_transferred_descriptor() {
-    use std::os::fd::IntoRawFd;
+    use std::os::fd::AsRawFd;
     let file = tempfile::NamedTempFile::new().unwrap();
     let engine = Engine::new().unwrap();
     engine.close();
-    let fd = file.reopen().unwrap().into_raw_fd();
+    let owned = file.reopen().unwrap();
+    let fd = owned.as_raw_fd();
     let path = format!("/proc/self/fd/{fd}");
     let before = std::fs::read_link(&path).unwrap();
-    assert!(engine.command(json!({"op":"file.share","fd":fd})).is_err());
+    assert!(
+        engine
+            .share_file(json!({"op":"file.share"}), owned)
+            .is_err()
+    );
     if let Ok(now) = std::fs::read_link(path) {
         assert_ne!(now, before);
     }
 }
 
 #[test]
-#[cfg(feature = "sender")]
+#[cfg(feature = "dlna-live")]
 fn failed_profile_check_preserves_request_identity_and_does_not_stop_engine() {
     let engine = Engine::new().unwrap();
     engine.command(json!({"op":"profile.check","deviceId":"missing","requestId":"profile-7","generation":7})).unwrap();
@@ -597,7 +602,7 @@ fn failed_profile_check_preserves_request_identity_and_does_not_stop_engine() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[cfg(feature = "legacy")]
+#[cfg(feature = "file-proxy")]
 async fn bridge_replacement_and_stale_close_preserve_the_receiver_listener() {
     let engine = Engine::new().unwrap();
     engine
@@ -646,4 +651,85 @@ async fn bridge_replacement_and_stale_close_preserve_the_receiver_listener() {
             .is_ok()
     );
     engine.close();
+}
+
+#[test]
+fn playback_before_ready_is_rejected_then_delivered_on_the_current_session() {
+    let receiver = Engine::new().unwrap();
+    let sender = Engine::new().unwrap();
+    receiver
+        .command(json!({"op":"listen","address":"127.0.0.1:0","advertise":false}))
+        .unwrap();
+    let ready = event(&receiver, "receiver.ready");
+    sender.command(json!({"op":"connect","address":ready["address"],"fingerprint":ready["fingerprint"],"invite":ready["invite"]})).unwrap();
+    let approval = event(&receiver, "pair.request");
+    receiver
+        .command(json!({"op":"approve","connectionId":approval["connectionId"],"accept":true}))
+        .unwrap();
+    event(&sender, "connected");
+    signal(
+        &sender,
+        "playback.command",
+        &Value::Null,
+        json!({"action":"pause"}),
+    );
+    assert_eq!(
+        event(&sender, "command.rejected")["code"],
+        "PLAYBACK_NOT_READY"
+    );
+    signal(
+        &sender,
+        "session.start",
+        &Value::Null,
+        json!({"mode":"file"}),
+    );
+    event(&receiver, "session.started");
+    let accepted = message(&sender, "session.accepted");
+    let session = &accepted["sessionId"];
+    signal(
+        &sender,
+        "playback.command",
+        session,
+        json!({"action":"pause"}),
+    );
+    assert_eq!(
+        event(&sender, "command.rejected")["code"],
+        "PLAYBACK_NOT_READY"
+    );
+    signal(
+        &receiver,
+        "session.state",
+        session,
+        json!({"state":"ready"}),
+    );
+    message(&sender, "session.state");
+    signal(
+        &sender,
+        "playback.command",
+        session,
+        json!({"action":"pause"}),
+    );
+    assert_eq!(
+        message(&receiver, "playback.command")["body"]["action"],
+        "pause"
+    );
+    signal(
+        &receiver,
+        "session.state",
+        session,
+        json!({"state":"loading"}),
+    );
+    message(&sender, "session.state");
+    signal(
+        &sender,
+        "playback.command",
+        session,
+        json!({"action":"play"}),
+    );
+    assert_eq!(
+        event(&sender, "command.rejected")["code"],
+        "PLAYBACK_NOT_READY"
+    );
+    sender.close();
+    receiver.close();
 }

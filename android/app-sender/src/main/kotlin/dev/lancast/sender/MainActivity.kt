@@ -21,12 +21,14 @@ class MainActivity : Activity() {
         set(value) { SenderRuntime.externalRequest = value }
     private lateinit var volume: SeekBar
     private var captureRequest: String? = null
+    private var fileRequest: String? = null
     private lateinit var audio: CheckBox
     private var pendingAudio = false
     private var profileRequest: String? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         captureRequest = savedInstanceState?.getString("captureRequest")
+        fileRequest = savedInstanceState?.getString("fileRequest")
         pendingAudio = savedInstanceState?.getBoolean("pendingAudio", false) ?: false
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 16, 24, 16) }
         root.addView(TextView(this).apply { text = "LanCast · 局域网分享"; textSize = 26f })
@@ -72,11 +74,13 @@ class MainActivity : Activity() {
         button("选择 MP4 视频播放", { (SenderRuntime.connected || SenderRuntime.dlnaId != null) && canStart() }) {
             check(SenderRuntime.connected || SenderRuntime.dlnaId != null) { "先选择自有接收端或 DLNA 电视" }
             externalRequest = true
+            fileRequest = SenderRuntime.prepareFileSelection()
             try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("video/mp4").addCategory(Intent.CATEGORY_OPENABLE), 20) }
-            catch (error: Exception) { externalRequest = false; throw error }
+            catch (error: Exception) { SenderRuntime.cancelFileSelection(fileRequest); fileRequest = null; externalRequest = false; throw error }
         }
         button("暂停", { SenderRuntime.filePlaying }) { SenderRuntime.playback("pause") }
         button("播放", { SenderRuntime.filePlaying }) { SenderRuntime.playback("play") }
+        button("查询电视播放进度", { SenderRuntime.filePlaying && SenderRuntime.dlnaId != null }) { SenderRuntime.playback("position") }
         button("跳到 60 秒", { SenderRuntime.filePlaying }) { SenderRuntime.playback("seek", 60000) }
         root.addView(TextView(this).apply { text = "文件音量（自有接收端）" })
         volume = SeekBar(this).apply {
@@ -128,6 +132,7 @@ class MainActivity : Activity() {
     }
     override fun onSaveInstanceState(state: Bundle) {
         state.putString("captureRequest", captureRequest)
+        state.putString("fileRequest", fileRequest)
         state.putBoolean("pendingAudio", pendingAudio)
         super.onSaveInstanceState(state)
     }
@@ -142,7 +147,7 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         externalRequest = false
-        if (resultCode != RESULT_OK || data == null) { if (requestCode == 10) SenderRuntime.cancelCapture(captureRequest); captureRequest = null; state.text = "操作已取消，没有启动采集"; updateControls(); return }
+        if (resultCode != RESULT_OK || data == null) { if (requestCode == 10) SenderRuntime.cancelCapture(captureRequest); if (requestCode == 20) SenderRuntime.cancelFileSelection(fileRequest); captureRequest = null; fileRequest = null; state.text = "操作已取消，没有启动采集"; updateControls(); return }
         if (requestCode == 10) {
             externalRequest = true
             runCatching { startForegroundService(Intent(this, CaptureService::class.java).putExtra("grant", data).putExtra("audio", pendingAudio).putExtra("requestId", checkNotNull(captureRequest) { "分享请求已过期，请重新授权" })) }
@@ -150,16 +155,11 @@ class MainActivity : Activity() {
             captureRequest = null
         }
         if (requestCode == 20) runCatching {
-            check(!SenderRuntime.busy && (SenderRuntime.connected || SenderRuntime.dlnaId != null)) { "连接已失效，请重新选择电视" }
             val receiverIp = SenderRuntime.dlnaIp ?: SenderRuntime.receiverAddress.substringBeforeLast(':')
             val localIp = connection.localAddress(receiverIp)
             val uri = data.data ?: error("没有选择文件")
-            val descriptor = contentResolver.openFileDescriptor(uri, "r") ?: error("无法打开文件")
-            val fd = descriptor.detachFd(); descriptor.close()
-            // Native side takes ownership of this detached read-only descriptor.
-            SenderRuntime.command("file.share", JSONObject().put("fd", fd).put("allowedIp", SenderRuntime.dlnaIp ?: SenderRuntime.receiverAddress.substringBeforeLast(':'))
-                .put("address", "$localIp:0").put("encrypted", SenderRuntime.dlnaId == null))
-        }.onFailure { state.text = "文件无法读取：" + it.message }
+            SenderRuntime.shareFile(this, uri, localIp, checkNotNull(fileRequest) { "文件请求已过期" }); fileRequest = null
+        }.onFailure { SenderRuntime.cancelFileSelection(fileRequest); fileRequest = null; state.text = "文件无法读取：" + it.message }
         updateControls()
     }
     private fun onEvent(event: JSONObject) {
@@ -197,8 +197,15 @@ class MainActivity : Activity() {
                 state.text = if (body.optBoolean("terminal")) "控制服务已停止，分享已结束，请重新连接电视" else body.optString("code")
             }
             "media.status" -> state.text = body.optString("status")
-            "devices", "dlna.devices", "discovery.updated" -> if (!SenderRuntime.scanning) state.text = if (SenderRuntime.catalog.devices.isEmpty()) "未发现电视，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" else "请选择电视，将自动获取地址和指纹"
-            "dlna.state" -> state.text = "DLNA 指令已返回，实际画面请以电视为准"
+            "devices", "dlna.devices", "discovery.updated" -> if (!SenderRuntime.scanning) state.text = if (SenderRuntime.discoveryFailed) "部分设备搜索失败，请检查网络权限和网卡后重试" else if (SenderRuntime.catalog.devices.isEmpty()) "未发现电视，请确认各端为当前版本并连接同一网络；网络设置可切换网卡" else "请选择电视，将自动获取地址和指纹"
+            "dlna.state" -> {
+                val response = body.optJSONObject("response") ?: JSONObject()
+                state.text = when (response.optString("kind")) {
+                    "state" -> "电视播放状态：${response.optString("transportState")}"
+                    "position" -> "播放进度：${response.optString("relativeTime", "未知")} / ${response.optString("trackDuration", "未知")}"
+                    else -> "DLNA 指令已返回，实际画面请以电视为准"
+                }
+            }
             "message" -> when (body.optString("type")) {
                 "error" -> state.text = body.getJSONObject("body").optString("code")
                 "session.state" -> if (body.getJSONObject("body").optString("state") == "ready") state.text = "接收端已开始播放"

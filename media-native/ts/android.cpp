@@ -14,11 +14,9 @@ static std::map<jlong, std::unique_ptr<Bridge>> registry;
 static jlong next_handle = 1;
 static int32_t output(void *opaque, const uint8_t *bytes, size_t size) {
     auto &b = *static_cast<Bridge *>(opaque);
-    jbyteArray array = b.env->NewByteArray(static_cast<jsize>(size));
+    jobject array = b.env->NewDirectByteBuffer(const_cast<uint8_t *>(bytes), static_cast<jlong>(size));
     if (!array)
         return -1;
-    b.env->SetByteArrayRegion(array, 0, static_cast<jsize>(size),
-                              reinterpret_cast<const jbyte *>(bytes));
     jint result = b.env->CallIntMethod(b.sink, b.method, array);
     b.env->DeleteLocalRef(array);
     if (b.env->ExceptionCheck()) {
@@ -36,7 +34,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_dev_lancast_sender_TsMux_create(JNIEnv *
         b->env = env;
         b->sink = env->NewGlobalRef(sink);
         auto cls = env->GetObjectClass(sink);
-        b->method = env->GetMethodID(cls, "onTs", "([B)I");
+        b->method = env->GetMethodID(cls, "onTs", "(Ljava/nio/ByteBuffer;)I");
         env->DeleteLocalRef(cls);
         if (!b->sink || !b->method) {
             if (b->sink)

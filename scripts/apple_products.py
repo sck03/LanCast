@@ -20,9 +20,9 @@ class AppleProduct:
 
 
 PRODUCTS = {
-    "macos": AppleProduct("LanCastMac", "sender-receiver", "dev.lancast.mac", "15.0", (("", "Universal"),), "sender,legacy"),
-    "ios": AppleProduct("LanCastIOS", "sender-receiver", "dev.lancast.ios", "16.0", (("-iphoneos", "Device"), ("-iphonesimulator", "Simulator")), "sender,legacy"),
-    "tvos": AppleProduct("LanCastTV", "receiver", "dev.lancast.tv", "17.0", (("-appletvos", "Device"), ("-appletvsimulator", "Simulator")), "legacy"),
+    "macos": AppleProduct("LanCastMac", "sender-receiver", "dev.lancast.mac", "15.0", (("", "Universal"),), "file-sender,file-proxy"),
+    "ios": AppleProduct("LanCastIOS", "sender-receiver", "dev.lancast.ios", "16.0", (("-iphoneos", "Device"), ("-iphonesimulator", "Simulator")), "file-sender,file-proxy"),
+    "tvos": AppleProduct("LanCastTV", "receiver", "dev.lancast.tv", "17.0", (("-appletvos", "Device"), ("-appletvsimulator", "Simulator")), "file-proxy"),
 }
 
 

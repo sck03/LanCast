@@ -13,4 +13,5 @@ dependencies { coreLibraryDesugaring(libs.desugar)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
     implementation(libs.media3.okhttp)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

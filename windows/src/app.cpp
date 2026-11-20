@@ -1,5 +1,6 @@
 #include "app.h"
 #include "device_catalog.h"
+#include "core_events.h"
 #include "lancast.h"
 #include "media.h"
 #include "network.h"
@@ -24,6 +25,8 @@ using Json = nlohmann::json;
 namespace {
 class DesktopApp {
     static constexpr UINT MEDIA_EVENT = WM_APP + 1;
+    static constexpr UINT CORE_EVENT = WM_APP + 2;
+    CoreEvents core_events;
     HWND main_window{}, invitation{}, windows_list{}, audio_check{}, devices_list{};
     LancastHandle core = 0;
     static LancastHandle create_core() {
@@ -37,13 +40,17 @@ class DesktopApp {
     std::string session, mode, dlna_id, dlna_ip, local_address, receiver_address,
         receiver_fingerprint;
     Json shared_file;
+    bool file_ready = false, discovery_failed = false;
+    ULONGLONG dlna_status_due = 0, file_ready_deadline = 0;
+    bool dlna_position = false;
     bool connected = false;
     uint64_t generation = 0;
     bool live_pending = false, probe = false, probe_prompted = false, selected_audio = true;
     bool profile_pending = false;
     std::string pending_session;
     SourceCatalog sources;
-    static void release_core(LancastHandle handle) {
+    void release_core(LancastHandle handle) {
+        core_events.stop();
         lancast_shutdown(handle);
         std::thread([handle] { lancast_destroy(handle); }).detach();
     }
@@ -101,7 +108,9 @@ class DesktopApp {
                            {"body", body}}}});
         return request;
     }
+    void finish_scan() { ++scan_generation; scanning = scan_lancast_pending = scan_dlna_pending = false; }
     void stop() {
+        finish_scan();
         if (stopping)
             return;
         ++generation;
@@ -119,6 +128,7 @@ class DesktopApp {
         }
         session.clear();
         shared_file = nullptr;
+        file_ready = false; dlna_status_due = 0; file_ready_deadline = 0;
         connected = false;
         pairing = false;
         file_pending = false;
@@ -275,6 +285,7 @@ class DesktopApp {
         } else if (type == "devices" || type == "dlna.devices") {
             if (!scanning || body.value("scanGeneration", uint64_t{0}) != scan_generation)
                 return;
+            discovery_failed = discovery_failed || body.contains("error");
             catalog.update(body.value("devices", Json::array()), type == "dlna.devices");
             if (type == "devices")
                 scan_lancast_pending = false;
@@ -287,7 +298,7 @@ class DesktopApp {
                 select_device();
             } else if (!scanning)
                 status(
-                    catalog.entries().empty()
+                    discovery_failed ? "部分设备搜索失败，请检查网络权限和网卡后重试" : catalog.entries().empty()
                         ? "未发现电视。请确认各端使用当前版本并连接同一网络；高级设置可切换网卡。"
                         : "请选择要连接的电视");
         } else if (type == "file.shared") {
@@ -295,20 +306,40 @@ class DesktopApp {
                 return;
             file_pending = false;
             shared_file = body;
+            file_ready_deadline = GetTickCount64() + 20000;
             if (!dlna_id.empty())
                 command("dlna.load",
                         {{"deviceId", dlna_id}, {"url", body["url"]}, {"title", "LanCast Video"}});
             else {
                 mode = "file";
                 pending_session =
-                    send("session.start", {{"mode", "file"}, {"audioRequested", true}});
+                    send("session.start", {{"mode", "file"}});
             }
         } else if (type == "stopped") {
             core_stopped = true;
+            finish_scan();
             finish_stop();
-        } else if (type == "dlna.state")
-            status("DLNA 指令已返回；是否播放请以电视为准");
-        else if (type == "message") {
+        } else if (type == "dlna.state") {
+            if (body.value("deviceId", "") != dlna_id || mode != "file" || shared_file.is_null()) return;
+            if (body.contains("error")) { status("电视暂未返回播放状态"); dlna_status_due = GetTickCount64() + 4000; return; }
+            const auto response = body.value("response", Json::object());
+            const auto kind = response.value("kind", "");
+            if (kind == "state") {
+                const auto state = response.value("transportState", "UNKNOWN");
+                file_ready = state == "PLAYING" || state == "PAUSED_PLAYBACK";
+                if (file_ready) file_ready_deadline = 0;
+                status("电视播放状态：" + state);
+            } else if (kind == "position") {
+                const auto position = response.value("relativeTime", Json(nullptr));
+                const auto duration = response.value("trackDuration", Json(nullptr));
+                status("播放进度：" + (position.is_string() ? position.get<std::string>() : "未知") +
+                       " / " + (duration.is_string() ? duration.get<std::string>() : "未知"));
+            }
+            dlna_status_due = GetTickCount64() + 2000;
+            dlna_position = kind == "state" && file_ready;
+        } else if (type == "command.rejected") {
+            status(body.value("code", "PLAYBACK_NOT_READY"));
+        } else if (type == "message") {
             const auto kind = body.value("type", "");
             const auto data = body.value("body", Json::object());
             if (kind == "session.accepted") {
@@ -334,8 +365,6 @@ class DesktopApp {
                                  profile);
                     status("正在启动屏幕分享…");
                 } else {
-                    shared_file["mediaId"] = uuid();
-                    shared_file["durationMs"] = nullptr;
                     send("file.load", shared_file);
                 }
             } else if (kind != "error" && body.value("sessionId", "") != session)
@@ -355,8 +384,11 @@ class DesktopApp {
             } else if (kind == "error") {
                 stop();
                 status(data.value("code", "ERROR"));
-            } else if (kind == "session.state")
-                status("接收端已报告播放就绪");
+            } else if (kind == "session.state") {
+                file_ready = mode == "file" && data.value("state", "") == "ready";
+                if (file_ready) file_ready_deadline = 0;
+                status(data.value("state", "") == "ready" ? "接收端已报告播放就绪" : "接收端正在准备播放…");
+            }
         }
         update_controls();
     }
@@ -448,8 +480,7 @@ class DesktopApp {
             pending_session = send(
                 "session.start",
                 {{"mode", mode},
-                 {"rtcRecovery", "replace-v1"},
-                 {"audioRequested", SendMessageW(audio_check, BM_GETCHECK, 0, 0) == BST_CHECKED}});
+                 {"rtcRecovery", "replace-v1"}});
             status("正在准备屏幕分享…");
             break;
         case 6: {
@@ -481,7 +512,7 @@ class DesktopApp {
         case 7:
         case 8:
         case 9: {
-            if (mode != "file" || shared_file.is_null())
+            if (mode != "file" || !file_ready)
                 throw std::runtime_error("直播只支持停止，不能暂停或跳转");
             const char *action = id == 7 ? "pause" : id == 8 ? "play" : "seek";
             if (!dlna_id.empty())
@@ -493,7 +524,7 @@ class DesktopApp {
         }
         case 18:
         case 19:
-            if (mode != "file" || shared_file.is_null() || !dlna_id.empty())
+            if (mode != "file" || !file_ready || !dlna_id.empty())
                 throw std::runtime_error("音量仅用于自有接收端的视频文件");
             send("playback.command", {{"action", "volume"}, {"value", id == 18 ? 0.5 : 1.0}});
             break;
@@ -621,21 +652,27 @@ class DesktopApp {
                     }
                 }
                 if (scanning && GetTickCount64() - scan_started > 25000) {
-                    scanning = false;
-                    scan_lancast_pending = scan_dlna_pending = false;
+                    finish_scan();
                     status("搜索结束。未找到电视时，请检查同一网络或使用高级设置。");
                 }
-                for (int i = 0; i < 32; ++i) {
-                    auto buffer = lancast_poll(core);
-                    if (!buffer.data)
-                        break;
-                    std::string raw(reinterpret_cast<char *>(buffer.data), buffer.len);
-                    lancast_free_buffer(buffer);
-                    event(Json::parse(raw));
-                    if (!core)
-                        break;
+                if (file_ready_deadline && !file_ready && GetTickCount64() >= file_ready_deadline) {
+                    stop(); status("电视准备播放超时，请重新分享");
+                }
+                if (file_ready) file_ready_deadline = 0;
+                if (dlna_status_due && GetTickCount64() >= dlna_status_due && !stopping) {
+                    dlna_status_due = 0;
+                    command("dlna.command", {{"deviceId", dlna_id}, {"action", dlna_position ? "position" : "state"}});
                 }
                 return 0;
+            case CORE_EVENT: {
+                if (static_cast<LancastHandle>(w) != core) return 0;
+                const auto active = core;
+                for (const auto &raw : core_events.take()) {
+                    event(Json::parse(raw));
+                    if (core != active) break;
+                }
+                return 0;
+            }
             case MEDIA_EVENT: {
                 std::unique_ptr<Json> e(reinterpret_cast<Json *>(l));
                 auto kind = e->at("type").get<std::string>();
@@ -674,7 +711,7 @@ class DesktopApp {
                 return 0;
             }
         } catch (const std::exception &error) {
-            if (message == WM_TIMER || message == MEDIA_EVENT ||
+            if (message == WM_TIMER || message == CORE_EVENT || message == MEDIA_EVENT ||
                 (!stopping && (file_pending || profile_pending || live_pending)))
                 stop();
             status(error.what());
@@ -714,7 +751,8 @@ class DesktopApp {
         const bool active = busy();
         const bool has_source =
             sources.at(static_cast<int>(SendMessageW(windows_list, CB_GETCURSEL, 0, 0))) != nullptr;
-        const UINT interval = active || connected || pairing || scanning || exiting ? 50 : 500;
+        core_events.start(main_window, CORE_EVENT, core);
+        const UINT interval = 500;
         if (poll_interval != interval) {
             poll_interval = interval;
             SetTimer(main_window, 1, interval, nullptr);
@@ -730,9 +768,9 @@ class DesktopApp {
         view.enable(14, !active && !pairing && !scanning && !exiting && media_available &&
                             !dlna_id.empty());
         for (int id : {7, 8, 9})
-            view.enable(id, mode == "file" && !shared_file.is_null() && !stopping && !exiting);
+            view.enable(id, mode == "file" && file_ready && !stopping && !exiting);
         for (int id : {18, 19})
-            view.enable(id, mode == "file" && !shared_file.is_null() && dlna_id.empty() &&
+            view.enable(id, mode == "file" && file_ready && dlna_id.empty() &&
                                 !stopping && !exiting);
         view.enable(10, active && !stopping && !exiting);
         view.enable(11, !exiting && (connected || pairing || active || !dlna_id.empty()));
@@ -808,6 +846,7 @@ class DesktopApp {
         receiver_fingerprint.clear();
         SetWindowTextW(invitation, L"");
         SendMessageW(devices_list, CB_RESETCONTENT, 0, 0);
+        discovery_failed = false;
         scanning = scan_lancast_pending = true;
         scan_dlna_pending = !local_address.empty();
         scan_started = GetTickCount64();

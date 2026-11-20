@@ -13,11 +13,12 @@ internal object NativeCore {
     init { System.loadLibrary("lancast_core") }
     external fun create(): Long
     external fun command(handle: Long, json: String): Int
+    external fun shareFile(handle: Long, fd: Int, json: String): Int
     external fun poll(handle: Long): String?
     external fun waitPoll(handle: Long, timeoutMs: Int): String?
     external fun shutdown(handle: Long)
     external fun destroy(handle: Long)
-    external fun writeTs(handle: Long, bytes: ByteArray): Int
+    external fun writeTs(handle: Long, bytes: java.nio.ByteBuffer): Int
 }
 
 /** One native waiter and at most one UI batch. Closing wakes both waits before destruction. */
@@ -65,10 +66,19 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
             }
         }
     }
-    fun command(op: String, body: JSONObject = JSONObject()) {
-        if (closed.get() || failed.get()) return
+    fun command(op: String, body: JSONObject = JSONObject()): Boolean {
+        if (closed.get() || failed.get()) return false
         body.put("op", op)
-        if (NativeCore.command(handle, body.toString()) != 0) fail()
+        val accepted = NativeCore.command(handle, body.toString()) == 0
+        if (!accepted) fail()
+        return accepted
+    }
+    /** Native duplicates a borrowed descriptor; use closes it on every rejection/exception path. */
+    fun shareFile(file: android.os.ParcelFileDescriptor, body: JSONObject): Boolean = file.use {
+        if (closed.get() || failed.get()) return false
+        val accepted = NativeCore.shareFile(handle, it.fd, body.put("op", "file.share").toString()) == 0
+        if (!accepted) fail()
+        accepted
     }
     fun send(type: String, sessionId: String?, body: JSONObject = JSONObject()): String {
         val id = UUID.randomUUID().toString()
@@ -77,7 +87,12 @@ class ControlSession(private val onEvent: (JSONObject) -> Unit) : Closeable {
         command("send", JSONObject().put("message", message))
         return id
     }
-    fun writeTs(bytes: ByteArray): Int = if (closed.get() || failed.get()) -1 else NativeCore.writeTs(handle, bytes)
+    /** Synchronous borrow only: the caller must not retain or mutate the mux buffer. */
+    fun writeTs(bytes: java.nio.ByteBuffer): Int {
+        if (closed.get() || failed.get()) return -1
+        if (!bytes.isDirect || bytes.position() != 0 || bytes.limit() != bytes.capacity()) return -2
+        return NativeCore.writeTs(handle, bytes)
+    }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         NativeCore.shutdown(handle)

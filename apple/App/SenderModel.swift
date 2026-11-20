@@ -18,6 +18,7 @@ final class SenderModel: ObservableObject {
     @Published var broadcastPrepared = false
     @Published var fileConnection = false
     @Published var fileShared = false
+    @Published var fileReady = false
     @Published var devices: [DiscoveredReceiver] = []
     @Published var selectedDevice = ""
     enum PairingAction: Equatable { case file, mirror, broadcast }
@@ -45,7 +46,7 @@ final class SenderModel: ObservableObject {
     private var broadcastMonitor: Timer?
     #endif
     init() {
-        sender.status = { [weak self] value in self?.status = value; self?.connected = self?.sender.connected ?? false; self?.connecting = self?.sender.connecting ?? false }
+        sender.status = { [weak self] value in self?.status = value; self?.connected = self?.sender.connected ?? false; self?.connecting = self?.sender.connecting ?? false; self?.fileReady = self?.sender.fileReady ?? false }
         sender.ended = { [weak self] in self?.stopCapture() }
     }
     private func ticket() throws -> BroadcastTicket {
@@ -210,7 +211,7 @@ final class SenderModel: ObservableObject {
     }
     #endif
     private func stopCapture() {
-        generation = UUID(); connected = false; connecting = false; fileConnection = false; fileShared = false
+        generation = UUID(); connected = false; connecting = false; fileConnection = false; fileShared = false; fileReady = false
         #if os(macOS)
         Task { await capture.stop() }
         #endif

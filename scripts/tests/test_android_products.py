@@ -17,6 +17,11 @@ SENDER_MANIFEST = '''E: uses-permission
 E: service
   A: android:name(0x01010003)="dev.lancast.sender.CaptureService"
   A: android:foregroundServiceType(0x01010599)=(type 0x11)0x20
+E: uses-permission
+  A: android:name(0x01010003)="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
+E: service
+  A: android:name(0x01010003)="dev.lancast.sender.FileShareService"
+  A: android:foregroundServiceType(0x01010599)=(type 0x11)0x10
 '''
 
 
@@ -132,6 +137,15 @@ class AndroidProductsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "AirPlay native"):
                 verify_apk(apk, standard, CONFIG, metadata(standard), "")
 
+    def test_sender_requires_a_foreground_owner_for_file_sharing(self):
+        sender = PRODUCTS[0]
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "sender.apk"
+            make_apk(apk, sender)
+            for missing in (".FileShareService", "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"):
+                with self.assertRaisesRegex(ValueError, "File service"):
+                    verify_apk(apk, sender, CONFIG, metadata(sender), SENDER_MANIFEST.replace(missing, ""))
+
     def test_extra_native_libraries_also_require_page_alignment(self):
         standard = PRODUCTS[1]
         with tempfile.TemporaryDirectory() as directory:
@@ -147,9 +161,9 @@ class AndroidProductsTests(unittest.TestCase):
             verify_elf(elf("arm64-v8a")[:-1], "arm64-v8a")
 
     def test_jni_verification_rejects_renamed_methods_and_wrong_descriptors(self):
-        expected = {"onTs([B)I"}
-        verify_jni_listing("Sink", expected, ".method public abstract onTs([B)I\n.end method\n")
-        for listing in (".method public a([B)I", ".method public onTs([B)V", 'const-string v0, "onTs([B)I"'):
+        expected = {"onTs(Ljava/nio/ByteBuffer;)I"}
+        verify_jni_listing("Sink", expected, ".method public abstract onTs(Ljava/nio/ByteBuffer;)I\n.end method\n")
+        for listing in (".method public a([B)I", ".method public onTs(Ljava/nio/ByteBuffer;)V", 'const-string v0, "onTs(Ljava/nio/ByteBuffer;)I"'):
             with self.assertRaisesRegex(ValueError, "missing or renamed JNI"):
                 verify_jni_listing("Sink", expected, listing)
         sender = jni_contracts(PRODUCTS[0])

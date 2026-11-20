@@ -28,7 +28,7 @@ final class CoreIntegrationTests: XCTestCase {
         }
         sender = try CoreSession { event in
             let body = event.object("body")
-            if event.string("type") == "connected" { sender.send("session.start", session: nil, body: ["mode": "mirror", "audioRequested": false]) }
+            if event.string("type") == "connected" { sender.send("session.start", session: nil, body: ["mode": "mirror"]) }
             if event.string("type") == "message", body.string("type") == "session.accepted" {
                 if closeConnection { sender.close() }
                 else { sender.send("session.stop", session: body.string("sessionId"), body: ["reason": "test_complete"]) }

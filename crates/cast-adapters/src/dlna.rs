@@ -24,12 +24,7 @@ pub struct Renderer {
     #[serde(default)]
     pub signature: String,
 }
-pub fn lan_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(ip) => ip.is_private() || ip.is_link_local(),
-        IpAddr::V6(ip) => ip.is_unique_local() || ip.is_unicast_link_local(),
-    }
-}
+pub use crate::network::lan_ip;
 pub fn checked_url(raw: &str, source: IpAddr) -> anyhow::Result<Url> {
     let url = Url::parse(raw)?;
     ensure!(

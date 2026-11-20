@@ -53,12 +53,12 @@ def jni_contracts(product):
     """Project-owned native lookups that must survive R8, including callback descriptors."""
     contracts = {"dev.lancast.control.NativeCore": {
         "create()J", "command(JLjava/lang/String;)I", "poll(J)Ljava/lang/String;",
-        "waitPoll(JI)Ljava/lang/String;", "shutdown(J)V", "destroy(J)V", "writeTs(J[B)I",
+        "waitPoll(JI)Ljava/lang/String;", "shutdown(J)V", "destroy(J)V", "writeTs(JLjava/nio/ByteBuffer;)I", "shareFile(JILjava/lang/String;)I",
     }}
     if product.role == "sender":
         contracts.update({
             "dev.lancast.sender.TsMux": {"create(IIZLdev/lancast/sender/TsMux$Sink;)J", "write(JZ[BJ)I", "destroy(J)V"},
-            "dev.lancast.sender.TsMux$Sink": {"onTs([B)I"},
+            "dev.lancast.sender.TsMux$Sink": {"onTs(Ljava/nio/ByteBuffer;)I"},
         })
     if product.airplay:
         contracts["dev.lancast.airplay.NativeEngine"] = {
@@ -100,6 +100,10 @@ def verify_apk(apk, product, config, metadata, manifest):
     require(capture == (product.role == "sender"), "Capture service role mismatch")
     require(("android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" in manifest) == (product.role == "sender"),
             "Capture permission role mismatch")
+    file_service = re.search(r'"(?:dev\.lancast\.sender)?\.FileShareService"', manifest) is not None
+    require(file_service == (product.role == "sender"), "File service role mismatch")
+    require(("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" in manifest) == (product.role == "sender"),
+            "File service permission role mismatch")
     require("BOOT_COMPLETED" not in manifest, "Products must never start capture or AirPlay on boot")
     with zipfile.ZipFile(apk) as archive:
         names = archive.namelist()

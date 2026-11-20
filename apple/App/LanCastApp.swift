@@ -142,9 +142,9 @@ struct ContentView: View {
                     Button("连接以发送文件", action: sender.connectFile).disabled(sender.connectionLocked)
                     Button("选择 MP4") { importing = true }.disabled(!sender.connected || !sender.fileConnection || sender.fileShared)
                 }
-                HStack { Button("播放") { sender.playback("play") }; Button("暂停") { sender.playback("pause") } }.disabled(!sender.connected || !sender.fileConnection || !sender.fileShared)
-                HStack { TextField("跳转秒数", value: $sender.position, format: .number); Button("跳转") { sender.playback("seek") } }.disabled(!sender.connected || !sender.fileConnection || !sender.fileShared)
-                Slider(value: $sender.volume, in: 0...1) { Text("播放音量") }.onChange(of: sender.volume) { _ in sender.playback("volume") }.disabled(!sender.connected || !sender.fileConnection || !sender.fileShared)
+                HStack { Button("播放") { sender.playback("play") }; Button("暂停") { sender.playback("pause") } }.disabled(!sender.connected || !sender.fileConnection || !sender.fileReady)
+                HStack { TextField("跳转秒数", value: $sender.position, format: .number); Button("跳转") { sender.playback("seek") } }.disabled(!sender.connected || !sender.fileConnection || !sender.fileReady)
+                Slider(value: $sender.volume, in: 0...1) { Text("播放音量") }.onChange(of: sender.volume) { _ in sender.playback("volume") }.disabled(!sender.connected || !sender.fileConnection || !sender.fileReady)
                 Button("停止当前分享", action: sender.stop)
                 Text(sender.status)
             }

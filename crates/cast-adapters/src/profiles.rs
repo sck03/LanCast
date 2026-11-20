@@ -49,7 +49,8 @@ pub struct ProfileStore {
     document: Document,
 }
 impl ProfileStore {
-    pub fn open(path: PathBuf) -> anyhow::Result<Self> {
+    #[cfg(test)]
+    fn open(path: PathBuf) -> anyhow::Result<Self> {
         Self::open_checked(path, || Ok(()))
     }
     pub(crate) fn open_checked(
@@ -83,7 +84,8 @@ impl ProfileStore {
                 && e.source == "user_confirmed_synthetic"
         })
     }
-    pub fn save(&mut self, id: String, evidence: Evidence) -> anyhow::Result<()> {
+    #[cfg(test)]
+    fn save(&mut self, id: String, evidence: Evidence) -> anyhow::Result<()> {
         self.save_checked(id, evidence, || Ok(()))
     }
     pub(crate) fn save_checked(

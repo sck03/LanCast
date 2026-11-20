@@ -2,5 +2,5 @@
 -keep class dev.lancast.sender.TsMux { *; }
 -keep interface dev.lancast.sender.TsMux$Sink { *; }
 -keepclassmembers class * implements dev.lancast.sender.TsMux$Sink {
-    public int onTs(byte[]);
+    public int onTs(java.nio.ByteBuffer);
 }

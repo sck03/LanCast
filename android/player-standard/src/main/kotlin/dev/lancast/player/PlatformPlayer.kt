@@ -11,7 +11,7 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
-import dev.lancast.control.pinnedHttp
+import dev.lancast.player.standard.pinnedHttp
 
 /** Shared implementation, compiled separately against each flavor's Media3 version. */
 class PlatformPlayer(private val context: Context, private val event: (String) -> Unit) : FilePlayer {

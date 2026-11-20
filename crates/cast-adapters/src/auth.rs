@@ -1,8 +1,7 @@
 use anyhow::{Context, ensure};
-use base64::{
-    Engine,
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
-};
+#[cfg(any(feature = "file-sender", feature = "file-proxy"))]
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::{Engine, engine::general_purpose::STANDARD};
 use p256::{
     ecdsa::{
         Signature, SigningKey, VerifyingKey,
@@ -33,6 +32,7 @@ pub fn valid_pairing_code(value: &str) -> bool {
 pub fn random_token() -> String {
     STANDARD.encode(random_secret())
 }
+#[cfg(any(feature = "file-sender", feature = "file-proxy"))]
 pub(crate) fn random_url_token() -> String {
     URL_SAFE_NO_PAD.encode(random_secret())
 }
@@ -201,6 +201,7 @@ pub fn pinned_config(fingerprint: &str) -> anyhow::Result<rustls::ClientConfig> 
 mod tests {
     use super::*;
     #[test]
+    #[cfg(any(feature = "file-sender", feature = "file-proxy"))]
     fn media_tokens_are_url_safe_and_keep_all_256_bits() {
         let token = random_url_token();
         assert_eq!(token.len(), 43);

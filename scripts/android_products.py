@@ -36,7 +36,7 @@ class Product:
 PRODUCTS = (
     Product("sender", "Sender", "sender", "app-sender", "", "dev.lancast.sender", 29, ("sender",)),
     Product("receiver-standard", "Receiver Standard", "receiver", "app-receiver", "standard", "dev.lancast.receiver", 23),
-    Product("receiver-legacy", "Receiver Legacy", "receiver", "app-receiver", "legacy", "dev.lancast.receiver.legacy", 21, ("legacy",)),
+    Product("receiver-legacy", "Receiver Legacy", "receiver", "app-receiver", "legacy", "dev.lancast.receiver.legacy", 21, ("file-proxy",)),
     Product("receiver-airplay", "Receiver AirPlay", "receiver", "app-receiver", "airplay", "dev.lancast.receiver.airplay", 23),
 )
 SELECTION_LABELS = {

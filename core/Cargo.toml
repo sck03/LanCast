@@ -11,8 +11,11 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 
 [features]
 default = ["sender"]
-sender = ["cast-adapters/sender"]
-legacy = ["cast-adapters/legacy"]
+sender = ["file-sender", "dlna-live"]
+file-sender = ["cast-adapters/file-sender"]
+dlna = ["cast-adapters/dlna"]
+dlna-live = ["dlna", "cast-adapters/dlna-live"]
+file-proxy = ["cast-adapters/file-proxy"]
 
 [dependencies]
 cast-adapters = { path = "../crates/cast-adapters", default-features = false }
